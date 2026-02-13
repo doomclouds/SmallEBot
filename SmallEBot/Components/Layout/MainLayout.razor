@@ -1,23 +1,30 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
 
-<div class="page">
-    <div class="sidebar">
-        <NavMenu />
-    </div>
+<MudThemeProvider Theme="_theme" />
+<MudDialogProvider />
+<MudSnackbarProvider />
 
-    <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
-        </div>
+<MudLayout>
+    <MudAppBar Elevation="1">
+        <MudText Typo="Typo.h6">SmallEBot</MudText>
+        <MudSpacer />
+        @if (!string.IsNullOrEmpty(_userName))
+        {
+            <MudText Typo="Typo.body2">@_userName</MudText>
+        }
+    </MudAppBar>
+    <MudMainContent>
+        @Body
+    </MudMainContent>
+</MudLayout>
 
-        <article class="content px-4">
-            @Body
-        </article>
-    </main>
-</div>
+@code {
+    private MudTheme _theme = new();
+    private string? _userName;
 
-<div id="blazor-error-ui" data-nosnippet>
-    An unhandled error has occurred.
-    <a href="." class="reload">Reload</a>
-    <span class="dismiss">🗙</span>
-</div>
+    public void SetUserName(string? name)
+    {
+        _userName = name;
+        StateHasChanged();
+    }
+}

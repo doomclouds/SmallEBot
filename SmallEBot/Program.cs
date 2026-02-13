@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using MudBlazor.Services;
 using SmallEBot.Components;
 using SmallEBot.Data;
 using SmallEBot.Services;
@@ -9,6 +10,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=smallebot.db"));
 builder.Services.AddScoped<ConversationService>();
 builder.Services.AddScoped<AgentService>();
+builder.Services.AddMudServices();
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
