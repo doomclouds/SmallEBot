@@ -9,12 +9,12 @@
     </MudDrawerHeader>
     <MudNavMenu>
         <MudMenuItem Icon="@Icons.Material.Filled.Add" OnClick="CreateNew">New</MudMenuItem>
-        <MudList T="Conversation" Dense="true">
+        <MudList T="Conversation" Dense="true"
+                 SelectedValue="@_selectedConversation"
+                 SelectedValueChanged="HandleSelectionChanged">
             @foreach (var c in _conversations)
             {
-                <MudListItem T="Conversation" Value="@c"
-                             Selected="@(SelectedId == c.Id)"
-                             OnClick="@(() => SelectConversation(c.Id))">
+                <MudListItem T="Conversation" Value="@c">
                     <div class="d-flex justify-space-between align-center" style="width:100%">
                         <div>
                             <MudText Typo="Typo.body1">@(string.IsNullOrEmpty(c.Title) ? "新对话" : c.Title)</MudText>
@@ -40,6 +40,12 @@
 
     private bool _open = true;
     private List<Conversation> _conversations = new();
+    private Conversation? _selectedConversation => _conversations.FirstOrDefault(c => c.Id == SelectedId);
+
+    private async Task HandleSelectionChanged(Conversation? c)
+    {
+        if (c != null) await OnSelect.InvokeAsync(c.Id);
+    }
 
     protected override async Task OnParametersSetAsync()
     {

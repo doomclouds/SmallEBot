@@ -17,8 +17,8 @@
 </MudDialog>
 
 @code {
-    [CascadingParameter] IDialogReference? MudDialog { get; set; }
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
     private string _userName = "";
 
-    private void Submit() => MudDialog?.Close(DialogResult.Ok(_userName.Trim()));
+    private void Submit() => MudDialog.Close(DialogResult.Ok(_userName.Trim()));
 }
