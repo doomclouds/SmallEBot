@@ -13,7 +13,8 @@
 else
 {
     <MudLayout>
-        <ConversationSidebar UserName="_userName"
+        <ConversationSidebar Conversations="_conversations"
+                             UserName="_userName"
                              SelectedId="_selectedId"
                              OnSelect="OnSelectConversation"
                              OnCreate="OnCreateConversation"
@@ -39,6 +40,7 @@ else
     private string? _userName;
     private Guid? _selectedId;
     private Conversation? _selectedConversation;
+    private List<Conversation> _conversations = new();
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -62,9 +64,9 @@ else
     private async Task LoadConversations()
     {
         if (string.IsNullOrEmpty(_userName)) return;
-        var list = await ConvSvc.GetListAsync(_userName);
-        if (list.Count > 0 && !_selectedId.HasValue)
-            await OnSelectConversation(list[0].Id);
+        _conversations = await ConvSvc.GetListAsync(_userName);
+        if (_conversations.Count > 0 && !_selectedId.HasValue)
+            await OnSelectConversation(_conversations[0].Id);
     }
 
     private async Task OnSelectConversation(Guid id)
@@ -77,6 +79,7 @@ else
     private async Task OnCreateConversation()
     {
         var c = await ConvSvc.CreateAsync(_userName!);
+        _conversations.Insert(0, c);
         _selectedId = c.Id;
         _selectedConversation = c;
         StateHasChanged();
@@ -94,6 +97,7 @@ else
 
     private async Task RefreshSidebar()
     {
+        _conversations = await ConvSvc.GetListAsync(_userName!);
         if (_selectedId.HasValue)
             _selectedConversation = await ConvSvc.GetByIdAsync(_selectedId.Value, _userName!);
         await InvokeAsync(StateHasChanged);

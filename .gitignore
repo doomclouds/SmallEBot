@@ -52,6 +52,9 @@ appsettings.*.json
 *.db-shm
 *.db-wal
 
+# Local persisted username (first-time dialog)
+smallebot-username.txt
+
 # Secrets (do not commit)
 secrets.json
 *.pfx

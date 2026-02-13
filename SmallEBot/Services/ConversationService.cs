@@ -38,8 +38,12 @@ public class ConversationService
 
     public async Task<bool> DeleteAsync(Guid id, string userName, CancellationToken ct = default)
     {
-        var c = await _db.Conversations.FirstOrDefaultAsync(x => x.Id == id && x.UserName == userName, ct);
+        if (string.IsNullOrWhiteSpace(userName)) return false;
+        var c = await _db.Conversations
+            .Include(x => x.Messages)
+            .FirstOrDefaultAsync(x => x.Id == id && x.UserName == userName, ct);
         if (c == null) return false;
+        _db.ChatMessages.RemoveRange(c.Messages);
         _db.Conversations.Remove(c);
         await _db.SaveChangesAsync(ct);
         return true;

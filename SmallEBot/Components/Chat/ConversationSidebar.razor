@@ -1,6 +1,8 @@
 @using SmallEBot.Data.Entities
 @using SmallEBot.Services
 @inject ConversationService ConvSvc
+@inject UserNameService UserNameSvc
+@inject IDialogService DialogSvc
 @inject ISnackbar Snackbar
 
 <MudDrawer Open="@_open" Variant="DrawerVariant.Persistent" Anchor="Anchor.Left">
@@ -12,7 +14,7 @@
         <MudList T="Conversation" Dense="true"
                  SelectedValue="@_selectedConversation"
                  SelectedValueChanged="HandleSelectionChanged">
-            @foreach (var c in _conversations)
+            @foreach (var c in Conversations)
             {
                 <MudListItem T="Conversation" Value="@c">
                     <div class="d-flex justify-space-between align-center" style="width:100%">
@@ -33,6 +35,7 @@
 </MudDrawer>
 
 @code {
+    [Parameter] public List<Conversation> Conversations { get; set; } = new();
     [Parameter] public Guid? SelectedId { get; set; }
     [Parameter] public EventCallback<Guid> OnSelect { get; set; }
     [Parameter] public EventCallback<Guid> OnDelete { get; set; }
@@ -41,38 +44,37 @@
     [Parameter] public bool Open { get; set; } = true;
 
     private bool _open = true;
-    private List<Conversation> _conversations = new();
-    private Conversation? _selectedConversation => _conversations.FirstOrDefault(c => c.Id == SelectedId);
+    private Conversation? _selectedConversation => Conversations.FirstOrDefault(c => c.Id == SelectedId);
 
     private async Task HandleSelectionChanged(Conversation? c)
     {
         if (c != null) await OnSelect.InvokeAsync(c.Id);
     }
 
-    protected override async Task OnParametersSetAsync()
+    protected override void OnParametersSet()
     {
         _open = Open;
-        if (!string.IsNullOrEmpty(UserName))
-            await LoadAsync();
-    }
-
-    public async Task LoadAsync()
-    {
-        _conversations = await ConvSvc.GetListAsync(UserName);
-        StateHasChanged();
     }
 
     private async Task CreateNew() => await OnCreate.InvokeAsync();
 
     private async Task DeleteConversation(Guid id)
     {
-        var ok = await ConvSvc.DeleteAsync(id, UserName);
-        if (ok)
+        var dialog = await DialogSvc.ShowAsync<DeleteConversationDialog>("Delete conversation");
+        var result = await dialog.Result;
+        if (result == null || result.Canceled || result.Data is not true)
+            return;
+
+        var userName = UserNameSvc.CurrentDisplayName ?? UserName;
+        if (string.IsNullOrWhiteSpace(userName))
         {
-            await OnDelete.InvokeAsync(id);
-            await LoadAsync();
+            Snackbar.Add("Username missing, cannot delete.", Severity.Warning);
+            return;
         }
+        var ok = await ConvSvc.DeleteAsync(id, userName);
+        if (ok)
+            await OnDelete.InvokeAsync(id);
         else
-            Snackbar.Add("Delete failed", Severity.Error);
+            Snackbar.Add("Delete failed (conversation not found or access denied).", Severity.Error);
     }
 }

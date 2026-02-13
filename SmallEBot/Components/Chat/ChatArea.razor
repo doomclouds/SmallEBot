@@ -1,9 +1,13 @@
 @using SmallEBot.Data.Entities
 @using SmallEBot.Services
 @inject AgentService AgentSvc
+@inject UserNameService UserNameSvc
+@inject IJSRuntime JS
 @inject ISnackbar Snackbar
 
 <MudPaper Class="pa-4" Elevation="2">
+    <div @ref="_chatScrollRef"
+         style="overflow-y: auto; max-height: 72vh; padding-right: 4px;">
     @if (Messages.Any())
     {
         @foreach (var m in Messages)
@@ -18,6 +22,16 @@
             </MudChat>
         }
     }
+    @* Optimistic user message: show immediately when sent, until parent refreshes with persisted messages *@
+    @if (!string.IsNullOrEmpty(_pendingUserMessage))
+    {
+        <MudChat ChatPosition="ChatBubblePosition.End" ArrowPosition="ChatArrowPosition.Top" Class="mb-3">
+            <MudChatBubble>
+                <MudText Typo="Typo.caption">You · @_pendingUserMessageTime.ToString("g")</MudText>
+                <MudText Typo="Typo.body1">@_pendingUserMessage</MudText>
+            </MudChatBubble>
+        </MudChat>
+    }
     @if (_streaming)
     {
         <MudChat ChatPosition="ChatBubblePosition.Start" ArrowPosition="ChatArrowPosition.Top" Class="mb-3">
@@ -27,6 +41,7 @@
             </MudChatBubble>
         </MudChat>
     }
+    </div>
 
     <MudStack Row="true" Spacing="2" Class="mt-4">
         <MudTextField @bind-Value="_input"
@@ -50,26 +65,47 @@
     [Parameter] public string UserName { get; set; } = "";
     [Parameter] public EventCallback OnMessageSent { get; set; }
 
+    private ElementReference _chatScrollRef;
     private string _input = "";
     private bool _streaming;
     private string _streamingText = "";
+    private string _pendingUserMessage = "";
+    private DateTime _pendingUserMessageTime;
+    private bool _scrollToBottomRequested;
 
     private async Task Send()
     {
         if (string.IsNullOrWhiteSpace(_input) || !ConversationId.HasValue) return;
         var msg = _input.Trim();
         _input = "";
+        _pendingUserMessage = msg;
+        _pendingUserMessageTime = DateTime.UtcNow;
         _streaming = true;
         _streamingText = "";
+        _scrollToBottomRequested = true;
         StateHasChanged();
 
+        var persisted = false;
         try
         {
-            await foreach (var chunk in AgentSvc.SendMessageStreamingAsync(ConversationId!.Value, UserName, msg))
+            // Use the same username as entered in dialog / persisted (source of truth), not only the Parameter
+            var userName = UserNameSvc.CurrentDisplayName ?? UserName;
+            if (string.IsNullOrWhiteSpace(userName))
+            {
+                Snackbar.Add("Username is missing. Please refresh and enter your name.", Severity.Warning);
+                _pendingUserMessage = "";
+                _streaming = false;
+                await InvokeAsync(StateHasChanged);
+                return;
+            }
+            await foreach (var chunk in AgentSvc.SendMessageStreamingAsync(ConversationId!.Value, userName, msg))
             {
                 _streamingText += chunk;
+                _scrollToBottomRequested = true;
                 StateHasChanged();
             }
+            await AgentSvc.PersistMessagesAsync(ConversationId!.Value, userName, msg, _streamingText);
+            persisted = true;
         }
         catch (Exception ex)
         {
@@ -77,10 +113,40 @@
         }
         finally
         {
-            // Refresh parent first so Messages includes the new assistant reply before we hide streaming bubble
-            await OnMessageSent.InvokeAsync();
+            if (persisted)
+            {
+                await OnMessageSent.InvokeAsync();
+                _pendingUserMessage = "";
+            }
             _streaming = false;
+            _scrollToBottomRequested = true;
             await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        // Scroll to bottom when switching to another conversation
+        if (ConversationId.HasValue && ConversationId != _lastConversationId)
+        {
+            _lastConversationId = ConversationId;
+            if (Messages.Count > 0)
+                _scrollToBottomRequested = true;
+        }
+    }
+
+    private Guid? _lastConversationId;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_scrollToBottomRequested || _streaming)
+        {
+            _scrollToBottomRequested = false;
+            try
+            {
+                await JS.InvokeVoidAsync("SmallEBot.scrollChatToBottom", _chatScrollRef);
+            }
+            catch { /* ignore if JS not loaded or disconnected */ }
         }
     }
 

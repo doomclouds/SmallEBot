@@ -71,28 +71,31 @@ public class AgentService
             .ToList();
         frameworkMessages.Add(new ChatMessage(ChatRole.User, userMessage));
 
-        try
+        await foreach (var update in agent.RunStreamingAsync(frameworkMessages, null, null, ct))
         {
-            await foreach (var update in agent.RunStreamingAsync(frameworkMessages, null, null, ct))
+            var text = update?.Text ?? update?.ToString() ?? "";
+            if (!string.IsNullOrEmpty(text))
             {
-                var text = update?.Text ?? update?.ToString() ?? "";
-                if (!string.IsNullOrEmpty(text))
-                {
-                    fullText += text;
-                    yield return text;
-                }
+                fullText += text;
+                yield return text;
             }
         }
-        catch (Exception ex)
-        {
-            _log.LogError(ex, "Agent streaming failed for conversation {ConversationId}", conversationId);
-            throw;
-        }
+        // Caller must call PersistMessagesAsync(conversationId, userName, userMessage, fullText) after stream completes
+    }
 
-        // Persist user + assistant messages, generate title if first message
+    /// <summary>Persist user and assistant messages; call after streaming completes.</summary>
+    public async Task PersistMessagesAsync(
+        Guid conversationId,
+        string userName,
+        string userMessage,
+        string assistantMessage,
+        CancellationToken ct = default)
+    {
         var conv = await _db.Conversations
             .FirstOrDefaultAsync(x => x.Id == conversationId && x.UserName == userName, ct);
-        if (conv == null) yield break;
+        if (conv == null) return;
+
+        var msgCountBefore = await _convSvc.GetMessageCountAsync(conversationId, ct);
 
         _db.ChatMessages.Add(new Data.Entities.ChatMessage
         {
@@ -107,12 +110,11 @@ public class AgentService
             Id = Guid.NewGuid(),
             ConversationId = conversationId,
             Role = "assistant",
-            Content = fullText,
+            Content = assistantMessage,
             CreatedAt = DateTime.UtcNow
         });
         conv.UpdatedAt = DateTime.UtcNow;
 
-        var msgCountBefore = await _convSvc.GetMessageCountAsync(conversationId, ct);
         if (msgCountBefore == 0)
         {
             var title = await GenerateTitleAsync(userMessage, ct);
