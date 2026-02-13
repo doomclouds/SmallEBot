@@ -1,0 +1,89 @@
+@using SmallEBot.Data.Entities
+@using SmallEBot.Services
+@inject AgentService AgentSvc
+@inject ISnackbar Snackbar
+
+<MudPaper Class="pa-4" Elevation="2">
+    @if (Messages.Any())
+    {
+        @foreach (var m in Messages)
+        {
+            <MudChat ChatPosition="@(m.Role == "user" ? ChatBubblePosition.End : ChatBubblePosition.Start)"
+                     ArrowPosition="ChatArrowPosition.Top"
+                     Class="mb-3">
+                <MudChatBubble>
+                    <MudText Typo="Typo.caption">@(m.Role == "user" ? "You" : "SmallEBot") · @m.CreatedAt.ToString("g")</MudText>
+                    <MudText Typo="Typo.body1">@m.Content</MudText>
+                </MudChatBubble>
+            </MudChat>
+        }
+    }
+    @if (_streaming)
+    {
+        <MudChat ChatPosition="ChatBubblePosition.Start" ArrowPosition="ChatArrowPosition.Top" Class="mb-3">
+            <MudChatBubble>
+                <MudText Typo="Typo.caption">SmallEBot · @DateTime.Now.ToString("g")</MudText>
+                <MudText Typo="Typo.body1">@_streamingText</MudText>
+            </MudChatBubble>
+        </MudChat>
+    }
+
+    <MudStack Row="true" Spacing="2" Class="mt-4">
+        <MudTextField @bind-Value="_input"
+                      Label="Message"
+                      Variant="Variant.Outlined"
+                      FullWidth="true"
+                      Immediate="true"
+                      OnKeyDown="OnKeyDown" />
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   OnClick="Send"
+                   Disabled="@(_streaming || string.IsNullOrWhiteSpace(_input))">
+            Send
+        </MudButton>
+    </MudStack>
+</MudPaper>
+
+@code {
+    [Parameter] public List<ChatMessage> Messages { get; set; } = new();
+    [Parameter] public Guid? ConversationId { get; set; }
+    [Parameter] public string UserName { get; set; } = "";
+    [Parameter] public EventCallback OnMessageSent { get; set; }
+
+    private string _input = "";
+    private bool _streaming;
+    private string _streamingText = "";
+
+    private async Task Send()
+    {
+        if (string.IsNullOrWhiteSpace(_input) || !ConversationId.HasValue) return;
+        var msg = _input.Trim();
+        _input = "";
+        _streaming = true;
+        _streamingText = "";
+        StateHasChanged();
+
+        try
+        {
+            await foreach (var chunk in AgentSvc.SendMessageStreamingAsync(ConversationId!.Value, UserName, msg))
+            {
+                _streamingText += chunk;
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _streaming = false;
+            await OnMessageSent.InvokeAsync();
+        }
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey) await Send();
+    }
+}
