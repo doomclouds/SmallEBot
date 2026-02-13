@@ -1,11 +1,13 @@
 using Microsoft.EntityFrameworkCore;
 using SmallEBot.Components;
 using SmallEBot.Data;
+using SmallEBot.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=smallebot.db"));
+builder.Services.AddScoped<ConversationService>();
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
