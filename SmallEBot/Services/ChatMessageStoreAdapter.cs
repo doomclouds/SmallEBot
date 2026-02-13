@@ -21,9 +21,9 @@ public class ChatMessageStoreAdapter
 
     /// <summary>
     /// Load chat messages for the conversation, ordered by CreatedAt.
-    /// Used when building AgentThread from persisted history (Task 13).
+    /// Used when building agent input with persisted history (Task 13).
     /// </summary>
-    public async Task<List<ChatMessage>> LoadMessagesAsync(CancellationToken ct = default) =>
+    public async Task<List<Data.Entities.ChatMessage>> LoadMessagesAsync(CancellationToken ct = default) =>
         await _db.ChatMessages
             .Where(x => x.ConversationId == _conversationId)
             .OrderBy(x => x.CreatedAt)

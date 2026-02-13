@@ -7,6 +7,7 @@ using OpenAI;
 using OpenAI.Chat;
 using SmallEBot.Data;
 using SmallEBot.Data.Entities;
+using ChatMessage = Microsoft.Extensions.AI.ChatMessage;
 
 namespace SmallEBot.Services;
 
@@ -62,7 +63,15 @@ public class AgentService
         var agent = GetAgent();
         var fullText = "";
 
-        await foreach (var update in agent.RunStreamingAsync(userMessage, null, null, ct))
+        // Load history and build message list for context
+        var store = new ChatMessageStoreAdapter(_db, conversationId);
+        var history = await store.LoadMessagesAsync(ct);
+        var frameworkMessages = history
+            .Select(m => new ChatMessage(ToChatRole(m.Role), m.Content))
+            .ToList();
+        frameworkMessages.Add(new ChatMessage(ChatRole.User, userMessage));
+
+        await foreach (var update in agent.RunStreamingAsync(frameworkMessages, null, null, ct))
         {
             var text = update?.Text ?? update?.ToString() ?? "";
             if (!string.IsNullOrEmpty(text))
@@ -104,6 +113,14 @@ public class AgentService
 
         await _db.SaveChangesAsync(ct);
     }
+
+    private static ChatRole ToChatRole(string role) => role?.ToLowerInvariant() switch
+    {
+        "user" => ChatRole.User,
+        "assistant" => ChatRole.Assistant,
+        "system" => ChatRole.System,
+        _ => ChatRole.User
+    };
 
     public async Task<string> GenerateTitleAsync(string firstMessage, CancellationToken ct = default)
     {
