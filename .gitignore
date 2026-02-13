@@ -49,6 +49,8 @@ appsettings.*.json
 
 # SQLite
 *.db
+*.db-shm
+*.db-wal
 
 # Secrets (do not commit)
 secrets.json
