@@ -47,6 +47,9 @@ appsettings.*.json
 !appsettings.json
 !appsettings.Development.json
 
+# SQLite
+*.db
+
 # Secrets (do not commit)
 secrets.json
 *.pfx
