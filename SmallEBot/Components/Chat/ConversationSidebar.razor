@@ -20,9 +20,11 @@
                             <MudText Typo="Typo.body1">@(string.IsNullOrEmpty(c.Title) ? "新对话" : c.Title)</MudText>
                             <MudText Typo="Typo.caption">@c.UpdatedAt.ToString("g")</MudText>
                         </div>
-                        <MudIconButton Icon="@Icons.Material.Filled.Delete"
-                                       Size="Size.Small"
-                                       OnClick="@(() => DeleteConversation(c.Id))" />
+                        <div @onclick="() => { }" @onclick:stopPropagation="true">
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                           Size="Size.Small"
+                                           OnClick="@(() => DeleteConversation(c.Id))" />
+                        </div>
                     </div>
                 </MudListItem>
             }
@@ -61,7 +63,7 @@
     }
 
     private async Task CreateNew() => await OnCreate.InvokeAsync();
-    private async Task SelectConversation(Guid id) => await OnSelect.InvokeAsync(id);
+
     private async Task DeleteConversation(Guid id)
     {
         var ok = await ConvSvc.DeleteAsync(id, UserName);

@@ -71,14 +71,22 @@ public class AgentService
             .ToList();
         frameworkMessages.Add(new ChatMessage(ChatRole.User, userMessage));
 
-        await foreach (var update in agent.RunStreamingAsync(frameworkMessages, null, null, ct))
+        try
         {
-            var text = update?.Text ?? update?.ToString() ?? "";
-            if (!string.IsNullOrEmpty(text))
+            await foreach (var update in agent.RunStreamingAsync(frameworkMessages, null, null, ct))
             {
-                fullText += text;
-                yield return text;
+                var text = update?.Text ?? update?.ToString() ?? "";
+                if (!string.IsNullOrEmpty(text))
+                {
+                    fullText += text;
+                    yield return text;
+                }
             }
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Agent streaming failed for conversation {ConversationId}", conversationId);
+            throw;
         }
 
         // Persist user + assistant messages, generate title if first message

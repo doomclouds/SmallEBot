@@ -77,8 +77,10 @@
         }
         finally
         {
-            _streaming = false;
+            // Refresh parent first so Messages includes the new assistant reply before we hide streaming bubble
             await OnMessageSent.InvokeAsync();
+            _streaming = false;
+            await InvokeAsync(StateHasChanged);
         }
     }
 
