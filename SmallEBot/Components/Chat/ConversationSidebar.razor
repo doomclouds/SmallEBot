@@ -1,0 +1,70 @@
+@using SmallEBot.Data.Entities
+@using SmallEBot.Services
+@inject ConversationService ConvSvc
+@inject ISnackbar Snackbar
+
+<MudDrawer Open="@_open" Variant="DrawerVariant.Persistent" Anchor="Anchor.Left">
+    <MudDrawerHeader>
+        <MudText Typo="Typo.h6">Conversations</MudText>
+    </MudDrawerHeader>
+    <MudNavMenu>
+        <MudMenuItem Icon="@Icons.Material.Filled.Add" OnClick="CreateNew">New</MudMenuItem>
+        <MudList T="Conversation" Dense="true">
+            @foreach (var c in _conversations)
+            {
+                <MudListItem T="Conversation" Value="@c"
+                             Selected="@(SelectedId == c.Id)"
+                             OnClick="@(() => SelectConversation(c.Id))">
+                    <div class="d-flex justify-space-between align-center" style="width:100%">
+                        <div>
+                            <MudText Typo="Typo.body1">@(string.IsNullOrEmpty(c.Title) ? "新对话" : c.Title)</MudText>
+                            <MudText Typo="Typo.caption">@c.UpdatedAt.ToString("g")</MudText>
+                        </div>
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                       Size="Size.Small"
+                                       OnClick="@(() => DeleteConversation(c.Id))" />
+                    </div>
+                </MudListItem>
+            }
+        </MudList>
+    </MudNavMenu>
+</MudDrawer>
+
+@code {
+    [Parameter] public Guid? SelectedId { get; set; }
+    [Parameter] public EventCallback<Guid> OnSelect { get; set; }
+    [Parameter] public EventCallback<Guid> OnDelete { get; set; }
+    [Parameter] public EventCallback OnCreate { get; set; }
+    [Parameter] public string UserName { get; set; } = "";
+    [Parameter] public bool Open { get; set; } = true;
+
+    private bool _open = true;
+    private List<Conversation> _conversations = new();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _open = Open;
+        if (!string.IsNullOrEmpty(UserName))
+            await LoadAsync();
+    }
+
+    public async Task LoadAsync()
+    {
+        _conversations = await ConvSvc.GetListAsync(UserName);
+        StateHasChanged();
+    }
+
+    private async Task CreateNew() => await OnCreate.InvokeAsync();
+    private async Task SelectConversation(Guid id) => await OnSelect.InvokeAsync(id);
+    private async Task DeleteConversation(Guid id)
+    {
+        var ok = await ConvSvc.DeleteAsync(id, UserName);
+        if (ok)
+        {
+            await OnDelete.InvokeAsync(id);
+            await LoadAsync();
+        }
+        else
+            Snackbar.Add("Delete failed", Severity.Error);
+    }
+}
