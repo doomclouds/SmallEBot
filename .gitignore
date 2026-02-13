@@ -1,0 +1,62 @@
+# Build outputs
+[Dd]ebug/
+[Rr]elease/
+[Bb]in/
+[Oo]bj/
+
+# NuGet
+*.nupkg
+*.snupkg
+.nuget/packages/
+
+# User-specific files
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Visual Studio
+.vs/
+*.vspscc
+
+# Rider
+.idea/
+*.sln.iml
+
+# VS Code
+.vscode/
+
+# Publish output
+[Dd]ocker-[Ll]ogs/
+[Pp]ublish/
+
+# Test results
+[Tt]est[Rr]esult*/
+[Tt]est[Rr]esults/
+*.trx
+*.coverage
+*.coveragexml
+
+# Logs
+*.log
+logs/
+
+# ASP.NET Core
+appsettings.*.json
+!appsettings.json
+!appsettings.Development.json
+
+# Secrets (do not commit)
+secrets.json
+*.pfx
+
+# OS files
+.DS_Store
+Thumbs.db
+
+openclaw-main
+.cursor/
+
+# Git worktrees (subagent-driven-development)
+.worktrees/
