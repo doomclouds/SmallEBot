@@ -1,0 +1,97 @@
+@page "/"
+@layout MainLayout
+@using SmallEBot.Data.Entities
+@using SmallEBot.Services
+@inject UserNameService UserNameSvc
+@inject ConversationService ConvSvc
+@inject IDialogService DialogSvc
+
+@if (string.IsNullOrEmpty(_userName))
+{
+    <p>Loading...</p>
+}
+else
+{
+    <MudLayout>
+        <ConversationSidebar UserName="_userName"
+                             SelectedId="_selectedId"
+                             OnSelect="OnSelectConversation"
+                             OnCreate="OnCreateConversation"
+                             OnDelete="OnDeleteConversation"
+                             Open="true" />
+        <MudMainContent>
+            @if (_selectedConversation != null)
+            {
+                <ChatArea Messages="_selectedConversation.Messages.ToList()"
+                          ConversationId="_selectedConversation.Id"
+                          UserName="_userName"
+                          OnMessageSent="RefreshSidebar" />
+            }
+            else
+            {
+                <MudText>Select or create a conversation.</MudText>
+            }
+        </MudMainContent>
+    </MudLayout>
+}
+
+@code {
+    private string? _userName;
+    private Guid? _selectedId;
+    private Conversation? _selectedConversation;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _userName = await UserNameSvc.GetAsync();
+        if (string.IsNullOrEmpty(_userName))
+        {
+            var dialog = await DialogSvc.ShowAsync<UserNameDialog>("Welcome");
+            var result = await dialog.Result;
+            if (result == null || result.Canceled || result.Data == null || string.IsNullOrWhiteSpace(result.Data as string))
+                return;
+            _userName = (result.Data as string)!.Trim();
+            await UserNameSvc.SetAsync(_userName);
+        }
+        await LoadConversations();
+    }
+
+    private async Task LoadConversations()
+    {
+        if (string.IsNullOrEmpty(_userName)) return;
+        var list = await ConvSvc.GetListAsync(_userName);
+        if (list.Count > 0 && !_selectedId.HasValue)
+            await OnSelectConversation(list[0].Id);
+    }
+
+    private async Task OnSelectConversation(Guid id)
+    {
+        _selectedId = id;
+        _selectedConversation = await ConvSvc.GetByIdAsync(id, _userName!);
+        StateHasChanged();
+    }
+
+    private async Task OnCreateConversation()
+    {
+        var c = await ConvSvc.CreateAsync(_userName!);
+        _selectedId = c.Id;
+        _selectedConversation = c;
+        StateHasChanged();
+    }
+
+    private async Task OnDeleteConversation(Guid id)
+    {
+        if (_selectedId == id)
+        {
+            _selectedId = null;
+            _selectedConversation = null;
+        }
+        await LoadConversations();
+    }
+
+    private async Task RefreshSidebar()
+    {
+        if (_selectedId.HasValue)
+            _selectedConversation = await ConvSvc.GetByIdAsync(_selectedId.Value, _userName!);
+        await InvokeAsync(StateHasChanged);
+    }
+}
