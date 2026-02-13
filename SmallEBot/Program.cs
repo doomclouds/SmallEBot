@@ -8,6 +8,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=smallebot.db"));
 builder.Services.AddScoped<ConversationService>();
+builder.Services.AddScoped<AgentService>();
 
 // Add services to the container.
 builder.Services.AddRazorComponents()

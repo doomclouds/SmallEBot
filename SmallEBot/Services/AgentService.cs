@@ -1,0 +1,124 @@
+using System.ClientModel;
+using System.Runtime.CompilerServices;
+using Microsoft.Agents.AI;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.AI;
+using OpenAI;
+using OpenAI.Chat;
+using SmallEBot.Data;
+using SmallEBot.Data.Entities;
+
+namespace SmallEBot.Services;
+
+public class AgentService
+{
+    private readonly AppDbContext _db;
+    private readonly ConversationService _convSvc;
+    private readonly IConfiguration _config;
+    private readonly ILogger<AgentService> _log;
+    private AIAgent? _agent;
+
+    public AgentService(
+        AppDbContext db,
+        ConversationService convSvc,
+        IConfiguration config,
+        ILogger<AgentService> log)
+    {
+        _db = db;
+        _convSvc = convSvc;
+        _config = config;
+        _log = log;
+    }
+
+    private AIAgent GetAgent()
+    {
+        if (_agent != null) return _agent;
+
+        var apiKey = Environment.GetEnvironmentVariable("DeepseekKey");
+        if (string.IsNullOrEmpty(apiKey))
+        {
+            _log.LogWarning("DeepseekKey environment variable is not set.");
+        }
+
+        var baseUrl = _config["DeepSeek:BaseUrl"] ?? "https://api.deepseek.com";
+        var model = _config["DeepSeek:Model"] ?? "deepseek-chat";
+
+        var options = new OpenAIClientOptions { Endpoint = new Uri(baseUrl) };
+        var client = new OpenAIClient(new ApiKeyCredential(apiKey ?? ""), options);
+        var chatClient = client.GetChatClient(model);
+        var ichatClient = chatClient.AsIChatClient();
+        _agent = new ChatClientAgent(ichatClient,
+            instructions: "You are SmallEBot, a helpful personal assistant. Be concise and friendly.",
+            name: "SmallEBot");
+        return _agent;
+    }
+
+    public async IAsyncEnumerable<string> SendMessageStreamingAsync(
+        Guid conversationId,
+        string userName,
+        string userMessage,
+        [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        var agent = GetAgent();
+        var fullText = "";
+
+        await foreach (var update in agent.RunStreamingAsync(userMessage, null, null, ct))
+        {
+            var text = update?.Text ?? update?.ToString() ?? "";
+            if (!string.IsNullOrEmpty(text))
+            {
+                fullText += text;
+                yield return text;
+            }
+        }
+
+        // Persist user + assistant messages, generate title if first message
+        var conv = await _db.Conversations
+            .FirstOrDefaultAsync(x => x.Id == conversationId && x.UserName == userName, ct);
+        if (conv == null) yield break;
+
+        _db.ChatMessages.Add(new Data.Entities.ChatMessage
+        {
+            Id = Guid.NewGuid(),
+            ConversationId = conversationId,
+            Role = "user",
+            Content = userMessage,
+            CreatedAt = DateTime.UtcNow
+        });
+        _db.ChatMessages.Add(new Data.Entities.ChatMessage
+        {
+            Id = Guid.NewGuid(),
+            ConversationId = conversationId,
+            Role = "assistant",
+            Content = fullText,
+            CreatedAt = DateTime.UtcNow
+        });
+        conv.UpdatedAt = DateTime.UtcNow;
+
+        var msgCountBefore = await _convSvc.GetMessageCountAsync(conversationId, ct);
+        if (msgCountBefore == 0)
+        {
+            var title = await GenerateTitleAsync(userMessage, ct);
+            conv.Title = title;
+        }
+
+        await _db.SaveChangesAsync(ct);
+    }
+
+    public async Task<string> GenerateTitleAsync(string firstMessage, CancellationToken ct = default)
+    {
+        var agent = GetAgent();
+        var prompt = $"Generate a very short title (under 20 chars, no quotes) for a conversation that starts with: {firstMessage}";
+        try
+        {
+            var result = await agent.RunAsync(prompt, null, null, ct);
+            var t = (result?.Text ?? result?.ToString() ?? "").Trim();
+            if (t.Length > 20) t = t[..20];
+            return string.IsNullOrEmpty(t) ? "新对话" : t;
+        }
+        catch
+        {
+            return firstMessage.Length > 20 ? firstMessage[..20] + "…" : (firstMessage ?? "新对话");
+        }
+    }
+}
