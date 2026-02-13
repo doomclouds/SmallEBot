@@ -1,0 +1,24 @@
+@using MudBlazor
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">Welcome to SmallEBot</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_userName"
+                     Label="Enter your name"
+                     Required
+                     RequiredError="Name is required"
+                     Immediate="true" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Submit">Start</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IDialogReference? MudDialog { get; set; }
+    private string _userName = "";
+
+    private void Submit() => MudDialog?.Close(DialogResult.Ok(_userName.Trim()));
+}

@@ -10,6 +10,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=smallebot.db"));
 builder.Services.AddScoped<ConversationService>();
 builder.Services.AddScoped<AgentService>();
+builder.Services.AddScoped<UserNameService>();
 builder.Services.AddMudServices();
 
 // Add services to the container.
