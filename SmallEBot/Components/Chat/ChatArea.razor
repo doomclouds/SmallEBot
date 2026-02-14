@@ -4,6 +4,7 @@
 @inject MarkdownService MarkdownSvc
 @inject IJSRuntime JS
 @inject ISnackbar Snackbar
+@inject ILogger<ChatArea> Log
 
 <MudPaper Class="pa-4 smallebot-chat-paper" Elevation="0">
     <div @ref="_chatScrollRef" class="smallebot-chat-scroll">
@@ -227,6 +228,7 @@
         StateHasChanged();
 
         var persisted = false;
+        Guid turnId = default;
         try
         {
             var userName = UserNameSvc.CurrentDisplayName ?? UserName;
@@ -238,6 +240,7 @@
                 await InvokeAsync(StateHasChanged);
                 return;
             }
+            turnId = await AgentSvc.CreateTurnAndUserMessageAsync(ConversationId!.Value, userName, msg, UseThinkingMode);
             await foreach (var update in AgentSvc.SendMessageStreamingAsync(ConversationId!.Value, msg, UseThinkingMode))
             {
                 switch (update)
@@ -272,12 +275,24 @@
             }
             if (segments.Count == 0 && !string.IsNullOrEmpty(_streamingText))
                 segments.Add(new AssistantSegment(IsText: true, Text: _streamingText));
-            await AgentSvc.PersistMessagesAsync(ConversationId!.Value, userName, msg, segments);
+            await AgentSvc.CompleteTurnWithAssistantAsync(ConversationId!.Value, turnId, segments);
             persisted = true;
         }
         catch (Exception ex)
         {
             Snackbar.Add($"Error: {ex.Message}", Severity.Error);
+            if (turnId != default)
+            {
+                try
+                {
+                    await AgentSvc.CompleteTurnWithErrorAsync(ConversationId!.Value, turnId, ex.Message);
+                    persisted = true;
+                }
+                catch (Exception persistEx)
+                {
+                    Log.LogError(persistEx, "Failed to persist error message for turn {TurnId}", turnId);
+                }
+            }
         }
         finally
         {

@@ -193,33 +193,68 @@ public class AgentService(
         }
     }
 
-    /// <summary>Persist user message and ordered assistant segments (text and tool calls) with CreatedAt for timeline.</summary>
-    public async Task PersistMessagesAsync(
+    /// <summary>Creates a turn and persists the user message. Call before streaming. Returns turn Id.</summary>
+    public async Task<Guid> CreateTurnAndUserMessageAsync(
         Guid conversationId,
         string userName,
         string userMessage,
-        IReadOnlyList<AssistantSegment> assistantSegments,
+        bool useThinking,
         CancellationToken ct = default)
     {
         var conv = await db.Conversations
             .FirstOrDefaultAsync(x => x.Id == conversationId && x.UserName == userName, ct);
-        if (conv == null) return;
+        if (conv == null)
+            throw new InvalidOperationException("Conversation not found.");
 
         var msgCountBefore = await convSvc.GetMessageCountAsync(conversationId, ct);
         var baseTime = DateTime.UtcNow;
+
+        var turn = new ConversationTurn
+        {
+            Id = Guid.NewGuid(),
+            ConversationId = conversationId,
+            IsThinkingMode = useThinking,
+            CreatedAt = baseTime
+        };
+        db.ConversationTurns.Add(turn);
+        baseTime = baseTime.AddMilliseconds(1);
 
         db.ChatMessages.Add(new Data.Entities.ChatMessage
         {
             Id = Guid.NewGuid(),
             ConversationId = conversationId,
+            TurnId = turn.Id,
             Role = "user",
             Content = userMessage,
             CreatedAt = baseTime
         });
-        baseTime = baseTime.AddMilliseconds(1);
 
+        conv.UpdatedAt = DateTime.UtcNow;
+        if (msgCountBefore == 0)
+        {
+            var title = await GenerateTitleAsync(userMessage, ct);
+            conv.Title = title;
+        }
+
+        await db.SaveChangesAsync(ct);
+        return turn.Id;
+    }
+
+    /// <summary>Persist assistant segments for an existing turn.</summary>
+    public async Task CompleteTurnWithAssistantAsync(
+        Guid conversationId,
+        Guid turnId,
+        IReadOnlyList<AssistantSegment> assistantSegments,
+        CancellationToken ct = default)
+    {
+        var conv = await db.Conversations
+            .FirstOrDefaultAsync(x => x.Id == conversationId, ct);
+        if (conv == null) return;
+
+        var baseTime = DateTime.UtcNow;
         var toolOrder = 0;
         var thinkOrder = 0;
+
         foreach (var seg in assistantSegments)
         {
             if (seg.IsText && !string.IsNullOrEmpty(seg.Text))
@@ -228,6 +263,7 @@ public class AgentService(
                 {
                     Id = Guid.NewGuid(),
                     ConversationId = conversationId,
+                    TurnId = turnId,
                     Role = "assistant",
                     Content = seg.Text,
                     CreatedAt = baseTime
@@ -239,6 +275,7 @@ public class AgentService(
                 {
                     Id = Guid.NewGuid(),
                     ConversationId = conversationId,
+                    TurnId = turnId,
                     Content = seg.Text,
                     SortOrder = thinkOrder++,
                     CreatedAt = baseTime
@@ -250,6 +287,7 @@ public class AgentService(
                 {
                     Id = Guid.NewGuid(),
                     ConversationId = conversationId,
+                    TurnId = turnId,
                     ToolName = seg.ToolName ?? "",
                     Arguments = seg.Arguments,
                     Result = seg.Result,
@@ -261,13 +299,32 @@ public class AgentService(
         }
 
         conv.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync(ct);
+    }
 
-        if (msgCountBefore == 0)
+    /// <summary>Persist an error message as the assistant reply for the turn.</summary>
+    public async Task CompleteTurnWithErrorAsync(
+        Guid conversationId,
+        Guid turnId,
+        string errorMessage,
+        CancellationToken ct = default)
+    {
+        var conv = await db.Conversations
+            .FirstOrDefaultAsync(x => x.Id == conversationId, ct);
+        if (conv == null) return;
+
+        var content = "Error: " + (string.IsNullOrEmpty(errorMessage) ? "Unknown error" : errorMessage);
+        db.ChatMessages.Add(new Data.Entities.ChatMessage
         {
-            var title = await GenerateTitleAsync(userMessage, ct);
-            conv.Title = title;
-        }
+            Id = Guid.NewGuid(),
+            ConversationId = conversationId,
+            TurnId = turnId,
+            Role = "assistant",
+            Content = content,
+            CreatedAt = DateTime.UtcNow
+        });
 
+        conv.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
     }
 
