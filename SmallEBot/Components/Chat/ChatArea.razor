@@ -1,4 +1,5 @@
 @using SmallEBot.Models
+@using SmallEBot.Services
 @inject AgentService AgentSvc
 @inject UserNameService UserNameSvc
 @inject MarkdownService MarkdownSvc
@@ -27,76 +28,76 @@
             }
             else if (group is AssistantMessageGroup asstGroup)
             {
-                var segments = GetHistoryDisplayFromItems(asstGroup.Items);
-                var blocks = GetHistoryDisplayBlocks(segments);
+                var result = ReasoningSegmenter.SegmentTurn(asstGroup.Items, asstGroup.IsThinkingMode);
                 var firstCreatedAt = asstGroup.Items.Count > 0 ? asstGroup.Items[0].CreatedAt : DateTime.UtcNow;
-                <MudChat ChatPosition="ChatBubblePosition.Start" ArrowPosition="ChatArrowPosition.Top" Class="mb-3 smallebot-bubble">
+                var isError = IsErrorReply(asstGroup.Items);
+                var bubbleClass = isError ? "mb-3 smallebot-bubble smallebot-assistant-error" : "mb-3 smallebot-bubble";
+                <MudChat ChatPosition="ChatBubblePosition.Start" ArrowPosition="ChatArrowPosition.Top" Class="@bubbleClass">
                     <MudChatBubble>
                         <MudText Typo="Typo.caption">SmallEBot · @firstCreatedAt.ToString("g")</MudText>
-                        @foreach (var block in blocks)
+                        @foreach (var block in result.ReasoningBlocks)
                         {
-                            @if (block.ReasoningSteps is { Count: > 0 } steps)
-                            {
-                                var toolCount = steps.Count(x => !x.IsThink);
-                                var panelTitle = toolCount > 0 ? $"💭 推理过程 (含 {toolCount} 次工具调用)" : "💭 推理过程";
-                                <MudExpansionPanels Class="mt-2" Elevation="0">
-                                    <MudExpansionPanel expanded="false" Text="@panelTitle">
-                                        <div class="d-flex flex-column gap-2">
-                                            @foreach (var step in steps)
+                            var toolCount = block.Count(x => !x.IsThink);
+                            var panelTitle = toolCount > 0 ? $"💭 推理过程 (含 {toolCount} 次工具调用)" : "💭 推理过程";
+                            <MudExpansionPanels Class="mt-2" Elevation="0">
+                                <MudExpansionPanel expanded="false" Text="@panelTitle">
+                                    <div class="d-flex flex-column gap-2">
+                                        @foreach (var step in block)
+                                        {
+                                            if (step.IsThink)
                                             {
-                                                if (step.IsThink)
-                                                {
-                                                    <div class="smallebot-reasoning-step">
-                                                        <MudText Typo="Typo.caption" Class="mb-1 smallebot-reasoning-label">思考</MudText>
-                                                        @if (!string.IsNullOrEmpty(step.Text))
-                                                        {
-                                                            <div class="markdown-body smallebot-reasoning-body">@((MarkupString)MarkdownSvc.ToHtml(step.Text))</div>
-                                                        }
-                                                    </div>
-                                                }
-                                                else if (ShowToolCalls)
-                                                {
-                                                    <div class="smallebot-reasoning-step">
-                                                        <MudExpansionPanels Elevation="0" Class="pa-0">
-                                                            <MudExpansionPanel expanded="false" Text="@($"🔧 {step.ToolName ?? "Tool"}")">
-                                                                @if (!string.IsNullOrEmpty(step.ToolArguments))
-                                                                {
-                                                                    <div class="mt-1 d-block"><MudText Typo="Typo.caption">Arguments:</MudText><pre class="d-inline">@step.ToolArguments</pre></div>
-                                                                }
-                                                                @if (!string.IsNullOrEmpty(step.ToolResult))
-                                                                {
-                                                                    <div class="mt-1 d-block"><MudText Typo="Typo.caption">Result:</MudText><pre class="d-inline">@step.ToolResult</pre></div>
-                                                                }
-                                                            </MudExpansionPanel>
-                                                        </MudExpansionPanels>
-                                                    </div>
-                                                }
+                                                <div class="smallebot-reasoning-step">
+                                                    <MudText Typo="Typo.caption" Class="mb-1 smallebot-reasoning-label">思考</MudText>
+                                                    @if (!string.IsNullOrEmpty(step.Text))
+                                                    {
+                                                        <div class="markdown-body smallebot-reasoning-body">@((MarkupString)MarkdownSvc.ToHtml(step.Text))</div>
+                                                    }
+                                                </div>
                                             }
-                                        </div>
-                                    </MudExpansionPanel>
-                                </MudExpansionPanels>
-                            }
-                            else if (block.ToolSegment != null && ShowToolCalls)
+                                            else if (ShowToolCalls)
+                                            {
+                                                <div class="smallebot-reasoning-step">
+                                                    <MudExpansionPanels Elevation="0" Class="pa-0">
+                                                        <MudExpansionPanel expanded="false" Text="@($"🔧 {step.ToolName ?? "Tool"}")">
+                                                            @if (!string.IsNullOrEmpty(step.ToolArguments))
+                                                            {
+                                                                <div class="mt-1 d-block"><MudText Typo="Typo.caption">Arguments:</MudText><pre class="d-inline">@step.ToolArguments</pre></div>
+                                                            }
+                                                            @if (!string.IsNullOrEmpty(step.ToolResult))
+                                                            {
+                                                                <div class="mt-1 d-block"><MudText Typo="Typo.caption">Result:</MudText><pre class="d-inline">@step.ToolResult</pre></div>
+                                                            }
+                                                        </MudExpansionPanel>
+                                                    </MudExpansionPanels>
+                                                </div>
+                                            }
+                                        }
+                                    </div>
+                                </MudExpansionPanel>
+                            </MudExpansionPanels>
+                        }
+                        @foreach (var seg in result.ReplySegments)
+                        {
+                            @if (seg.IsText && !string.IsNullOrEmpty(seg.Text))
                             {
-                                var step = block.ToolSegment;
+                                <div class="markdown-body">@((MarkupString)MarkdownSvc.ToHtml(seg.Text))</div>
+                            }
+                            else if (!seg.IsText && ShowToolCalls)
+                            {
                                 <div class="mt-2">
                                     <MudExpansionPanels Elevation="0" Class="pa-0">
-                                        <MudExpansionPanel expanded="false" Text="@($"🔧 {step.ToolName ?? "Tool"}")">
-                                            @if (!string.IsNullOrEmpty(step.ToolArguments))
+                                        <MudExpansionPanel expanded="false" Text="@($"🔧 {seg.ToolName ?? "Tool"}")">
+                                            @if (!string.IsNullOrEmpty(seg.ToolArguments))
                                             {
-                                                <div class="mt-1 d-block"><MudText Typo="Typo.caption">Arguments:</MudText><pre class="d-inline">@step.ToolArguments</pre></div>
+                                                <div class="mt-1 d-block"><MudText Typo="Typo.caption">Arguments:</MudText><pre class="d-inline">@seg.ToolArguments</pre></div>
                                             }
-                                            @if (!string.IsNullOrEmpty(step.ToolResult))
+                                            @if (!string.IsNullOrEmpty(seg.ToolResult))
                                             {
-                                                <div class="mt-1 d-block"><MudText Typo="Typo.caption">Result:</MudText><pre class="d-inline">@step.ToolResult</pre></div>
+                                                <div class="mt-1 d-block"><MudText Typo="Typo.caption">Result:</MudText><pre class="d-inline">@seg.ToolResult</pre></div>
                                             }
                                         </MudExpansionPanel>
                                     </MudExpansionPanels>
                                 </div>
-                            }
-                            else if (block.Text != null)
-                            {
-                                <div class="markdown-body">@((MarkupString)MarkdownSvc.ToHtml(block.Text))</div>
                             }
                         }
                     </MudChatBubble>
@@ -339,82 +340,12 @@
         if (e is { Key: "Enter", ShiftKey: false }) await Send();
     }
 
-    /// <summary>Ordered list of segments (think / tool / text) for display. 推理过程 = think only; tools shown separately in order.</summary>
-    private static List<HistoryDisplaySegment> GetHistoryDisplayFromItems(IReadOnlyList<TimelineItem> items)
+    /// <summary>Detects if the assistant group is a single error message (Content starts with "Error: ").</summary>
+    private static bool IsErrorReply(IReadOnlyList<TimelineItem> items)
     {
-        var list = new List<HistoryDisplaySegment>();
-        foreach (var item in items)
-        {
-            if (item.Message is { Role: "assistant" } && !string.IsNullOrEmpty(item.Message.Content))
-                list.Add(new HistoryDisplaySegment { IsText = true, Text = item.Message.Content });
-            else if (item.ThinkBlock != null)
-                list.Add(new HistoryDisplaySegment { IsThink = true, Text = item.ThinkBlock.Content });
-            else if (item.ToolCall != null)
-                list.Add(new HistoryDisplaySegment { IsTool = true, ToolName = item.ToolCall.ToolName, ToolArguments = item.ToolCall.Arguments, ToolResult = item.ToolCall.Result });
-        }
-        return list;
-    }
-
-    private sealed class HistoryDisplaySegment
-    {
-        public bool IsThink { get; init; }
-        public bool IsTool { get; init; }
-        public bool IsText { get; init; }
-        public string? Text { get; init; }
-        public string? ToolName { get; init; }
-        public string? ToolArguments { get; init; }
-        public string? ToolResult { get; init; }
-    }
-
-    /// <summary>Thinking mode: one 推理过程 block (think-tool-think-tool) then text-tool-text-tool. Non-thinking: no 推理过程, only text-tool-text-tool order.</summary>
-    private static List<HistoryDisplayBlock> GetHistoryDisplayBlocks(List<HistoryDisplaySegment> segments)
-    {
-        var hasThink = segments.Any(s => s.IsThink);
-        var blocks = new List<HistoryDisplayBlock>();
-        if (hasThink)
-        {
-            // Thinking mode: reasoning block = all think + tool until first text
-            var reasoningSteps = new List<ReasoningStep>();
-            var i = 0;
-            for (; i < segments.Count && !segments[i].IsText; i++)
-            {
-                var seg = segments[i];
-                if (seg.IsThink)
-                    reasoningSteps.Add(new ReasoningStep { IsThink = true, Text = seg.Text });
-                else if (seg.IsTool)
-                    reasoningSteps.Add(new ReasoningStep { IsThink = false, ToolName = seg.ToolName, ToolArguments = seg.ToolArguments, ToolResult = seg.ToolResult });
-            }
-            if (reasoningSteps.Count > 0)
-                blocks.Add(new HistoryDisplayBlock { ReasoningSteps = reasoningSteps });
-            for (; i < segments.Count; i++)
-            {
-                var seg = segments[i];
-                if (seg.IsTool)
-                    blocks.Add(new HistoryDisplayBlock { ToolSegment = seg });
-                else if (seg.IsText && !string.IsNullOrEmpty(seg.Text))
-                    blocks.Add(new HistoryDisplayBlock { Text = seg.Text });
-            }
-        }
-        else
-        {
-            // Non-thinking mode: no 推理过程, only text-tool-text-tool in order
-            foreach (var seg in segments)
-            {
-                if (seg.IsTool)
-                    blocks.Add(new HistoryDisplayBlock { ToolSegment = seg });
-                else if (seg.IsText && !string.IsNullOrEmpty(seg.Text))
-                    blocks.Add(new HistoryDisplayBlock { Text = seg.Text });
-            }
-        }
-        return blocks;
-    }
-
-    private sealed class HistoryDisplayBlock
-    {
-        /// <summary>Thinking mode only: think-tool-think-tool inside 推理过程.</summary>
-        public List<ReasoningStep>? ReasoningSteps { get; init; }
-        public HistoryDisplaySegment? ToolSegment { get; init; }
-        public string? Text { get; init; }
+        if (items.Count != 1) return false;
+        var item = items[0];
+        return item.Message is { Role: "assistant" } msg && (msg.Content?.StartsWith("Error: ", StringComparison.Ordinal) ?? false);
     }
 
     private sealed class ReasoningStep

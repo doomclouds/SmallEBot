@@ -194,6 +194,15 @@ html, body {
     background: var(--seb-chat-user) !important;
     border-color: var(--seb-border);
 }
+
+/* Error reply styling when assistant message starts with "Error: " */
+.smallebot-assistant-error .mud-chat-bubble {
+    border-color: #dc2626 !important;
+    background: rgba(220, 38, 38, 0.12) !important;
+}
+.smallebot-assistant-error .markdown-body {
+    color: #f87171;
+}
 .smallebot-chat-paper .mud-chat-bubble .mud-chat-bubble-message {
     font-family: var(--seb-font-body);
 }
