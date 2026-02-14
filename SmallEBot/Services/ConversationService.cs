@@ -96,6 +96,7 @@ public class ConversationService(AppDbContext db)
         if (string.IsNullOrWhiteSpace(userName)) return false;
         var c = await db.Conversations
             .AsSplitQuery()
+            .Include(c => c.Turns)
             .Include(x => x.Messages)
             .Include(x => x.ToolCalls)
             .Include(x => x.ThinkBlocks)
@@ -104,6 +105,7 @@ public class ConversationService(AppDbContext db)
         db.ChatMessages.RemoveRange(c.Messages);
         db.ToolCalls.RemoveRange(c.ToolCalls);
         db.ThinkBlocks.RemoveRange(c.ThinkBlocks);
+        db.ConversationTurns.RemoveRange(c.Turns);
         db.Conversations.Remove(c);
         await db.SaveChangesAsync(ct);
         return true;
