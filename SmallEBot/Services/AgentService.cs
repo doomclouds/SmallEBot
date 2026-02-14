@@ -35,12 +35,38 @@ public class AgentService(
         var options = new OpenAIClientOptions { Endpoint = new Uri(baseUrl) };
         var client = new OpenAIClient(new ApiKeyCredential(apiKey ?? ""), options);
         var chatClient = client.GetChatClient(model).AsIChatClient();
+
+        var tools = new List<AITool> { AIFunctionFactory.Create(GetCurrentTime) };
+        var mcpSection = config.GetSection("mcpServers");
+        if (mcpSection.Exists())
+        {
+            foreach (var child in mcpSection.GetChildren())
+            {
+                var type = child["type"]?.ToString();
+                if (type == "stdio")
+                {
+                    log.LogInformation("MCP stdio server '{Name}' configured but not loaded in this phase.", child.Key);
+                    continue;
+                }
+                if (type == "http")
+                {
+                    var url = child["url"]?.ToString();
+                    if (string.IsNullOrEmpty(url))
+                    {
+                        log.LogWarning("MCP http server '{Name}' has no url, skipped.", child.Key);
+                        continue;
+                    }
+                    log.LogInformation("MCP http server '{Name}' at {Url} configured (tool loading requires async init, skipped in this phase).", child.Key, url);
+                }
+            }
+        }
+
         _agent = new ChatClientAgent(
             chatClient,
             instructions: "You are SmallEBot, a helpful personal assistant. Be concise and friendly. When the user asks for the current time or date, use the GetCurrentTime tool.",
             name: "SmallEBot",
             description: null,
-            tools: [AIFunctionFactory.Create(GetCurrentTime)],
+            tools: tools,
             loggerFactory: null,
             services: null);
         return _agent;
