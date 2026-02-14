@@ -55,7 +55,8 @@ For DeepSeek via Anthropic API:
 
 - **`ANTHROPIC_BASE_URL`** — `https://api.deepseek.com/anthropic` (required for DeepSeek; default Anthropic URL otherwise)
 - **`ANTHROPIC_API_KEY`** — DeepSeek API key (or fallback from `DeepseekKey` in code)
-- **`ANTHROPIC_DEPLOYMENT_NAME`** — model name, e.g. `deepseek-chat` (optional; can default in code)
+- **`DeepSeek:Model`** — model for non-thinking mode, default `deepseek-chat`
+- **`DeepSeek:ThinkingModel`** — model for thinking mode, default `deepseek-reasoner` (native reasoning)
 
 ---
 

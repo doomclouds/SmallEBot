@@ -30,15 +30,18 @@ public class ConversationService(AppDbContext db)
 
     public async Task<Conversation?> GetByIdAsync(Guid id, string userName, CancellationToken ct = default) =>
         await db.Conversations
+            .AsSplitQuery()
             .Include(x => x.Messages.OrderBy(m => m.CreatedAt))
             .Include(x => x.ToolCalls.OrderBy(t => t.CreatedAt))
+            .Include(x => x.ThinkBlocks.OrderBy(b => b.CreatedAt))
             .FirstOrDefaultAsync(x => x.Id == id && x.UserName == userName, ct);
 
-    /// <summary>Returns conversation timeline (messages and tool calls) sorted by CreatedAt.</summary>
+    /// <summary>Returns conversation timeline (messages, tool calls, think blocks) sorted by CreatedAt.</summary>
     public static List<TimelineItem> GetTimeline(Conversation conv)
     {
-        var list = conv.Messages.Select(m => new TimelineItem(m, null))
-            .Concat(conv.ToolCalls.Select(t => new TimelineItem(null, t)))
+        var list = conv.Messages.Select(m => new TimelineItem(m, null, null))
+            .Concat(conv.ToolCalls.Select(t => new TimelineItem(null, t, null)))
+            .Concat(conv.ThinkBlocks.Select(b => new TimelineItem(null, null, b)))
             .OrderBy(x => x.CreatedAt)
             .ToList();
         return list;
@@ -75,12 +78,15 @@ public class ConversationService(AppDbContext db)
     {
         if (string.IsNullOrWhiteSpace(userName)) return false;
         var c = await db.Conversations
+            .AsSplitQuery()
             .Include(x => x.Messages)
             .Include(x => x.ToolCalls)
+            .Include(x => x.ThinkBlocks)
             .FirstOrDefaultAsync(x => x.Id == id && x.UserName == userName, ct);
         if (c == null) return false;
         db.ChatMessages.RemoveRange(c.Messages);
         db.ToolCalls.RemoveRange(c.ToolCalls);
+        db.ThinkBlocks.RemoveRange(c.ThinkBlocks);
         db.Conversations.Remove(c);
         await db.SaveChangesAsync(ct);
         return true;

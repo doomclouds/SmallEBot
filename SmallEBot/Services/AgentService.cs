@@ -3,7 +3,6 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Anthropic;
 using Anthropic.Core;
-using Anthropic.Models.Messages;
 using Microsoft.Agents.AI;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
@@ -118,6 +117,7 @@ public class AgentService(
 
         var baseUrl = config["Anthropic:BaseUrl"] ?? config["DeepSeek:AnthropicBaseUrl"] ?? "https://api.deepseek.com/anthropic";
         var model = config["Anthropic:Model"] ?? config["DeepSeek:Model"] ?? "deepseek-chat";
+        var thinkingModel = config["Anthropic:ThinkingModel"] ?? config["DeepSeek:ThinkingModel"] ?? "deepseek-reasoner";
         var tools = await EnsureToolsAsync(ct);
 
         if (useThinking)
@@ -125,23 +125,11 @@ public class AgentService(
             if (_agentWithThinking != null) return _agentWithThinking;
             var clientOptions = new ClientOptions { ApiKey = apiKey ?? "", BaseUrl = baseUrl };
             var anthropicClient = new AnthropicClient(clientOptions);
-            var thinkingTokens = 2048;
             _agentWithThinking = anthropicClient.AsAIAgent(
-                model: model,
+                model: thinkingModel,
                 name: "SmallEBot",
                 instructions: AgentInstructions,
-                tools: tools,
-                clientFactory: (chatClient) => chatClient
-                    .AsBuilder()
-                    .ConfigureOptions(
-                        options => options.RawRepresentationFactory = (_) => new MessageCreateParams
-                        {
-                            Model = options.ModelId ?? model,
-                            MaxTokens = options.MaxOutputTokens ?? 4096,
-                            Messages = [],
-                            Thinking = new ThinkingConfigParam(new ThinkingConfigEnabled(thinkingTokens))
-                        })
-                    .Build());
+                tools: tools);
             return _agentWithThinking;
         }
 
@@ -232,6 +220,7 @@ public class AgentService(
         baseTime = baseTime.AddMilliseconds(1);
 
         var toolOrder = 0;
+        var thinkOrder = 0;
         foreach (var seg in assistantSegments)
         {
             if (seg.IsText && !string.IsNullOrEmpty(seg.Text))
@@ -245,7 +234,18 @@ public class AgentService(
                     CreatedAt = baseTime
                 });
             }
-            else if (!seg.IsText)
+            else if (seg.IsThink && !string.IsNullOrEmpty(seg.Text))
+            {
+                db.ThinkBlocks.Add(new Data.Entities.ThinkBlock
+                {
+                    Id = Guid.NewGuid(),
+                    ConversationId = conversationId,
+                    Content = seg.Text,
+                    SortOrder = thinkOrder++,
+                    CreatedAt = baseTime
+                });
+            }
+            else if (!seg.IsText && !seg.IsThink)
             {
                 db.ToolCalls.Add(new ToolCall
                 {

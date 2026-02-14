@@ -197,6 +197,12 @@ html, body {
 .smallebot-chat-paper .mud-chat-bubble .mud-chat-bubble-message {
     font-family: var(--seb-font-body);
 }
+.smallebot-reasoning-step {
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--seb-border);
+}
+.smallebot-reasoning-step:last-child { border-bottom: none; }
+
 .smallebot-chat-paper .mud-chat-bubble .mud-typography-caption {
     color: var(--seb-text-secondary);
     font-family: var(--seb-font-ui);

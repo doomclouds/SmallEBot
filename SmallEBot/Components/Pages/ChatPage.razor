@@ -29,7 +29,7 @@ else
                         <ChatArea Groups="@(ConversationService.GetMessageGroups(_selectedConversation!))"
                                   ConversationId="_selectedConversation.Id"
                                   UserName="_userName"
-                                  OnMessageSent="RefreshSidebarOnly"
+                                  OnMessageSent="RefreshSidebar"
                                   OnBeforeSend="RefreshCurrentConversation" />
                     </div>
                 </div>
