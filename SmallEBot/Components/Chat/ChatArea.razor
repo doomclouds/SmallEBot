@@ -38,28 +38,11 @@
                         {
                             var toolCount = block.Count(x => !x.IsThink);
                             var panelTitle = toolCount > 0 ? $"💭 推理过程 (含 {toolCount} 次工具调用)" : "💭 推理过程";
+                            var stepViews = block.Select(ToReasoningStepView).ToList();
                             <MudExpansionPanels Class="mt-2" Elevation="0">
                                 <MudExpansionPanel expanded="false" Text="@panelTitle">
                                     <div class="d-flex flex-column gap-2">
-                                        @foreach (var step in block)
-                                        {
-                                            if (step.IsThink)
-                                            {
-                                                <div class="smallebot-reasoning-step">
-                                                    <MudText Typo="Typo.caption" Class="mb-1 smallebot-reasoning-label">思考</MudText>
-                                                    @if (!string.IsNullOrEmpty(step.Text))
-                                                    {
-                                                        <MarkdownContentView Content="@step.Text" CssClass="smallebot-reasoning-body" />
-                                                    }
-                                                </div>
-                                            }
-                                            else if (ShowToolCalls)
-                                            {
-                                                <div class="smallebot-reasoning-step">
-                                                    <ToolCallView ToolName="@step.ToolName" ToolArguments="@step.ToolArguments" ToolResult="@step.ToolResult" ShowToolCalls="@ShowToolCalls" WrapperClass="" />
-                                                </div>
-                                            }
-                                        }
+                                        <ReasoningBlockView Steps="@stepViews" />
                                     </div>
                                 </MudExpansionPanel>
                             </MudExpansionPanels>

@@ -1,4 +1,5 @@
 using SmallEBot.Models;
+using SmallEBot.Services;
 
 namespace SmallEBot.Components.Chat;
 
@@ -40,6 +41,20 @@ public partial class ChatArea
     private static AssistantSegment ToTextSegment(string? text)
     {
         return new AssistantSegment(true, false, text ?? "");
+    }
+
+    private static ReasoningStepView ToReasoningStepView(ReasoningSegmenter.ReasoningStep step)
+    {
+        return step.IsThink
+            ? new ReasoningStepView { IsThink = true, Text = step.Text ?? "" }
+            : new ReasoningStepView { IsThink = false, ToolName = step.ToolName, ToolArguments = step.ToolArguments, ToolResult = step.ToolResult };
+    }
+
+    private static ReasoningStepView ToReasoningStepView(ReasoningStep step)
+    {
+        return step.IsThink
+            ? new ReasoningStepView { IsThink = true, Text = step.Text ?? "" }
+            : new ReasoningStepView { IsThink = false, ToolName = step.ToolName, ToolArguments = step.ToolArguments, ToolResult = step.ToolResult };
     }
 
     private List<AssistantSegment> BuildSegmentsForPersist()
