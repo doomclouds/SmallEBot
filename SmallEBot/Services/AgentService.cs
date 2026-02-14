@@ -152,6 +152,9 @@ public class AgentService(
                         case TextContent textContent when !string.IsNullOrEmpty(textContent.Text):
                             yield return new TextStreamUpdate(textContent.Text);
                             break;
+                        case TextReasoningContent reasoningContent when !string.IsNullOrEmpty(reasoningContent.Text):
+                            yield return new ThinkStreamUpdate(reasoningContent.Text);
+                            break;
                         case FunctionCallContent fnCall:
                             yield return new ToolCallStreamUpdate(fnCall.Name, ToJsonString(fnCall.Arguments));
                             break;
