@@ -1,12 +1,11 @@
-using System.ClientModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using Anthropic;
 using Microsoft.Agents.AI;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using ModelContextProtocol.Client;
-using OpenAI;
 using SmallEBot.Data;
 using SmallEBot.Data.Entities;
 using SmallEBot.Models;
@@ -27,18 +26,19 @@ public class AgentService(
     {
         if (_agent != null) return _agent;
 
-        var apiKey = Environment.GetEnvironmentVariable("DeepseekKey");
+        var apiKey = Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY")
+            ?? Environment.GetEnvironmentVariable("DeepseekKey");
         if (string.IsNullOrEmpty(apiKey))
         {
-            log.LogWarning("DeepseekKey environment variable is not set.");
+            log.LogWarning("ANTHROPIC_API_KEY or DeepseekKey environment variable is not set.");
         }
 
-        var baseUrl = config["DeepSeek:BaseUrl"] ?? "https://api.deepseek.com";
-        var model = config["DeepSeek:Model"] ?? "deepseek-chat";
+        var baseUrl = config["Anthropic:BaseUrl"] ?? config["DeepSeek:AnthropicBaseUrl"] ?? "https://api.deepseek.com/anthropic";
+        var model = config["Anthropic:Model"] ?? config["DeepSeek:Model"] ?? "deepseek-chat";
 
-        var options = new OpenAIClientOptions { Endpoint = new Uri(baseUrl) };
-        var client = new OpenAIClient(new ApiKeyCredential(apiKey ?? ""), options);
-        var chatClient = client.GetChatClient(model).AsIChatClient();
+        Environment.SetEnvironmentVariable("ANTHROPIC_API_KEY", apiKey ?? "");
+        Environment.SetEnvironmentVariable("ANTHROPIC_BASE_URL", baseUrl);
+        var anthropicClient = new AnthropicClient();
 
         var tools = new List<AITool> { AIFunctionFactory.Create(GetCurrentTime) };
         _mcpClients = [];
@@ -115,14 +115,11 @@ public class AgentService(
             }
         }
 
-        _agent = new ChatClientAgent(
-            chatClient,
-            instructions: "You are SmallEBot, a helpful personal assistant. Be concise and friendly. When the user asks for the current time or date, use the GetCurrentTime tool. Use any other available MCP tools when they help answer the user.",
+        _agent = anthropicClient.AsAIAgent(
+            model: model,
             name: "SmallEBot",
-            description: null,
-            tools: tools,
-            loggerFactory: null,
-            services: null);
+            instructions: "You are SmallEBot, a helpful personal assistant. Be concise and friendly. When the user asks for the current time or date, use the GetCurrentTime tool. Use any other available MCP tools when they help answer the user.",
+            tools: tools);
         return _agent;
     }
 
