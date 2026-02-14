@@ -56,18 +56,7 @@
                                             else if (ShowToolCalls)
                                             {
                                                 <div class="smallebot-reasoning-step">
-                                                    <MudExpansionPanels Elevation="0" Class="pa-0">
-                                                        <MudExpansionPanel expanded="false" Text="@($"🔧 {step.ToolName ?? "Tool"}")">
-                                                            @if (!string.IsNullOrEmpty(step.ToolArguments))
-                                                            {
-                                                                <div class="mt-1 d-block"><MudText Typo="Typo.caption">Arguments:</MudText><pre class="d-inline">@step.ToolArguments</pre></div>
-                                                            }
-                                                            @if (!string.IsNullOrEmpty(step.ToolResult))
-                                                            {
-                                                                <div class="mt-1 d-block"><MudText Typo="Typo.caption">Result:</MudText><pre class="d-inline">@step.ToolResult</pre></div>
-                                                            }
-                                                        </MudExpansionPanel>
-                                                    </MudExpansionPanels>
+                                                    <ToolCallView ToolName="@step.ToolName" ToolArguments="@step.ToolArguments" ToolResult="@step.ToolResult" ShowToolCalls="@ShowToolCalls" WrapperClass="" />
                                                 </div>
                                             }
                                         }
@@ -83,20 +72,7 @@
                             }
                             else if (!seg.IsText && ShowToolCalls)
                             {
-                                <div class="mt-2">
-                                    <MudExpansionPanels Elevation="0" Class="pa-0">
-                                        <MudExpansionPanel expanded="false" Text="@($"🔧 {seg.ToolName ?? "Tool"}")">
-                                            @if (!string.IsNullOrEmpty(seg.ToolArguments))
-                                            {
-                                                <div class="mt-1 d-block"><MudText Typo="Typo.caption">Arguments:</MudText><pre class="d-inline">@seg.ToolArguments</pre></div>
-                                            }
-                                            @if (!string.IsNullOrEmpty(seg.ToolResult))
-                                            {
-                                                <div class="mt-1 d-block"><MudText Typo="Typo.caption">Result:</MudText><pre class="d-inline">@seg.ToolResult</pre></div>
-                                            }
-                                        </MudExpansionPanel>
-                                    </MudExpansionPanels>
-                                </div>
+                                <ToolCallView ToolName="@seg.ToolName" ToolArguments="@seg.ToolArguments" ToolResult="@seg.ToolResult" ShowToolCalls="@ShowToolCalls" />
                             }
                         }
                     </MudChatBubble>
@@ -144,18 +120,7 @@
                                         else if (ShowToolCalls)
                                         {
                                             <div class="smallebot-reasoning-step">
-                                                <MudExpansionPanels Elevation="0" Class="pa-0">
-                                                    <MudExpansionPanel expanded="false" Text="@($"🔧 {step.ToolName ?? "Tool"}")">
-                                                        @if (!string.IsNullOrEmpty(step.ToolArguments))
-                                                        {
-                                                            <div class="mt-1 d-block"><MudText Typo="Typo.caption">Arguments:</MudText><pre class="d-inline">@step.ToolArguments</pre></div>
-                                                        }
-                                                        @if (!string.IsNullOrEmpty(step.ToolResult))
-                                                        {
-                                                            <div class="mt-1 d-block"><MudText Typo="Typo.caption">Result:</MudText><pre class="d-inline">@step.ToolResult</pre></div>
-                                                        }
-                                                    </MudExpansionPanel>
-                                                </MudExpansionPanels>
+                                                <ToolCallView ToolName="@step.ToolName" ToolArguments="@step.ToolArguments" ToolResult="@step.ToolResult" ShowToolCalls="@ShowToolCalls" WrapperClass="" />
                                             </div>
                                         }
                                     }
@@ -169,20 +134,7 @@
                     }
                     else if (item.IsReplyTool && ShowToolCalls)
                     {
-                        <div class="mt-2">
-                            <MudExpansionPanels Elevation="0" Class="pa-0">
-                                <MudExpansionPanel expanded="false" Text="@("🔧 " + (item.ToolName ?? "Tool"))">
-                                    @if (!string.IsNullOrEmpty(item.ToolArguments))
-                                    {
-                                        <div class="mt-1 d-block"><MudText Typo="Typo.caption">Arguments:</MudText><pre class="d-inline">@item.ToolArguments</pre></div>
-                                    }
-                                    @if (!string.IsNullOrEmpty(item.ToolResult))
-                                    {
-                                        <div class="mt-1 d-block"><MudText Typo="Typo.caption">Result:</MudText><pre class="d-inline">@item.ToolResult</pre></div>
-                                    }
-                                </MudExpansionPanel>
-                            </MudExpansionPanels>
-                        </div>
+                        <ToolCallView ToolName="@item.ToolName" ToolArguments="@item.ToolArguments" ToolResult="@item.ToolResult" ShowToolCalls="@ShowToolCalls" />
                     }
                 }
                 @if (!GetStreamingDisplayItems().Any() && !string.IsNullOrEmpty(_streamingText))

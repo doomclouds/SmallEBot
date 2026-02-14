@@ -1,0 +1,25 @@
+@if (ShowToolCalls)
+{
+    <div class="@WrapperClass">
+        <MudExpansionPanels Elevation="0" Class="pa-0">
+            <MudExpansionPanel expanded="false" Text="@($"🔧 {ToolName ?? "Tool"}")">
+                @if (!string.IsNullOrEmpty(ToolArguments))
+                {
+                    <div class="mt-1 d-block"><MudText Typo="Typo.caption">Arguments:</MudText><pre class="d-inline">@ToolArguments</pre></div>
+                }
+                @if (!string.IsNullOrEmpty(ToolResult))
+                {
+                    <div class="mt-1 d-block"><MudText Typo="Typo.caption">Result:</MudText><pre class="d-inline">@ToolResult</pre></div>
+                }
+            </MudExpansionPanel>
+        </MudExpansionPanels>
+    </div>
+}
+
+@code {
+    [Parameter] public string? ToolName { get; set; }
+    [Parameter] public string? ToolArguments { get; set; }
+    [Parameter] public string? ToolResult { get; set; }
+    [Parameter] public bool ShowToolCalls { get; set; } = true;
+    [Parameter] public string WrapperClass { get; set; } = "mt-2";
+}
