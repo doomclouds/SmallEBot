@@ -24,7 +24,7 @@ else
             {
                 <div class="smallebot-chat-page">
                     <div class="smallebot-chat-outer">
-                        <ChatArea Groups="@(ConversationService.GetMessageGroups(_selectedConversation!))"
+                        <ChatArea Bubbles="@(ConversationService.GetChatBubbles(_selectedConversation!))"
                                   ConversationId="_selectedConversation.Id"
                                   UserName="_userName"
                                   OnMessageSent="RefreshSidebar"

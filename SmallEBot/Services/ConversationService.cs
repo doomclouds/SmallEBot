@@ -48,14 +48,14 @@ public class ConversationService(AppDbContext db)
         return list;
     }
 
-    /// <summary>Returns conversation as message groups from turns: one group = one user message or one AI reply (all segments in order).</summary>
-    public static List<MessageGroup> GetMessageGroups(Conversation conv)
+    /// <summary>Returns conversation as chat bubbles from turns: one bubble = one user message or one assistant reply (all segments in order).</summary>
+    public static List<ChatBubble> GetChatBubbles(Conversation conv)
     {
-        var groups = new List<MessageGroup>();
+        var bubbles = new List<ChatBubble>();
         var turns = conv.Turns.OrderBy(t => t.CreatedAt).ToList();
         if (turns.Count == 0)
         {
-            // Legacy: no turns, fall back to timeline-based grouping
+            // Legacy: no turns, fall back to timeline-based bubble building
             var timeline = GetTimeline(conv.Messages, conv.ToolCalls, conv.ThinkBlocks);
             var currentAssistant = new List<TimelineItem>();
             foreach (var item in timeline)
@@ -63,16 +63,16 @@ public class ConversationService(AppDbContext db)
                 if (item.Message is { Role: "user" })
                 {
                     if (currentAssistant.Count > 0)
-                        groups.Add(new AssistantMessageGroup(currentAssistant.ToList(), false));
-                    groups.Add(new UserMessageGroup(item.Message));
+                        bubbles.Add(new AssistantBubble(currentAssistant.ToList(), false));
+                    bubbles.Add(new UserBubble(item.Message));
                     currentAssistant = [];
                 }
                 else
                     currentAssistant.Add(item);
             }
             if (currentAssistant.Count > 0)
-                groups.Add(new AssistantMessageGroup(currentAssistant.ToList(), false));
-            return groups;
+                bubbles.Add(new AssistantBubble(currentAssistant.ToList(), false));
+            return bubbles;
         }
 
         foreach (var turn in turns)
@@ -85,10 +85,10 @@ public class ConversationService(AppDbContext db)
             var turnThinks = conv.ThinkBlocks.Where(b => b.TurnId == turn.Id).ToList();
             var items = GetTimeline(turnMessages, turnTools, turnThinks);
 
-            groups.Add(new UserMessageGroup(userMsg));
-            groups.Add(new AssistantMessageGroup(items, turn.IsThinkingMode));
+            bubbles.Add(new UserBubble(userMsg));
+            bubbles.Add(new AssistantBubble(items, turn.IsThinkingMode));
         }
-        return groups;
+        return bubbles;
     }
 
     public async Task<bool> DeleteAsync(Guid id, string userName, CancellationToken ct = default)

@@ -1,20 +1,19 @@
 @using SmallEBot.Models
 @inject AgentService AgentSvc
 @inject UserNameService UserNameSvc
-@inject MarkdownService MarkdownSvc
 @inject IJSRuntime JS
 @inject ISnackbar Snackbar
 @inject ILogger<ChatArea> Log
 
 <MudPaper Class="pa-4 smallebot-chat-paper" Elevation="0">
     <div @ref="_chatScrollRef" class="smallebot-chat-scroll">
-    @if (Groups.Any())
+    @if (Bubbles.Any())
     {
-        @foreach (var group in Groups)
+        @foreach (var bubble in Bubbles)
         {
-            @if (group is UserMessageGroup userGroup)
+            @if (bubble is UserBubble userBubble)
             {
-                var msg = userGroup.Message;
+                var msg = userBubble.Message;
                 <MudChat ChatPosition="ChatBubblePosition.End" ArrowPosition="ChatArrowPosition.Top" Class="mb-3 smallebot-bubble">
                     <MudChatBubble>
                         <MudText Typo="Typo.caption">You · @msg.CreatedAt.ToString("g")</MudText>
@@ -25,11 +24,11 @@
                     </MudChatBubble>
                 </MudChat>
             }
-            else if (group is AssistantMessageGroup asstGroup)
+            else if (bubble is AssistantBubble asstBubble)
             {
-                var result = ReasoningSegmenter.SegmentTurn(asstGroup.Items, asstGroup.IsThinkingMode);
-                var firstCreatedAt = asstGroup.Items.Count > 0 ? asstGroup.Items[0].CreatedAt : DateTime.UtcNow;
-                var isError = IsErrorReply(asstGroup.Items);
+                var result = ReasoningSegmenter.SegmentTurn(asstBubble.Items, asstBubble.IsThinkingMode);
+                var firstCreatedAt = asstBubble.Items.Count > 0 ? asstBubble.Items[0].CreatedAt : DateTime.UtcNow;
+                var isError = IsErrorReply(asstBubble.Items);
                 var bubbleClass = isError ? "mb-3 smallebot-bubble smallebot-assistant-error" : "mb-3 smallebot-bubble";
                 <MudChat ChatPosition="ChatBubblePosition.Start" ArrowPosition="ChatArrowPosition.Top" Class="@bubbleClass">
                     <MudChatBubble>
@@ -63,8 +62,8 @@
             }
         }
     }
-    @* Optimistic user message: show immediately when sent, until parent refreshes with persisted messages. Hide if already in Groups to avoid duplicate (H5). *@
-    @if (!string.IsNullOrEmpty(_pendingUserMessage) && !IsPendingMessageAlreadyInGroups())
+    @* Optimistic user message: show immediately when sent, until parent refreshes with persisted messages. Hide if already in Bubbles to avoid duplicate (H5). *@
+    @if (!string.IsNullOrEmpty(_pendingUserMessage) && !IsPendingMessageAlreadyInBubbles())
     {
         <MudChat ChatPosition="ChatBubblePosition.End" ArrowPosition="ChatArrowPosition.Top" Class="mb-3 smallebot-bubble">
             <MudChatBubble>
@@ -73,64 +72,34 @@
             </MudChatBubble>
         </MudChat>
     }
-    @* Only show streaming block while actively streaming; after persist parent refresh shows reply from Groups (avoids duplicate AI bubble). *@
+    @* Only show streaming block while actively streaming; after persist parent refresh shows reply from Bubbles (avoids duplicate AI bubble). *@
     @if (_streaming)
     {
-        <MudChat ChatPosition="ChatBubblePosition.Start" ArrowPosition="ChatArrowPosition.Top" Class="mb-3 smallebot-bubble">
-            <MudChatBubble>
-                <MudText Typo="Typo.caption">SmallEBot · @DateTime.Now.ToString("g")</MudText>
-                @foreach (var item in GetStreamingDisplayItems())
-                {
-                    if (item is { IsReasoningGroup: true, ReasoningSteps: { Count: > 0 } steps })
-                    {
-                        var toolCount = steps.Count(x => !x.IsThink);
-                        var panelTitle = toolCount > 0 ? $"💭 推理过程 (含 {toolCount} 次工具调用)" : "💭 推理过程";
-                        var stepViews = steps.Select(ToReasoningStepView).ToList();
-                        <MudExpansionPanels Class="mt-2" Elevation="0">
-                            <MudExpansionPanel expanded="false" Text="@panelTitle">
-                                <div class="d-flex flex-column gap-2">
-                                    <ReasoningBlockView Steps="@stepViews" />
-                                </div>
-                            </MudExpansionPanel>
-                        </MudExpansionPanels>
-                    }
-                    else if (item.IsText)
-                    {
-                        <MarkdownContentView Content="@item.Text" />
-                    }
-                    else if (item.IsReplyTool && ShowToolCalls)
-                    {
-                        <ToolCallView ToolName="@item.ToolName" ToolArguments="@item.ToolArguments" ToolResult="@item.ToolResult" ShowToolCalls="@ShowToolCalls" />
-                    }
-                }
-                @if (!GetStreamingDisplayItems().Any() && !string.IsNullOrEmpty(_streamingText))
-                {
-                    <MarkdownContentView Content="@_streamingText" />
-                }
-            </MudChatBubble>
-        </MudChat>
+        <StreamingMessageView Items="@GetStreamingDisplayItemViews()"
+                              FallbackText="@_streamingText"
+                              Timestamp="@DateTime.Now" />
     }
     </div>
 
-    <form @onsubmit="HandleSubmit" @onsubmit:preventDefault>
-        <MudStack Row="true" Spacing="2" Class="mt-4">
-            <MudTextField @bind-Value="_input"
-                          Label="Message"
-                          Variant="Variant.Outlined"
-                          FullWidth="true"
-                          Immediate="true" />
-            <MudButton Variant="Variant.Filled"
-                       Color="Color.Primary"
-                       ButtonType="ButtonType.Submit"
-                       Disabled="@(_streaming || string.IsNullOrWhiteSpace(_input))">
-                Send
-            </MudButton>
-        </MudStack>
-    </form>
+    <MudStack Row="true" Spacing="2" Class="mt-4">
+        <MudTextField @bind-Value="_input"
+                      Label="Message"
+                      Variant="Variant.Outlined"
+                      FullWidth="true"
+                      Immediate="true"
+                      OnKeyDown="@HandleKeyDown" />
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   ButtonType="ButtonType.Submit"
+                   OnClick="@Send"
+                   Disabled="@(_streaming || string.IsNullOrWhiteSpace(_input))">
+            Send
+        </MudButton>
+    </MudStack>
 </MudPaper>
 
 @code {
-    [Parameter] public List<MessageGroup> Groups { get; set; } = new();
+    [Parameter] public List<ChatBubble> Bubbles { get; set; } = [];
     [Parameter] public Guid? ConversationId { get; set; }
     [Parameter] public string UserName { get; set; } = "";
     [Parameter] public EventCallback OnMessageSent { get; set; }
@@ -147,7 +116,6 @@
     private DateTime _pendingUserMessageTime;
     private bool _scrollToBottomRequested;
     /// <summary>True after persist: show last streamed reply without refetching (avoids full re-render). Cleared when conversation changes or next send.</summary>
-    private bool _showLastStreamedReply;
 
     private async Task Send()
     {
@@ -159,7 +127,6 @@
         _pendingUserMessage = msg;
         _pendingUserMessageTime = DateTime.UtcNow;
         _streaming = true;
-        _showLastStreamedReply = false;
         _streamingText = "";
         _streamingUpdates.Clear();
         _scrollToBottomRequested = true;
@@ -204,7 +171,7 @@
         catch (Exception ex)
         {
             Snackbar.Add($"Error: {ex.Message}", Severity.Error);
-            if (turnId != default)
+            if (turnId != Guid.Empty)
             {
                 try
                 {
@@ -223,7 +190,6 @@
             {
                 _pendingUserMessage = "";
                 _streaming = false;
-                _showLastStreamedReply = false;
                 _scrollToBottomRequested = true;
                 StateHasChanged();
                 await Task.Yield();
@@ -241,8 +207,7 @@
         if (ConversationId.HasValue && ConversationId != _lastConversationId)
         {
             _lastConversationId = ConversationId;
-            _showLastStreamedReply = false;
-            if (Groups.Count > 0)
+            if (Bubbles.Count > 0)
                 _scrollToBottomRequested = true;
         }
     }
@@ -262,103 +227,28 @@
         }
     }
 
-    /// <summary>True if the last user message in Groups has the same content as _pendingUserMessage (avoids duplicate bubble when refresh and pending overlap).</summary>
-    private bool IsPendingMessageAlreadyInGroups()
+    /// <summary>Send message when Enter is pressed (without Shift).</summary>
+    private async Task HandleKeyDown(KeyboardEventArgs args)
     {
-        if (string.IsNullOrEmpty(_pendingUserMessage) || Groups == null || Groups.Count == 0) return false;
-        var lastUser = Groups.OfType<UserMessageGroup>().LastOrDefault();
-        return lastUser?.Message?.Content?.Trim() == _pendingUserMessage.Trim();
+        if (args is { Key: "Enter", ShiftKey: false })
+        {
+            await Send();
+        }
     }
 
-    /// <summary>Form submit (Enter or Send button); single entry point to avoid double send.</summary>
-    private async Task HandleSubmit()
+    /// <summary>True if the last user message in Bubbles has the same content as _pendingUserMessage (avoids duplicate bubble when refresh and pending overlap).</summary>
+    private bool IsPendingMessageAlreadyInBubbles()
     {
-        await Send();
+        if (string.IsNullOrEmpty(_pendingUserMessage) || Bubbles.Count == 0) return false;
+        var lastUser = Bubbles.OfType<UserBubble>().LastOrDefault();
+        return lastUser?.Message.Content.Trim() == _pendingUserMessage.Trim();
     }
 
-    /// <summary>Detects if the assistant group is a single error message (Content starts with "Error: ").</summary>
+    /// <summary>Detects if the assistant bubble is a single error message (Content starts with "Error: ").</summary>
     private static bool IsErrorReply(IReadOnlyList<TimelineItem> items)
     {
         if (items.Count != 1) return false;
         var item = items[0];
-        return item.Message is { Role: "assistant" } msg && (msg.Content?.StartsWith("Error: ", StringComparison.Ordinal) ?? false);
-    }
-
-    private IEnumerable<StreamDisplayItem> GetStreamingDisplayItems()
-    {
-        var reasoningSteps = new List<ReasoningStep>();
-        var replyItems = new List<StreamDisplayItem>();
-        var seenText = false;
-
-        foreach (var update in _streamingUpdates)
-        {
-            if (update is TextStreamUpdate t)
-            {
-                seenText = true;
-                if (replyItems.Count > 0 && replyItems[^1] is { IsText: true } lastText)
-                    replyItems[^1] = new StreamDisplayItem { IsText = true, Text = (lastText.Text ?? "") + t.Text };
-                else
-                    replyItems.Add(new StreamDisplayItem { IsText = true, Text = t.Text });
-                continue;
-            }
-            if (update is ThinkStreamUpdate think)
-            {
-                if (seenText)
-                {
-                    if (replyItems.Count > 0 && replyItems[^1] is { IsText: true } lt)
-                        replyItems[^1] = new StreamDisplayItem { IsText = true, Text = (lt.Text ?? "") + think.Text };
-                    else
-                        replyItems.Add(new StreamDisplayItem { IsText = true, Text = think.Text });
-                }
-                else
-                {
-                    if (reasoningSteps.Count > 0 && reasoningSteps[^1].IsThink)
-                        reasoningSteps[^1].Text = (reasoningSteps[^1].Text ?? "") + think.Text;
-                    else
-                        reasoningSteps.Add(new ReasoningStep { IsThink = true, Text = think.Text });
-                }
-                continue;
-            }
-            if (update is ToolCallStreamUpdate tc)
-            {
-                if (seenText)
-                {
-                    if (tc is { Result: not null, Arguments: null })
-                    {
-                        var lastTool = replyItems.LastOrDefault(x => x.IsReplyTool);
-                        if (lastTool != null)
-                            lastTool.ToolResult = tc.Result;
-                    }
-                    else if (!string.IsNullOrEmpty(tc.ToolName) || tc.Arguments != null)
-                    {
-                        replyItems.Add(new StreamDisplayItem { IsReplyTool = true, ToolName = tc.ToolName, ToolArguments = tc.Arguments, ToolResult = tc.Result });
-                    }
-                }
-                else
-                {
-                    if (tc is { Result: not null, Arguments: null })
-                    {
-                        var lastTool = reasoningSteps.LastOrDefault(x => !x.IsThink);
-                        if (lastTool != null) lastTool.ToolResult = tc.Result;
-                    }
-                    else if (!string.IsNullOrEmpty(tc.ToolName) || tc.Arguments != null)
-                    {
-                        reasoningSteps.Add(new ReasoningStep { IsThink = false, ToolName = tc.ToolName, ToolArguments = tc.Arguments, ToolResult = tc.Result });
-                    }
-                }
-            }
-        }
-
-        var result = new List<StreamDisplayItem>();
-        if (reasoningSteps.Count > 0)
-        {
-            result.Add(new StreamDisplayItem
-            {
-                IsReasoningGroup = true,
-                ReasoningSteps = reasoningSteps
-            });
-        }
-        result.AddRange(replyItems);
-        return result;
+        return item.Message is { Role: "assistant" } msg && msg.Content.StartsWith("Error: ", StringComparison.Ordinal);
     }
 }
