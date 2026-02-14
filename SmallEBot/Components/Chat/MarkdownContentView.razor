@@ -1,0 +1,10 @@
+@inject MarkdownService MarkdownSvc
+@if (!string.IsNullOrEmpty(Content))
+{
+    <div class="markdown-body @CssClass">@((MarkupString)MarkdownSvc.ToHtml(Content))</div>
+}
+
+@code {
+    [Parameter] public string? Content { get; set; }
+    [Parameter] public string? CssClass { get; set; }
+}

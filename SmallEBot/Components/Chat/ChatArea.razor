@@ -20,7 +20,7 @@
                         <MudText Typo="Typo.caption">You · @msg.CreatedAt.ToString("g")</MudText>
                         @if (!string.IsNullOrEmpty(msg.Content))
                         {
-                            <div class="markdown-body">@((MarkupString)MarkdownSvc.ToHtml(msg.Content))</div>
+                            <MarkdownContentView Content="@msg.Content" />
                         }
                     </MudChatBubble>
                 </MudChat>
@@ -110,7 +110,7 @@
         <MudChat ChatPosition="ChatBubblePosition.End" ArrowPosition="ChatArrowPosition.Top" Class="mb-3 smallebot-bubble">
             <MudChatBubble>
                 <MudText Typo="Typo.caption">You · @_pendingUserMessageTime.ToString("g")</MudText>
-                <div class="markdown-body">@((MarkupString)MarkdownSvc.ToHtml(_pendingUserMessage))</div>
+                <MarkdownContentView Content="@_pendingUserMessage" />
             </MudChatBubble>
         </MudChat>
     }
