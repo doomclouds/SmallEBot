@@ -43,6 +43,7 @@ Semantics: one turn = one user ChatMessage (with that TurnId) + N assistant Chat
 1. User sends a message. Create **ConversationTurn**(ConversationId, IsThinkingMode = current request’s UseThinkingMode, CreatedAt = UtcNow). Save to get Turn.Id.
 2. Insert **user** ChatMessage with ConversationId, Role=user, Content, **TurnId = Turn.Id**, CreatedAt.
 3. Stream and persist assistant content (ChatMessage, ToolCall, ThinkBlock) with **TurnId = Turn.Id**, CreatedAt as today (incrementing baseTime per segment).
+4. **On AI execution error** (exception during stream or before any assistant content persisted): for **this turn**, persist a **single assistant ChatMessage** with Role=assistant, **Content = error message** (e.g. `"Error: " + ex.Message` or a user-facing summary), **TurnId = Turn.Id**, CreatedAt = UtcNow. This ensures the turn always has an “AI reply” for that round; the UI will show this as the assistant’s reply (e.g. with error styling). No ToolCall or ThinkBlock for this turn.
 
 No **FirstAssistantMessageId** or similar on Turn; reasoning boundaries are computed from the ordered timeline (see §4).
 
@@ -97,13 +98,15 @@ Result: multiple reasoning blocks possible per turn; between them and after the 
 - **Rendering:**
   - If **IsThinkingMode**: run the **reasoning block rule** (§4) on Items to get reasoning blocks + reply segments. Render each reasoning block as a collapsible “💭 推理过程 (含 N 次工具调用)” (or similar); then render reply segments in order (text div, tool expansion, text div, …).
   - If **not** IsThinkingMode: render Items in order as text–tool–text… (no “推理过程” panel).
-- **Streaming:** Same rule can be applied to the streamed list (Think/Tool/Text) and UseThinkingMode so the live bubble matches the persisted shape. Persist still writes with TurnId and turn.IsThinkingMode.
+- **Error reply:** When the turn’s assistant content is a single text message that represents an error (e.g. Content starts with a designated prefix like `"Error: "` or we add an **IsError** flag on the message/model), the UI shows it as the AI’s reply with **error styling** (e.g. color, icon) so the user clearly sees the failure for that round.
+- **Streaming:** Same rule can be applied to the streamed list (Think/Tool/Text) and UseThinkingMode so the live bubble matches the persisted shape. Persist still writes with TurnId and turn.IsThinkingMode. On stream error, the UI can show the error in the current bubble and the persist layer will have written the error message as the turn’s assistant reply (§2.3 step 4).
 
 ---
 
 ## 7. Error Handling and Edge Cases
 
-- **Empty turn:** Turn exists but no assistant content yet (e.g. stream failed). Show user message only; assistant bubble can show “…” or nothing until refresh.
+- **AI execution error:** When the AI call throws (e.g. stream failed, API error), the turn and user message are already created. **Persist a default error reply for this turn:** insert **one** assistant **ChatMessage** with Role=assistant, Content = error text (e.g. `"Error: " + ex.Message` or a sanitized user-facing message), TurnId = current Turn.Id. The UI shows this as the AI's reply for that round (e.g. error style or icon). No ToolCall/ThinkBlock for this turn. This keeps "one user message + one AI reply" consistent and avoids an empty assistant bubble.
+- **Empty turn (no error path):** If for some reason no assistant content and no error message were persisted (e.g. very early failure before catch), show user message only; assistant bubble can show “…” or nothing until refresh. Prefer always writing the error message in the catch block so this case is rare.
 - **Delete conversation:** Cascade delete turns then messages/tool/think (or delete by TurnId when deleting conversation).
 - **Old data:** Migration sets TurnId and creates turns; any message without TurnId can be treated as “legacy” and grouped by existing timeline logic for backward compatibility if needed.
 
@@ -117,6 +120,7 @@ Result: multiple reasoning blocks possible per turn; between them and after the 
 | Persist    | Create turn first; set TurnId on all new messages/tool/think |
 | GetMessageGroups | Build groups from turns; AssistantMessageGroup(Items, IsThinkingMode) |
 | Reasoning  | Computed from timeline: start at Think, end at Text or Tool-with-no-Think-after; multiple blocks |
-| UI         | Branch on IsThinkingMode; segment by rule; reasoning panels + text–tool–text |
+| UI         | Branch on IsThinkingMode; segment by rule; reasoning panels + text–tool–text; error reply styling |
+| Error      | On AI failure: persist one assistant message with error text for that turn; show as AI reply with error styling |
 
 This design document is the single source of truth for the refactor. Implementation can be split into: (1) DB + migration, (2) Persist + GetMessageGroups + model, (3) UI segmentation and rendering.
