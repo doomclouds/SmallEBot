@@ -1,7 +1,8 @@
 @inherits LayoutComponentBase
 @inject UserNameService UserNameSvc
+@inject IJSRuntime JS
 
-<MudThemeProvider Theme="_theme" IsDarkMode="true" />
+<MudThemeProvider Theme="@(ThemeProviderHelper.GetMudTheme(_currentThemeId))" IsDarkMode="@(ThemeProviderHelper.IsDarkModeForTheme(_currentThemeId))" />
 <MudDialogProvider />
 <MudSnackbarProvider />
 <MudPopoverProvider />
@@ -10,6 +11,20 @@
     <MudAppBar Elevation="0" Class="smallebot-appbar">
         <MudText Typo="Typo.h6" Class="smallebot-logo">SmallEBot</MudText>
         <MudSpacer />
+        <MudTooltip Text="主题">
+            <MudMenu Icon="@Icons.Material.Filled.Palette"
+                     AnchorOrigin="Origin.BottomRight"
+                     TransformOrigin="Origin.TopRight"
+                     Color="Color.Default">
+                @foreach (var id in ThemeConstants.ThemeIds)
+                {
+                    var idCopy = id;
+                    <MudMenuItem OnClick="@(() => SelectTheme(idCopy))">
+                        @GetThemeLabel(id) @(_currentThemeId == id ? "✓" : "")
+                    </MudMenuItem>
+                }
+            </MudMenu>
+        </MudTooltip>
         <MudTooltip Text="@(_showToolCalls ? "隐藏工具调用" : "显示工具调用")">
             <MudIconButton Icon="@Icons.Material.Filled.Build"
                            Color="@(_showToolCalls ? Color.Primary : Color.Default)"
@@ -31,23 +46,50 @@
 </MudLayout>
 
 @code {
-    private static MudTheme CreateTheme()
+    private string _currentThemeId = ThemeConstants.DefaultThemeId;
+    private bool _showToolCalls = true;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        var theme = new MudTheme();
-        theme.PaletteDark = new PaletteDark
+        if (firstRender)
         {
-            Primary = "#e4a853",
-            PrimaryContrastText = "#1a1a1d",
-            Secondary = "#71717a",
-            Background = "#1a1a1d",
-            BackgroundGray = "#252529",
-            Surface = "#252529"
-        };
-        return theme;
+            try
+            {
+                var id = await JS.InvokeAsync<string>("SmallEBotGetTheme");
+                _currentThemeId = ThemeConstants.NormalizeThemeId(id);
+                await InvokeAsync(StateHasChanged);
+            }
+            catch
+            {
+                /* keep default */
+            }
+        }
     }
 
-    private readonly MudTheme _theme = CreateTheme();
-    private bool _showToolCalls = true;
+    private async Task SelectTheme(string id)
+    {
+        _currentThemeId = ThemeConstants.NormalizeThemeId(id);
+        try
+        {
+            await JS.InvokeVoidAsync("SmallEBotSetTheme", id);
+        }
+        catch
+        {
+            /* ignore */
+        }
+
+        StateHasChanged();
+    }
+
+    private static string GetThemeLabel(string id) => id switch
+    {
+        "editorial-dark" => "编辑深色",
+        "paper-light" => "纸感浅色",
+        "terminal" => "终端",
+        "dusk" => "暮色",
+        "mono" => "单色",
+        _ => id
+    };
 
     private void ToggleShowToolCalls()
     {
