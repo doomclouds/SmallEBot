@@ -49,9 +49,40 @@ public class AgentService(
             foreach (var child in mcpSection.GetChildren())
             {
                 var type = child["type"]?.ToString();
-                if (type == "stdio")
+                var command = child["command"]?.ToString();
+
+                if (type == "stdio" || (string.IsNullOrEmpty(type) && !string.IsNullOrEmpty(command)))
                 {
-                    log.LogInformation("MCP stdio server '{Name}' configured but not loaded (http only in this phase).", child.Key);
+                    if (string.IsNullOrEmpty(command))
+                    {
+                        log.LogWarning("MCP stdio server '{Name}' has no command, skipped.", child.Key);
+                        continue;
+                    }
+                    var argsSection = child.GetSection("args");
+                    var arguments = argsSection.GetChildren()
+                        .OrderBy(c => int.TryParse(c.Key, out var i) ? i : 0)
+                        .Select(c => c.Value ?? "")
+                        .ToArray();
+                    var env = child.GetSection("env").Get<Dictionary<string, string?>>() ?? new Dictionary<string, string?>();
+                    try
+                    {
+                        var transport = new StdioClientTransport(new StdioClientTransportOptions
+                        {
+                            Name = child.Key,
+                            Command = command,
+                            Arguments = arguments,
+                            EnvironmentVariables = env
+                        });
+                        var mcpClient = await McpClient.CreateAsync(transport, null, null, ct);
+                        _mcpClients.Add(mcpClient);
+                        var mcpTools = await mcpClient.ListToolsAsync();
+                        tools.AddRange(mcpTools.Cast<AITool>());
+                        log.LogInformation("MCP stdio server '{Name}' ({Command}) loaded with {Count} tools.", child.Key, command, mcpTools.Count);
+                    }
+                    catch (Exception ex)
+                    {
+                        log.LogWarning(ex, "Failed to load MCP stdio server '{Name}' (command: {Command}), skipping.", child.Key, command);
+                    }
                     continue;
                 }
                 if (type == "http")
