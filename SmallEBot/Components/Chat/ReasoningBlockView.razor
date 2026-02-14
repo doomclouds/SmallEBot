@@ -1,0 +1,28 @@
+@if (Steps != null)
+{
+    @foreach (var step in Steps)
+{
+    if (step.IsThink)
+    {
+        <div class="smallebot-reasoning-step">
+            <MudText Typo="Typo.caption" Class="mb-1 smallebot-reasoning-label">思考</MudText>
+            @if (!string.IsNullOrEmpty(step.Text))
+            {
+                <MarkdownContentView Content="@step.Text" CssClass="smallebot-reasoning-body" />
+            }
+        </div>
+    }
+    else if (ShowToolCalls)
+    {
+        <div class="smallebot-reasoning-step">
+            <ToolCallView ToolName="@step.ToolName" ToolArguments="@step.ToolArguments" ToolResult="@step.ToolResult" ShowToolCalls="@ShowToolCalls" WrapperClass="" />
+        </div>
+    }
+}
+
+}
+
+@code {
+    [Parameter] public IReadOnlyList<ReasoningStepView>? Steps { get; set; }
+    [CascadingParameter(Name = "ShowToolCalls")] public bool ShowToolCalls { get; set; } = true;
+}
