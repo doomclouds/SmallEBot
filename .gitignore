@@ -54,6 +54,7 @@ appsettings.*.json
 
 # Local persisted username (first-time dialog)
 smallebot-username.txt
+smallebot-settings.json
 
 # Secrets (do not commit)
 secrets.json

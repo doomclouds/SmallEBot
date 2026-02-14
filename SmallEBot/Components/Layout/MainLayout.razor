@@ -1,6 +1,7 @@
 @inherits LayoutComponentBase
 @implements IDisposable
 @inject UserNameService UserNameSvc
+@inject UserPreferencesService Preferences
 @inject IJSRuntime JS
 
 <MudThemeProvider Theme="@(ThemeProviderHelper.GetMudTheme(_currentThemeId))" IsDarkMode="@(ThemeProviderHelper.IsDarkModeForTheme(_currentThemeId))" />
@@ -59,17 +60,28 @@
         {
             try
             {
-                var id = await JS.InvokeAsync<string>("SmallEBotGetTheme");
-                _currentThemeId = ThemeConstants.NormalizeThemeId(id);
+                var prefs = await Preferences.LoadAsync();
+                _currentThemeId = ThemeConstants.NormalizeThemeId(prefs.Theme);
+                _showToolCalls = prefs.ShowToolCalls;
+                _useThinkingMode = prefs.UseThinkingMode;
+                await JS.InvokeVoidAsync("SmallEBotSetTheme", _currentThemeId);
                 await InvokeAsync(StateHasChanged);
             }
             catch
             {
-                /* keep default */
+                try
+                {
+                    var id = await JS.InvokeAsync<string>("SmallEBotGetTheme");
+                    _currentThemeId = ThemeConstants.NormalizeThemeId(id);
+                }
+                catch
+                {
+                    /* keep default */
+                }
             }
         }
-        
-        if(string.IsNullOrEmpty(_userName))
+
+        if (string.IsNullOrEmpty(_userName))
             _userName = await UserNameSvc.GetAsync();
     }
 
@@ -78,7 +90,8 @@
         _currentThemeId = ThemeConstants.NormalizeThemeId(id);
         try
         {
-            await JS.InvokeVoidAsync("SmallEBotSetTheme", id);
+            await JS.InvokeVoidAsync("SmallEBotSetTheme", _currentThemeId);
+            await Preferences.SetThemeAsync(_currentThemeId);
         }
         catch
         {
@@ -98,15 +111,19 @@
         _ => id
     };
 
-    private void ToggleShowToolCalls()
+    private async Task ToggleShowToolCalls()
     {
         _showToolCalls = !_showToolCalls;
+        try { await Preferences.SetShowToolCallsAsync(_showToolCalls); }
+        catch { /* ignore */ }
         StateHasChanged();
     }
 
-    private void ToggleUseThinkingMode()
+    private async Task ToggleUseThinkingMode()
     {
         _useThinkingMode = !_useThinkingMode;
+        try { await Preferences.SetUseThinkingModeAsync(_useThinkingMode); }
+        catch { /* ignore */ }
         StateHasChanged();
     }
 

@@ -11,6 +11,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=smallebot.db");
     options.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.NonTransactionalMigrationOperationWarning));
 });
+builder.Services.AddScoped<UserPreferencesService>();
 builder.Services.AddScoped<ConversationService>();
 builder.Services.AddScoped<AgentService>();
 builder.Services.AddScoped<UserNameService>();
