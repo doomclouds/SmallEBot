@@ -132,6 +132,7 @@ public class AgentService(
     public async IAsyncEnumerable<StreamUpdate> SendMessageStreamingAsync(
         Guid conversationId,
         string userMessage,
+        bool useThinking = false,
         [EnumeratorCancellation] CancellationToken ct = default)
     {
         var agent = await EnsureAgentAsync(ct);

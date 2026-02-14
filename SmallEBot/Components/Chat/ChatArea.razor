@@ -131,6 +131,7 @@
     [Parameter] public EventCallback OnMessageSent { get; set; }
     [Parameter] public EventCallback OnBeforeSend { get; set; }
     [CascadingParameter(Name = "ShowToolCalls")] public bool ShowToolCalls { get; set; } = true;
+    [CascadingParameter(Name = "UseThinkingMode")] public bool UseThinkingMode { get; set; } = false;
 
     private ElementReference _chatScrollRef;
     private string _input = "";
@@ -170,7 +171,7 @@
                 await InvokeAsync(StateHasChanged);
                 return;
             }
-            await foreach (var update in AgentSvc.SendMessageStreamingAsync(ConversationId!.Value, msg))
+            await foreach (var update in AgentSvc.SendMessageStreamingAsync(ConversationId!.Value, msg, UseThinkingMode))
             {
                 switch (update)
                 {

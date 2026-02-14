@@ -33,6 +33,14 @@
         <MudSwitch @bind-Value="_showToolCalls" Color="Color.Primary" Class="ms-2">
             <MudText Typo="Typo.body2">工具调用</MudText>
         </MudSwitch>
+        <MudTooltip Text="@(_useThinkingMode ? "关闭思考模式" : "开启思考模式")">
+            <MudIconButton Icon="@Icons.Material.Filled.Psychology"
+                           Color="@(_useThinkingMode ? Color.Primary : Color.Default)"
+                           OnClick="@ToggleUseThinkingMode" />
+        </MudTooltip>
+        <MudSwitch @bind-Value="_useThinkingMode" Color="Color.Primary" Class="ms-2">
+            <MudText Typo="Typo.body2">思考</MudText>
+        </MudSwitch>
         @if (!string.IsNullOrEmpty(UserNameSvc.CurrentDisplayName))
         {
             <MudText Typo="Typo.body2" Class="smallebot-username">@UserNameSvc.CurrentDisplayName</MudText>
@@ -40,7 +48,9 @@
     </MudAppBar>
     <MudMainContent Class="smallebot-main">
         <CascadingValue Value="_showToolCalls" Name="ShowToolCalls">
-            @Body
+            <CascadingValue Value="_useThinkingMode" Name="UseThinkingMode">
+                @Body
+            </CascadingValue>
         </CascadingValue>
     </MudMainContent>
 </MudLayout>
@@ -48,6 +58,7 @@
 @code {
     private string _currentThemeId = ThemeConstants.DefaultThemeId;
     private bool _showToolCalls = true;
+    private bool _useThinkingMode = false;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -94,6 +105,12 @@
     private void ToggleShowToolCalls()
     {
         _showToolCalls = !_showToolCalls;
+        StateHasChanged();
+    }
+
+    private void ToggleUseThinkingMode()
+    {
+        _useThinkingMode = !_useThinkingMode;
         StateHasChanged();
     }
 }
