@@ -17,7 +17,29 @@
                      Class="mb-3">
                 <MudChatBubble>
                     <MudText Typo="Typo.caption">@(chatMessage.Role == "user" ? "You" : "SmallEBot") · @chatMessage.CreatedAt.ToString("g")</MudText>
-                    <MudText Typo="Typo.body1">@chatMessage.Content</MudText>
+                    @if (!string.IsNullOrEmpty(chatMessage.Content))
+                    {
+                        <MudText Typo="Typo.body1">@chatMessage.Content</MudText>
+                    }
+                    @if (chatMessage.Role == "assistant" && ShowToolCalls && (chatMessage.ToolCalls?.Count ?? 0) > 0)
+                    {
+                        <MudExpansionPanels Class="mt-2" Elevation="0">
+                            @foreach (var tool in chatMessage.ToolCalls!.OrderBy(t => t.SortOrder))
+                            {
+                                <MudExpansionPanel expanded="false" title="@($"🔧 {tool.ToolName}")">
+                                    <MudText Typo="Typo.body2"><strong>Tool:</strong> @tool.ToolName</MudText>
+                                    @if (!string.IsNullOrEmpty(tool.Arguments))
+                                    {
+                                        <MudText Typo="Typo.caption" Class="mt-1">Arguments: <pre class="d-inline">@tool.Arguments</pre></MudText>
+                                    }
+                                    @if (!string.IsNullOrEmpty(tool.Result))
+                                    {
+                                        <MudText Typo="Typo.caption" Class="mt-1">Result: <pre class="d-inline">@tool.Result</pre></MudText>
+                                    }
+                                </MudExpansionPanel>
+                            }
+                        </MudExpansionPanels>
+                    }
                 </MudChatBubble>
             </MudChat>
         }
@@ -143,7 +165,11 @@
                 _scrollToBottomRequested = true;
                 StateHasChanged();
             }
-            await AgentSvc.PersistMessagesAsync(ConversationId!.Value, userName, msg, _streamingText);
+            var toolCallsToPersist = GetStreamingDisplayItems()
+                .Where(x => !x.IsText)
+                .Select(x => (x.ToolName ?? "", x.ToolArguments, x.ToolResult))
+                .ToList();
+            await AgentSvc.PersistMessagesAsync(ConversationId!.Value, userName, msg, _streamingText, toolCallsToPersist);
             persisted = true;
         }
         catch (Exception ex)

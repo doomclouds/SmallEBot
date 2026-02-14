@@ -1,11 +1,13 @@
 using System.ClientModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 using Microsoft.Agents.AI;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using OpenAI;
 using SmallEBot.Data;
+using SmallEBot.Data.Entities;
 using SmallEBot.Models;
 using ChatMessage = Microsoft.Extensions.AI.ChatMessage;
 
@@ -101,10 +103,10 @@ public class AgentService(
                             yield return new TextStreamUpdate(textContent.Text);
                             break;
                         case FunctionCallContent fnCall:
-                            yield return new ToolCallStreamUpdate(fnCall.Name, fnCall.Arguments?.ToString());
+                            yield return new ToolCallStreamUpdate(fnCall.Name, ToJsonString(fnCall.Arguments));
                             break;
                         case FunctionResultContent fnResult:
-                            yield return new ToolCallStreamUpdate(fnResult.CallId ?? "result", Result: fnResult.Result?.ToString());
+                            yield return new ToolCallStreamUpdate(fnResult.CallId ?? "result", Result: ToJsonString(fnResult.Result));
                             break;
                         default:
                             break;
@@ -118,12 +120,13 @@ public class AgentService(
         }
     }
 
-    /// <summary>Persist user and assistant messages; call after streaming completes.</summary>
+    /// <summary>Persist user and assistant messages and optional tool calls; call after streaming completes.</summary>
     public async Task PersistMessagesAsync(
         Guid conversationId,
         string userName,
         string userMessage,
         string assistantMessage,
+        IReadOnlyList<(string ToolName, string? Arguments, string? Result)>? toolCalls = null,
         CancellationToken ct = default)
     {
         var conv = await db.Conversations
@@ -140,14 +143,35 @@ public class AgentService(
             Content = userMessage,
             CreatedAt = DateTime.UtcNow
         });
-        db.ChatMessages.Add(new Data.Entities.ChatMessage
+
+        var assistantMsgId = Guid.NewGuid();
+        var assistantMsg = new Data.Entities.ChatMessage
         {
-            Id = Guid.NewGuid(),
+            Id = assistantMsgId,
             ConversationId = conversationId,
             Role = "assistant",
             Content = assistantMessage,
             CreatedAt = DateTime.UtcNow
-        });
+        };
+        db.ChatMessages.Add(assistantMsg);
+
+        if (toolCalls is { Count: > 0 })
+        {
+            for (var i = 0; i < toolCalls.Count; i++)
+            {
+                var tc = toolCalls[i];
+                db.ToolCalls.Add(new ToolCall
+                {
+                    Id = Guid.NewGuid(),
+                    ChatMessageId = assistantMsgId,
+                    ToolName = tc.ToolName ?? "",
+                    Arguments = tc.Arguments,
+                    Result = tc.Result,
+                    SortOrder = i
+                });
+            }
+        }
+
         conv.UpdatedAt = DateTime.UtcNow;
 
         if (msgCountBefore == 0)
@@ -157,6 +181,30 @@ public class AgentService(
         }
 
         await db.SaveChangesAsync(ct);
+    }
+
+    private static string? ToJsonString(object? value)
+    {
+        if (value == null) return null;
+        var jsonOptions = new JsonSerializerOptions { WriteIndented = true };
+        if (value is string s)
+        {
+            if (string.IsNullOrWhiteSpace(s)) return s;
+            try
+            {
+                using var doc = JsonDocument.Parse(s);
+                return JsonSerializer.Serialize(doc.RootElement, jsonOptions);
+            }
+            catch { return s; }
+        }
+        try
+        {
+            return JsonSerializer.Serialize(value, value.GetType(), jsonOptions);
+        }
+        catch
+        {
+            return value.ToString();
+        }
     }
 
     private static ChatRole ToChatRole(string role) => role.ToLowerInvariant() switch

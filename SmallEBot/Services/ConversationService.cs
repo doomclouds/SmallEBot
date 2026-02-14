@@ -30,6 +30,7 @@ public class ConversationService(AppDbContext db)
     public async Task<Conversation?> GetByIdAsync(Guid id, string userName, CancellationToken ct = default) =>
         await db.Conversations
             .Include(x => x.Messages.OrderBy(m => m.CreatedAt))
+            .ThenInclude(m => m.ToolCalls)
             .FirstOrDefaultAsync(x => x.Id == id && x.UserName == userName, ct);
 
     public async Task<bool> DeleteAsync(Guid id, string userName, CancellationToken ct = default)
