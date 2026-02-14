@@ -1,4 +1,5 @@
 @using SmallEBot.Data.Entities
+@using SmallEBot.Models
 @inject AgentService AgentSvc
 @inject UserNameService UserNameSvc
 @inject IJSRuntime JS
@@ -68,6 +69,7 @@
     private string _input = "";
     private bool _streaming;
     private string _streamingText = "";
+    private List<StreamUpdate> _streamingUpdates = [];
     private string _pendingUserMessage = "";
     private DateTime _pendingUserMessageTime;
     private bool _scrollToBottomRequested;
@@ -81,13 +83,13 @@
         _pendingUserMessageTime = DateTime.UtcNow;
         _streaming = true;
         _streamingText = "";
+        _streamingUpdates.Clear();
         _scrollToBottomRequested = true;
         StateHasChanged();
 
         var persisted = false;
         try
         {
-            // Use the same username as entered in dialog / persisted (source of truth), not only the Parameter
             var userName = UserNameSvc.CurrentDisplayName ?? UserName;
             if (string.IsNullOrWhiteSpace(userName))
             {
@@ -97,9 +99,20 @@
                 await InvokeAsync(StateHasChanged);
                 return;
             }
-            await foreach (var chunk in AgentSvc.SendMessageStreamingAsync(ConversationId!.Value, msg))
+            await foreach (var update in AgentSvc.SendMessageStreamingAsync(ConversationId!.Value, msg))
             {
-                _streamingText += chunk;
+                switch (update)
+                {
+                    case TextStreamUpdate t:
+                        _streamingText += t.Text;
+                        _streamingUpdates.Add(update);
+                        break;
+                    case ToolCallStreamUpdate:
+                        _streamingUpdates.Add(update);
+                        break;
+                    default:
+                        break;
+                }
                 _scrollToBottomRequested = true;
                 StateHasChanged();
             }
