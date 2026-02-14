@@ -1,5 +1,150 @@
+/* SmallEBot design tokens – editorial dark */
+:root {
+    --seb-bg: #1a1a1d;
+    --seb-surface: #252529;
+    --seb-surface-elevated: #2d2d32;
+    --seb-primary: #e4a853;
+    --seb-primary-muted: rgba(228, 168, 83, 0.15);
+    --seb-text: #e4e4e7;
+    --seb-text-secondary: #a1a1aa;
+    --seb-border: #3f3f46;
+    --seb-chat-user: #2d2d32;
+    --seb-chat-assistant: #252529;
+    --seb-font-ui: 'Outfit', sans-serif;
+    --seb-font-body: 'Spectral', Georgia, serif;
+}
+
 html, body {
-    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-family: var(--seb-font-body);
+    background: var(--seb-bg);
+    color: var(--seb-text);
+    height: 100%;
+    overflow: hidden;
+}
+
+/* Layout: app bar and main – no page scroll, only inner chat scrolls */
+.smallebot-layout {
+    height: 100%;
+}
+/* Override MudBlazor’s default main-content padding so we control spacing in one place */
+.smallebot-layout .mud-main-content {
+    background: var(--seb-bg);
+    height: 100%;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    padding: 0 !important;
+}
+.smallebot-main {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+.smallebot-appbar {
+    background: var(--seb-surface) !important;
+    border-bottom: 1px solid var(--seb-border);
+}
+.smallebot-logo {
+    font-family: var(--seb-font-ui) !important;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+.smallebot-username {
+    color: var(--seb-text-secondary);
+    font-family: var(--seb-font-ui);
+}
+
+/* Chat page: single minimal top gap so first message is visible, no double padding */
+.smallebot-chat-page {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: 0.5rem 1.5rem 1rem 1.5rem;
+    min-height: 0;
+}
+.smallebot-chat-outer {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+}
+
+/* Chat area: paper fills space, only this region scrolls */
+.smallebot-chat-paper {
+    background: var(--seb-surface) !important;
+    border-radius: 12px;
+    border: 1px solid var(--seb-border);
+    padding: 1.5rem !important;
+    box-shadow: none;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+.smallebot-chat-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 2.5rem 6px 0 0;
+    scroll-behavior: smooth;
+}
+.smallebot-chat-scroll::-webkit-scrollbar { width: 8px; }
+.smallebot-chat-scroll::-webkit-scrollbar-track { background: transparent; }
+.smallebot-chat-scroll::-webkit-scrollbar-thumb { background: var(--seb-border); border-radius: 4px; }
+
+/* Message bubbles – stagger fade-in */
+.smallebot-bubble {
+    animation: seb-fade-in 0.35s ease-out both;
+}
+.smallebot-bubble:nth-child(1) { animation-delay: 0.02s; }
+.smallebot-bubble:nth-child(2) { animation-delay: 0.06s; }
+.smallebot-bubble:nth-child(3) { animation-delay: 0.1s; }
+.smallebot-bubble:nth-child(4) { animation-delay: 0.14s; }
+.smallebot-bubble:nth-child(5) { animation-delay: 0.18s; }
+.smallebot-bubble:nth-child(n+6) { animation-delay: 0.22s; }
+@keyframes seb-fade-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Override MudChat bubble look for dark theme */
+.smallebot-chat-paper .mud-chat-bubble {
+    background: var(--seb-chat-assistant) !important;
+    border: 1px solid var(--seb-border);
+    border-radius: 12px;
+}
+.smallebot-chat-paper .mud-chat-position-end .mud-chat-bubble {
+    background: var(--seb-chat-user) !important;
+    border-color: var(--seb-border);
+}
+.smallebot-chat-paper .mud-chat-bubble .mud-chat-bubble-message {
+    font-family: var(--seb-font-body);
+}
+.smallebot-chat-paper .mud-chat-bubble .mud-typography-caption {
+    color: var(--seb-text-secondary);
+    font-family: var(--seb-font-ui);
+}
+
+/* Sidebar */
+.smallebot-drawer {
+    background: var(--seb-surface) !important;
+    border-right: 1px solid var(--seb-border);
+}
+.smallebot-drawer .mud-drawer-header {
+    border-bottom: 1px solid var(--seb-border);
+}
+.smallebot-drawer .mud-list-item {
+    font-family: var(--seb-font-ui);
+}
+.smallebot-drawer .mud-list-item:hover {
+    background: var(--seb-primary-muted);
+}
+.smallebot-empty-state {
+    font-family: var(--seb-font-body);
+    color: var(--seb-text-secondary);
+    text-align: center;
+    padding: 3rem 1.5rem;
 }
 
 a, .btn-link {
@@ -59,11 +204,13 @@ h1:focus {
     text-align: start;
 }
 
-/* Rendered Markdown (Markdig) – GitHub-style scoped body */
+/* Rendered Markdown (Markdig) – dark editorial */
 .markdown-body {
+    font-family: var(--seb-font-body);
     font-size: 1rem;
-    line-height: 1.6;
+    line-height: 1.65;
     word-wrap: break-word;
+    color: var(--seb-text);
 }
 .markdown-body > :first-child { margin-top: 0 !important; }
 .markdown-body > :last-child { margin-bottom: 0 !important; }
@@ -72,9 +219,11 @@ h1:focus {
     margin-bottom: 0.5em;
     font-weight: 600;
     line-height: 1.25;
+    font-family: var(--seb-font-ui);
+    color: var(--seb-text);
 }
 .markdown-body h1 { font-size: 1.5em; }
-.markdown-body h2 { font-size: 1.3em; border-bottom: 1px solid var(--mud-palette-lines-default, #e0e0e0); padding-bottom: 0.2em; }
+.markdown-body h2 { font-size: 1.3em; border-bottom: 1px solid var(--seb-border); padding-bottom: 0.2em; }
 .markdown-body h3 { font-size: 1.15em; }
 .markdown-body p { margin: 0.5em 0; }
 .markdown-body ul, .markdown-body ol { margin: 0.5em 0; padding-left: 1.5em; }
@@ -82,14 +231,15 @@ h1:focus {
 .markdown-body blockquote {
     margin: 0.5em 0;
     padding: 0 1em;
-    border-left: 4px solid var(--mud-palette-primary, #594ae2);
-    color: var(--mud-palette-text-secondary, #666);
+    border-left: 4px solid var(--seb-primary);
+    color: var(--seb-text-secondary);
 }
 .markdown-body code {
     padding: 0.15em 0.4em;
     font-size: 0.9em;
-    background: var(--mud-palette-background-grey, rgba(0,0,0,.06));
+    background: var(--seb-primary-muted);
     border-radius: 4px;
+    color: var(--seb-primary);
 }
 .markdown-body pre {
     margin: 0.5em 0;
@@ -97,10 +247,11 @@ h1:focus {
     overflow: auto;
     font-size: 0.9em;
     line-height: 1.45;
-    background: var(--mud-palette-background-grey, rgba(0,0,0,.06));
-    border-radius: 6px;
+    background: var(--seb-bg);
+    border: 1px solid var(--seb-border);
+    border-radius: 8px;
 }
-.markdown-body pre code { padding: 0; background: none; }
+.markdown-body pre code { padding: 0; background: none; color: var(--seb-text); }
 .markdown-body table {
     border-collapse: collapse;
     width: 100%;
@@ -109,15 +260,15 @@ h1:focus {
     overflow-x: auto;
 }
 .markdown-body th, .markdown-body td {
-    border: 1px solid var(--mud-palette-lines-default, #e0e0e0);
+    border: 1px solid var(--seb-border);
     padding: 0.4em 0.6em;
     text-align: left;
 }
-.markdown-body th { font-weight: 600; background: var(--mud-palette-background-grey, rgba(0,0,0,.04)); }
-.markdown-body tr:nth-child(even) { background: var(--mud-palette-background-grey, rgba(0,0,0,.02)); }
-.markdown-body a { color: var(--mud-palette-primary, #594ae2); text-decoration: none; }
+.markdown-body th { font-weight: 600; background: var(--seb-surface-elevated); font-family: var(--seb-font-ui); }
+.markdown-body tr:nth-child(even) { background: rgba(255,255,255,0.02); }
+.markdown-body a { color: var(--seb-primary); text-decoration: none; }
 .markdown-body a:hover { text-decoration: underline; }
-.markdown-body hr { margin: 1em 0; border: none; border-top: 1px solid var(--mud-palette-lines-default, #e0e0e0); }
+.markdown-body hr { margin: 1em 0; border: none; border-top: 1px solid var(--seb-border); }
 .markdown-body strong { font-weight: 600; }
 .markdown-body em { font-style: italic; }
 .markdown-body input[type="checkbox"] { margin-right: 0.4em; vertical-align: middle; }

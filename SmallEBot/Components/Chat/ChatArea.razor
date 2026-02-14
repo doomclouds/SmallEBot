@@ -6,9 +6,8 @@
 @inject IJSRuntime JS
 @inject ISnackbar Snackbar
 
-<MudPaper Class="pa-4" Elevation="2">
-    <div @ref="_chatScrollRef"
-         style="overflow-y: auto; max-height: 72vh; padding-right: 4px;">
+<MudPaper Class="pa-4 smallebot-chat-paper" Elevation="0">
+    <div @ref="_chatScrollRef" class="smallebot-chat-scroll">
     @if (Groups.Any())
     {
         @foreach (var group in Groups)
@@ -16,7 +15,7 @@
             @if (group is UserMessageGroup userGroup)
             {
                 var msg = userGroup.Message;
-                <MudChat ChatPosition="ChatBubblePosition.End" ArrowPosition="ChatArrowPosition.Top" Class="mb-3">
+                <MudChat ChatPosition="ChatBubblePosition.End" ArrowPosition="ChatArrowPosition.Top" Class="mb-3 smallebot-bubble">
                     <MudChatBubble>
                         <MudText Typo="Typo.caption">You · @msg.CreatedAt.ToString("g")</MudText>
                         @if (!string.IsNullOrEmpty(msg.Content))
@@ -29,7 +28,7 @@
             else if (group is AssistantMessageGroup asstGroup)
             {
                 var firstCreatedAt = asstGroup.Items.Count > 0 ? asstGroup.Items[0].CreatedAt : DateTime.UtcNow;
-                <MudChat ChatPosition="ChatBubblePosition.Start" ArrowPosition="ChatArrowPosition.Top" Class="mb-3">
+                <MudChat ChatPosition="ChatBubblePosition.Start" ArrowPosition="ChatArrowPosition.Top" Class="mb-3 smallebot-bubble">
                     <MudChatBubble>
                         <MudText Typo="Typo.caption">SmallEBot · @firstCreatedAt.ToString("g")</MudText>
                         @foreach (var item in asstGroup.Items)
@@ -66,16 +65,16 @@
     @* Optimistic user message: show immediately when sent, until parent refreshes with persisted messages *@
     @if (!string.IsNullOrEmpty(_pendingUserMessage))
     {
-        <MudChat ChatPosition="ChatBubblePosition.End" ArrowPosition="ChatArrowPosition.Top" Class="mb-3">
+        <MudChat ChatPosition="ChatBubblePosition.End" ArrowPosition="ChatArrowPosition.Top" Class="mb-3 smallebot-bubble">
             <MudChatBubble>
                 <MudText Typo="Typo.caption">You · @_pendingUserMessageTime.ToString("g")</MudText>
                 <div class="markdown-body">@((MarkupString)MarkdownSvc.ToHtml(_pendingUserMessage))</div>
             </MudChatBubble>
         </MudChat>
     }
-    @if (_streaming)
+    @if (_streaming || _showLastStreamedReply)
     {
-        <MudChat ChatPosition="ChatBubblePosition.Start" ArrowPosition="ChatArrowPosition.Top" Class="mb-3">
+        <MudChat ChatPosition="ChatBubblePosition.Start" ArrowPosition="ChatArrowPosition.Top" Class="mb-3 smallebot-bubble">
             <MudChatBubble>
                 <MudText Typo="Typo.caption">SmallEBot · @DateTime.Now.ToString("g")</MudText>
                 @foreach (var item in GetStreamingDisplayItems())
@@ -130,6 +129,7 @@
     [Parameter] public Guid? ConversationId { get; set; }
     [Parameter] public string UserName { get; set; } = "";
     [Parameter] public EventCallback OnMessageSent { get; set; }
+    [Parameter] public EventCallback OnBeforeSend { get; set; }
     [CascadingParameter(Name = "ShowToolCalls")] public bool ShowToolCalls { get; set; } = true;
 
     private ElementReference _chatScrollRef;
@@ -140,10 +140,14 @@
     private string _pendingUserMessage = "";
     private DateTime _pendingUserMessageTime;
     private bool _scrollToBottomRequested;
+    /// <summary>True after persist: show last streamed reply without refetching (avoids full re-render). Cleared when conversation changes or next send.</summary>
+    private bool _showLastStreamedReply;
 
     private async Task Send()
     {
         if (string.IsNullOrWhiteSpace(_input) || !ConversationId.HasValue) return;
+        await OnBeforeSend.InvokeAsync();
+        _showLastStreamedReply = false;
         var msg = _input.Trim();
         _input = "";
         _pendingUserMessage = msg;
@@ -202,6 +206,7 @@
             {
                 await OnMessageSent.InvokeAsync();
                 _pendingUserMessage = "";
+                _showLastStreamedReply = true;
             }
             _streaming = false;
             _scrollToBottomRequested = true;
@@ -211,10 +216,10 @@
 
     protected override void OnParametersSet()
     {
-        // Scroll to bottom when switching to another conversation
         if (ConversationId.HasValue && ConversationId != _lastConversationId)
         {
             _lastConversationId = ConversationId;
+            _showLastStreamedReply = false;
             if (Groups.Count > 0)
                 _scrollToBottomRequested = true;
         }

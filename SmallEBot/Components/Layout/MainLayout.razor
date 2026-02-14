@@ -1,26 +1,29 @@
 @inherits LayoutComponentBase
 @inject UserNameService UserNameSvc
 
-<MudThemeProvider Theme="_theme" />
+<MudThemeProvider Theme="_theme" IsDarkMode="true" />
 <MudDialogProvider />
 <MudSnackbarProvider />
 <MudPopoverProvider />
 
-<MudLayout>
-    <MudAppBar Elevation="1">
-        <MudText Typo="Typo.h6">SmallEBot</MudText>
+<MudLayout Class="smallebot-layout">
+    <MudAppBar Elevation="0" Class="smallebot-appbar">
+        <MudText Typo="Typo.h6" Class="smallebot-logo">SmallEBot</MudText>
         <MudSpacer />
-        <MudTooltip Text="@(_showToolCalls ? "隐藏工具" : "显示工具")">
+        <MudTooltip Text="@(_showToolCalls ? "隐藏工具调用" : "显示工具调用")">
             <MudIconButton Icon="@Icons.Material.Filled.Build"
                            Color="@(_showToolCalls ? Color.Primary : Color.Default)"
-                           OnClick="@(() => { _showToolCalls = !_showToolCalls; StateHasChanged(); })" />
+                           OnClick="@ToggleShowToolCalls" />
         </MudTooltip>
+        <MudSwitch @bind-Value="_showToolCalls" Color="Color.Primary" Class="ms-2">
+            <MudText Typo="Typo.body2">工具调用</MudText>
+        </MudSwitch>
         @if (!string.IsNullOrEmpty(UserNameSvc.CurrentDisplayName))
         {
-            <MudText Typo="Typo.body2">@UserNameSvc.CurrentDisplayName</MudText>
+            <MudText Typo="Typo.body2" Class="smallebot-username">@UserNameSvc.CurrentDisplayName</MudText>
         }
     </MudAppBar>
-    <MudMainContent>
+    <MudMainContent Class="smallebot-main">
         <CascadingValue Value="_showToolCalls" Name="ShowToolCalls">
             @Body
         </CascadingValue>
@@ -28,6 +31,27 @@
 </MudLayout>
 
 @code {
-    private readonly MudTheme _theme = new();
+    private static MudTheme CreateTheme()
+    {
+        var theme = new MudTheme();
+        theme.PaletteDark = new PaletteDark
+        {
+            Primary = "#e4a853",
+            PrimaryContrastText = "#1a1a1d",
+            Secondary = "#71717a",
+            Background = "#1a1a1d",
+            BackgroundGray = "#252529",
+            Surface = "#252529"
+        };
+        return theme;
+    }
+
+    private readonly MudTheme _theme = CreateTheme();
     private bool _showToolCalls = true;
+
+    private void ToggleShowToolCalls()
+    {
+        _showToolCalls = !_showToolCalls;
+        StateHasChanged();
+    }
 }

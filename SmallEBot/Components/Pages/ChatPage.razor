@@ -9,7 +9,7 @@
 
 @if (string.IsNullOrEmpty(_userName))
 {
-    <p>Loading...</p>
+    <div class="smallebot-chat-page"><p class="smallebot-empty-state">Loading...</p></div>
 }
 else
 {
@@ -21,17 +21,24 @@ else
                              OnCreate="@OnCreateConversation"
                              OnDelete="@OnDeleteConversation"
                              Open="true" />
-        <MudMainContent>
+        <MudMainContent Class="smallebot-main">
             @if (_selectedConversation != null)
             {
-                <ChatArea Groups="@(ConversationService.GetMessageGroups(_selectedConversation!))"
-                          ConversationId="_selectedConversation.Id"
-                          UserName="_userName"
-                          OnMessageSent="RefreshSidebar" />
+                <div class="smallebot-chat-page">
+                    <div class="smallebot-chat-outer">
+                        <ChatArea Groups="@(ConversationService.GetMessageGroups(_selectedConversation!))"
+                                  ConversationId="_selectedConversation.Id"
+                                  UserName="_userName"
+                                  OnMessageSent="RefreshSidebarOnly"
+                                  OnBeforeSend="RefreshCurrentConversation" />
+                    </div>
+                </div>
             }
             else
             {
-                <MudText>Select or create a conversation.</MudText>
+                <div class="smallebot-chat-page">
+                    <p class="smallebot-empty-state">选择或新建一个对话开始聊天。</p>
+                </div>
             }
         </MudMainContent>
     </MudLayout>
@@ -102,5 +109,22 @@ else
         if (_selectedId.HasValue)
             _selectedConversation = await ConvSvc.GetByIdAsync(_selectedId.Value, _userName!);
         await InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>Refresh only sidebar list (titles/dates). Does not replace current conversation to avoid full re-render and scroll reset.</summary>
+    private async Task RefreshSidebarOnly()
+    {
+        _conversations = await ConvSvc.GetListAsync(_userName!);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>Refetch current conversation (e.g. before sending so display includes last persisted reply).</summary>
+    private async Task RefreshCurrentConversation()
+    {
+        if (_selectedId.HasValue && !string.IsNullOrEmpty(_userName))
+        {
+            _selectedConversation = await ConvSvc.GetByIdAsync(_selectedId.Value, _userName);
+            await InvokeAsync(StateHasChanged);
+        }
     }
 }
