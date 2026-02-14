@@ -31,46 +31,63 @@ public class ConversationService(AppDbContext db)
     public async Task<Conversation?> GetByIdAsync(Guid id, string userName, CancellationToken ct = default) =>
         await db.Conversations
             .AsSplitQuery()
+            .Include(c => c.Turns.OrderBy(t => t.CreatedAt))
             .Include(x => x.Messages.OrderBy(m => m.CreatedAt))
             .Include(x => x.ToolCalls.OrderBy(t => t.CreatedAt))
             .Include(x => x.ThinkBlocks.OrderBy(b => b.CreatedAt))
             .FirstOrDefaultAsync(x => x.Id == id && x.UserName == userName, ct);
 
     /// <summary>Returns conversation timeline (messages, tool calls, think blocks) sorted by CreatedAt.</summary>
-    public static List<TimelineItem> GetTimeline(Conversation conv)
+    public static List<TimelineItem> GetTimeline(IEnumerable<ChatMessage> messages, IEnumerable<ToolCall> toolCalls, IEnumerable<ThinkBlock> thinkBlocks)
     {
-        var list = conv.Messages.Select(m => new TimelineItem(m, null, null))
-            .Concat(conv.ToolCalls.Select(t => new TimelineItem(null, t, null)))
-            .Concat(conv.ThinkBlocks.Select(b => new TimelineItem(null, null, b)))
+        var list = messages.Select(m => new TimelineItem(m, null, null))
+            .Concat(toolCalls.Select(t => new TimelineItem(null, t, null)))
+            .Concat(thinkBlocks.Select(b => new TimelineItem(null, null, b)))
             .OrderBy(x => x.CreatedAt)
             .ToList();
         return list;
     }
 
-    /// <summary>Returns conversation as message groups: one group = one user message or one AI reply (all segments in order).</summary>
+    /// <summary>Returns conversation as message groups from turns: one group = one user message or one AI reply (all segments in order).</summary>
     public static List<MessageGroup> GetMessageGroups(Conversation conv)
     {
-        var timeline = GetTimeline(conv);
         var groups = new List<MessageGroup>();
-        var currentAssistant = new List<TimelineItem>();
-        foreach (var item in timeline)
+        var turns = conv.Turns.OrderBy(t => t.CreatedAt).ToList();
+        if (turns.Count == 0)
         {
-            if (item.Message is { Role: "user" })
+            // Legacy: no turns, fall back to timeline-based grouping
+            var timeline = GetTimeline(conv.Messages, conv.ToolCalls, conv.ThinkBlocks);
+            var currentAssistant = new List<TimelineItem>();
+            foreach (var item in timeline)
             {
-                if (currentAssistant.Count > 0)
+                if (item.Message is { Role: "user" })
                 {
-                    groups.Add(new AssistantMessageGroup(currentAssistant.ToList()));
+                    if (currentAssistant.Count > 0)
+                        groups.Add(new AssistantMessageGroup(currentAssistant.ToList(), false));
+                    groups.Add(new UserMessageGroup(item.Message));
                     currentAssistant = [];
                 }
-                groups.Add(new UserMessageGroup(item.Message));
+                else
+                    currentAssistant.Add(item);
             }
-            else
-            {
-                currentAssistant.Add(item);
-            }
+            if (currentAssistant.Count > 0)
+                groups.Add(new AssistantMessageGroup(currentAssistant.ToList(), false));
+            return groups;
         }
-        if (currentAssistant.Count > 0)
-            groups.Add(new AssistantMessageGroup(currentAssistant.ToList()));
+
+        foreach (var turn in turns)
+        {
+            var userMsg = conv.Messages.FirstOrDefault(m => m.TurnId == turn.Id && m.Role == "user");
+            if (userMsg == null) continue;
+
+            var turnMessages = conv.Messages.Where(m => m.TurnId == turn.Id && m.Role == "assistant").ToList();
+            var turnTools = conv.ToolCalls.Where(t => t.TurnId == turn.Id).ToList();
+            var turnThinks = conv.ThinkBlocks.Where(b => b.TurnId == turn.Id).ToList();
+            var items = GetTimeline(turnMessages, turnTools, turnThinks);
+
+            groups.Add(new UserMessageGroup(userMsg));
+            groups.Add(new AssistantMessageGroup(items, turn.IsThinkingMode));
+        }
         return groups;
     }
 

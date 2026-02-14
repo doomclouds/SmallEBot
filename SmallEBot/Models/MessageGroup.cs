@@ -9,4 +9,4 @@ public abstract record MessageGroup;
 public sealed record UserMessageGroup(ChatMessage Message) : MessageGroup;
 
 /// <summary>Group containing one AI reply: ordered segments (assistant text and tool calls).</summary>
-public sealed record AssistantMessageGroup(IReadOnlyList<TimelineItem> Items) : MessageGroup;
+public sealed record AssistantMessageGroup(IReadOnlyList<TimelineItem> Items, bool IsThinkingMode) : MessageGroup;
