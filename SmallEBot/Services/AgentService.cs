@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using OpenAI;
 using SmallEBot.Data;
+using SmallEBot.Models;
 using ChatMessage = Microsoft.Extensions.AI.ChatMessage;
 
 namespace SmallEBot.Services;
@@ -39,14 +40,13 @@ public class AgentService(
         return _agent;
     }
 
-    public async IAsyncEnumerable<string> SendMessageStreamingAsync(
+    public async IAsyncEnumerable<StreamUpdate> SendMessageStreamingAsync(
         Guid conversationId,
         string userMessage,
         [EnumeratorCancellation] CancellationToken ct = default)
     {
         var agent = GetAgent();
 
-        // Load history and build message list for context
         var store = new ChatMessageStoreAdapter(db, conversationId);
         var history = await store.LoadMessagesAsync(ct);
         var frameworkMessages = history
@@ -58,9 +58,8 @@ public class AgentService(
         {
             var text = update.Text;
             if (!string.IsNullOrEmpty(text))
-            {
-                yield return text;
-            }
+                yield return new TextStreamUpdate(text);
+            // TODO: when SDK exposes update.Contents, yield ToolCallStreamUpdate for FunctionCallContent / FunctionResultContent
         }
     }
 
