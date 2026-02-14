@@ -15,4 +15,5 @@ public class Conversation
     public ICollection<ChatMessage> Messages { get; set; } = new List<ChatMessage>();
     public ICollection<ToolCall> ToolCalls { get; set; } = new List<ToolCall>();
     public ICollection<ThinkBlock> ThinkBlocks { get; set; } = new List<ThinkBlock>();
+    public ICollection<ConversationTurn> Turns { get; set; } = new List<ConversationTurn>();
 }

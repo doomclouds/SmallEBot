@@ -7,6 +7,7 @@ public class ToolCall : ICreateTime
 {
     public Guid Id { get; set; }
     public Guid ConversationId { get; set; }
+    public Guid? TurnId { get; set; }
     [MaxLength(200)]
     public string ToolName { get; set; } = string.Empty;
     public string? Arguments { get; set; }
@@ -15,4 +16,5 @@ public class ToolCall : ICreateTime
     public DateTime CreatedAt { get; set; }
 
     public Conversation Conversation { get; set; } = null!;
+    public ConversationTurn? Turn { get; set; }
 }
