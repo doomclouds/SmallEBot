@@ -20,11 +20,13 @@ builder.Services.AddRazorComponents()
 
 var app = builder.Build();
 
-// Apply pending EF Core migrations on startup
+// Apply pending EF Core migrations and backfill TurnId for existing data
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.Migrate();
+    var convSvc = scope.ServiceProvider.GetRequiredService<ConversationService>();
+    convSvc.BackfillTurnsAsync().GetAwaiter().GetResult();
 }
 
 // Configure the HTTP request pipeline.
