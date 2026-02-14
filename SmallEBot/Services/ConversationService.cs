@@ -34,7 +34,7 @@ public class ConversationService(AppDbContext db)
             .Include(x => x.ToolCalls.OrderBy(t => t.CreatedAt))
             .FirstOrDefaultAsync(x => x.Id == id && x.UserName == userName, ct);
 
-    /// <summary>Returns conversation timeline (messages and tool calls) sorted by CreatedAt for display.</summary>
+    /// <summary>Returns conversation timeline (messages and tool calls) sorted by CreatedAt.</summary>
     public static List<TimelineItem> GetTimeline(Conversation conv)
     {
         var list = conv.Messages.Select(m => new TimelineItem(m, null))
@@ -42,6 +42,33 @@ public class ConversationService(AppDbContext db)
             .OrderBy(x => x.CreatedAt)
             .ToList();
         return list;
+    }
+
+    /// <summary>Returns conversation as message groups: one group = one user message or one AI reply (all segments in order).</summary>
+    public static List<MessageGroup> GetMessageGroups(Conversation conv)
+    {
+        var timeline = GetTimeline(conv);
+        var groups = new List<MessageGroup>();
+        var currentAssistant = new List<TimelineItem>();
+        foreach (var item in timeline)
+        {
+            if (item.Message != null && item.Message.Role == "user")
+            {
+                if (currentAssistant.Count > 0)
+                {
+                    groups.Add(new AssistantMessageGroup(currentAssistant.ToList()));
+                    currentAssistant = new List<TimelineItem>();
+                }
+                groups.Add(new UserMessageGroup(item.Message));
+            }
+            else
+            {
+                currentAssistant.Add(item);
+            }
+        }
+        if (currentAssistant.Count > 0)
+            groups.Add(new AssistantMessageGroup(currentAssistant.ToList()));
+        return groups;
     }
 
     public async Task<bool> DeleteAsync(Guid id, string userName, CancellationToken ct = default)

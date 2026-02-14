@@ -8,18 +8,16 @@
 <MudPaper Class="pa-4" Elevation="2">
     <div @ref="_chatScrollRef"
          style="overflow-y: auto; max-height: 72vh; padding-right: 4px;">
-    @if (Timeline.Any())
+    @if (Groups.Any())
     {
-        @foreach (var item in Timeline)
+        @foreach (var group in Groups)
         {
-            @if (item.Message != null)
+            @if (group is UserMessageGroup userGroup)
             {
-                var msg = item.Message;
-                <MudChat ChatPosition="@(msg.Role == "user" ? ChatBubblePosition.End : ChatBubblePosition.Start)"
-                         ArrowPosition="ChatArrowPosition.Top"
-                         Class="mb-3">
+                var msg = userGroup.Message;
+                <MudChat ChatPosition="ChatBubblePosition.End" ArrowPosition="ChatArrowPosition.Top" Class="mb-3">
                     <MudChatBubble>
-                        <MudText Typo="Typo.caption">@(msg.Role == "user" ? "You" : "SmallEBot") · @msg.CreatedAt.ToString("g")</MudText>
+                        <MudText Typo="Typo.caption">You · @msg.CreatedAt.ToString("g")</MudText>
                         @if (!string.IsNullOrEmpty(msg.Content))
                         {
                             <MudText Typo="Typo.body1">@msg.Content</MudText>
@@ -27,24 +25,38 @@
                     </MudChatBubble>
                 </MudChat>
             }
-            else if (item.ToolCall != null && ShowToolCalls)
+            else if (group is AssistantMessageGroup asstGroup)
             {
-                var tool = item.ToolCall;
+                var firstCreatedAt = asstGroup.Items.Count > 0 ? asstGroup.Items[0].CreatedAt : DateTime.UtcNow;
                 <MudChat ChatPosition="ChatBubblePosition.Start" ArrowPosition="ChatArrowPosition.Top" Class="mb-3">
                     <MudChatBubble>
-                        <MudText Typo="Typo.caption">SmallEBot · @tool.CreatedAt.ToString("g")</MudText>
-                        <MudExpansionPanels Class="mt-2" Elevation="0">
-                            <MudExpansionPanel expanded="false" Text="@($"🔧 {tool.ToolName}")">
-                                @if (!string.IsNullOrEmpty(tool.Arguments))
+                        <MudText Typo="Typo.caption">SmallEBot · @firstCreatedAt.ToString("g")</MudText>
+                        @foreach (var item in asstGroup.Items)
+                        {
+                            @if (item.Message != null)
+                            {
+                                @if (!string.IsNullOrEmpty(item.Message.Content))
                                 {
-                                    <MudText Typo="Typo.caption" Class="mt-1">Arguments: <pre class="d-inline">@tool.Arguments</pre></MudText>
+                                    <MudText Typo="Typo.body1">@item.Message.Content</MudText>
                                 }
-                                @if (!string.IsNullOrEmpty(tool.Result))
-                                {
-                                    <MudText Typo="Typo.caption" Class="mt-1">Result: <pre class="d-inline">@tool.Result</pre></MudText>
-                                }
-                            </MudExpansionPanel>
-                        </MudExpansionPanels>
+                            }
+                            else if (item.ToolCall != null && ShowToolCalls)
+                            {
+                                var tool = item.ToolCall;
+                                <MudExpansionPanels Class="mt-2" Elevation="0">
+                                    <MudExpansionPanel expanded="false" Text="@($"🔧 {tool.ToolName}")">
+                                        @if (!string.IsNullOrEmpty(tool.Arguments))
+                                        {
+                                            <div class="mt-1 d-block"><MudText Typo="Typo.caption">Arguments:</MudText><pre class="d-inline">@tool.Arguments</pre></div>
+                                        }
+                                        @if (!string.IsNullOrEmpty(tool.Result))
+                                        {
+                                            <div class="mt-1 d-block"><MudText Typo="Typo.caption">Result:</MudText><pre class="d-inline">@tool.Result</pre></div>
+                                        }
+                                    </MudExpansionPanel>
+                                </MudExpansionPanels>
+                            }
+                        }
                     </MudChatBubble>
                 </MudChat>
             }
@@ -77,11 +89,11 @@
                             <MudExpansionPanel expanded="false" Text="@($"🔧 {item.ToolName ?? "Tool"}")">
                                 @if (!string.IsNullOrEmpty(item.ToolArguments))
                                 {
-                                    <MudText Typo="Typo.caption" Class="mt-1">Arguments: <pre class="d-inline">@item.ToolArguments</pre></MudText>
+                                    <div class="mt-1 d-block"><MudText Typo="Typo.caption">Arguments:</MudText><pre class="d-inline">@item.ToolArguments</pre></div>
                                 }
                                 @if (!string.IsNullOrEmpty(item.ToolResult))
                                 {
-                                    <MudText Typo="Typo.caption" Class="mt-1">Result: <pre class="d-inline">@item.ToolResult</pre></MudText>
+                                    <div class="mt-1 d-block"><MudText Typo="Typo.caption">Result:</MudText><pre class="d-inline">@item.ToolResult</pre></div>
                                 }
                             </MudExpansionPanel>
                         </MudExpansionPanels>
@@ -113,7 +125,7 @@
 </MudPaper>
 
 @code {
-    [Parameter] public List<TimelineItem> Timeline { get; set; } = new();
+    [Parameter] public List<MessageGroup> Groups { get; set; } = new();
     [Parameter] public Guid? ConversationId { get; set; }
     [Parameter] public string UserName { get; set; } = "";
     [Parameter] public EventCallback OnMessageSent { get; set; }
@@ -202,7 +214,7 @@
         if (ConversationId.HasValue && ConversationId != _lastConversationId)
         {
             _lastConversationId = ConversationId;
-            if (Timeline.Count > 0)
+            if (Groups.Count > 0)
                 _scrollToBottomRequested = true;
         }
     }

@@ -24,7 +24,7 @@ else
         <MudMainContent>
             @if (_selectedConversation != null)
             {
-                <ChatArea Timeline="@(ConversationService.GetTimeline(_selectedConversation!))"
+                <ChatArea Groups="@(ConversationService.GetMessageGroups(_selectedConversation!))"
                           ConversationId="_selectedConversation.Id"
                           UserName="_userName"
                           OnMessageSent="RefreshSidebar" />
