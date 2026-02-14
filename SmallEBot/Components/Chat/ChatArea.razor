@@ -1,3 +1,4 @@
+@using System.Runtime.CompilerServices
 @using SmallEBot.Models
 @inject AgentService AgentSvc
 @inject UserNameService UserNameSvc
@@ -88,13 +89,25 @@
                       FullWidth="true"
                       Immediate="true"
                       OnKeyDown="@HandleKeyDown" />
-        <MudButton Variant="Variant.Filled"
-                   Color="Color.Primary"
-                   ButtonType="ButtonType.Submit"
-                   OnClick="@Send"
-                   Disabled="@(_streaming || string.IsNullOrWhiteSpace(_input))">
-            Send
-        </MudButton>
+        @if (_streaming)
+        {
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Secondary"
+                       OnClick="@StopSend"
+                       Disabled="false">
+                Stop
+            </MudButton>
+        }
+        else
+        {
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       ButtonType="ButtonType.Submit"
+                       OnClick="@Send"
+                       Disabled="@string.IsNullOrWhiteSpace(_input)">
+                Send
+            </MudButton>
+        }
     </MudStack>
 </MudPaper>
 
@@ -117,6 +130,12 @@
     private bool _scrollToBottomRequested;
     /// <summary>Bubble count at start of Send(); used to detect when parent has refreshed with new turn so we clear streaming without a visible flash.</summary>
     private int _bubbleCountBeforeSend;
+    private CancellationTokenSource? _sendCts;
+
+    private void StopSend()
+    {
+        _sendCts?.Cancel();
+    }
 
     private async Task Send()
     {
@@ -131,27 +150,38 @@
         _streaming = true;
         _streamingText = "";
         _streamingUpdates.Clear();
+        _sendCts = new CancellationTokenSource();
         _scrollToBottomRequested = true;
         StateHasChanged();
 
         await OnBeforeSend.InvokeAsync();
 
+        var userName = await UserNameSvc.GetAsync() ?? UserName;
+        if (string.IsNullOrWhiteSpace(userName))
+        {
+            Snackbar.Add("Username is missing. Please refresh and enter your name.", Severity.Warning);
+            _pendingUserMessage = "";
+            _streaming = false;
+            _sendCts?.Dispose();
+            _sendCts = null;
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        var turnId = await AgentSvc.CreateTurnAndUserMessageAsync(ConversationId!.Value, userName, msg, UseThinkingMode);
+        // Run streaming in a background task so the circuit can process Stop clicks; otherwise Cancel() never runs until the next chunk.
+        _ = RunStreamingLoopAsync(turnId, msg);
+    }
+
+    private async Task RunStreamingLoopAsync(Guid turnId, string msg)
+    {
         var persisted = false;
-        var turnId = Guid.Empty;
         try
         {
-            var userName = await UserNameSvc.GetAsync() ?? UserName;
-            if (string.IsNullOrWhiteSpace(userName))
+            await foreach (var update in AgentSvc.SendMessageStreamingAsync(ConversationId!.Value, msg, UseThinkingMode)
+                .WithCancellation(_sendCts!.Token))
             {
-                Snackbar.Add("Username is missing. Please refresh and enter your name.", Severity.Warning);
-                _pendingUserMessage = "";
-                _streaming = false;
-                await InvokeAsync(StateHasChanged);
-                return;
-            }
-            turnId = await AgentSvc.CreateTurnAndUserMessageAsync(ConversationId!.Value, userName, msg, UseThinkingMode);
-            await foreach (var update in AgentSvc.SendMessageStreamingAsync(ConversationId!.Value, msg, UseThinkingMode))
-            {
+                _sendCts.Token.ThrowIfCancellationRequested();
                 switch (update)
                 {
                     case TextStreamUpdate t:
@@ -164,35 +194,61 @@
                         break;
                 }
                 _scrollToBottomRequested = true;
-                StateHasChanged();
+                await InvokeAsync(StateHasChanged);
             }
             var segments = BuildSegmentsForPersist();
             await AgentSvc.CompleteTurnWithAssistantAsync(ConversationId!.Value, turnId, segments);
             persisted = true;
         }
-        catch (Exception ex)
+        catch (OperationCanceledException)
         {
-            Snackbar.Add($"Error: {ex.Message}", Severity.Error);
-            if (turnId != Guid.Empty)
+            var segments = BuildSegmentsForPersist();
+            if (segments.Count > 0)
             {
                 try
                 {
-                    await AgentSvc.CompleteTurnWithErrorAsync(ConversationId!.Value, turnId, ex.Message);
+                    await AgentSvc.CompleteTurnWithAssistantAsync(ConversationId!.Value, turnId, segments);
                     persisted = true;
                 }
                 catch (Exception persistEx)
                 {
-                    Log.LogError(persistEx, "Failed to persist error message for turn {TurnId}", turnId);
+                    Log.LogError(persistEx, "Failed to persist partial reply for turn {TurnId}", turnId);
                 }
+            }
+            else
+            {
+                try
+                {
+                    await AgentSvc.CompleteTurnWithErrorAsync(ConversationId!.Value, turnId, "Stopped by user.");
+                    persisted = true;
+                }
+                catch (Exception persistEx)
+                {
+                    Log.LogError(persistEx, "Failed to persist stop message for turn {TurnId}", turnId);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await InvokeAsync(() => Snackbar.Add($"Error: {ex.Message}", Severity.Error));
+            try
+            {
+                await AgentSvc.CompleteTurnWithErrorAsync(ConversationId!.Value, turnId, ex.Message);
+                persisted = true;
+            }
+            catch (Exception persistEx)
+            {
+                Log.LogError(persistEx, "Failed to persist error message for turn {TurnId}", turnId);
             }
         }
         finally
         {
+            _sendCts?.Dispose();
+            _sendCts = null;
             if (persisted)
             {
                 _pendingUserMessage = "";
                 _scrollToBottomRequested = true;
-                // Refresh parent first so new Bubbles arrive; then we clear streaming in OnParametersSet to avoid a visible flash (reply disappearing then reappearing).
                 await OnMessageSent.InvokeAsync();
             }
             _streaming = false;
