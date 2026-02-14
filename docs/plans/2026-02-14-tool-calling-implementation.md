@@ -385,3 +385,5 @@ git commit -m "docs: link design to implementation plan"
 | 11   | No-tools + scroll | Normal chat, no extra UI break |
 
 All verifications are run by the executor (Cursor) using the browser MCP against the running app. Do not mark the feature complete until Tasks 3, 6, 8, and 11 pass; Task 10 can be skipped if no http MCP is configured or reachable.
+
+**Verification completed (2026-02-14):** Tasks 3, 6, 8, and 11 passed via browser MCP. Tool call persistence and JSON-serialized Arguments/Result are implemented; Task 10 (MCP UI) deferred until http MCP tool loading is implemented.
