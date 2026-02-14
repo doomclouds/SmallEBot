@@ -167,6 +167,23 @@
                     {
                         <div class="markdown-body">@((MarkupString)MarkdownSvc.ToHtml(item.Text))</div>
                     }
+                    else if (item.IsReplyTool && ShowToolCalls)
+                    {
+                        <div class="mt-2">
+                            <MudExpansionPanels Elevation="0" Class="pa-0">
+                                <MudExpansionPanel expanded="false" Text="@("🔧 " + (item.ToolName ?? "Tool"))">
+                                    @if (!string.IsNullOrEmpty(item.ToolArguments))
+                                    {
+                                        <div class="mt-1 d-block"><MudText Typo="Typo.caption">Arguments:</MudText><pre class="d-inline">@item.ToolArguments</pre></div>
+                                    }
+                                    @if (!string.IsNullOrEmpty(item.ToolResult))
+                                    {
+                                        <div class="mt-1 d-block"><MudText Typo="Typo.caption">Result:</MudText><pre class="d-inline">@item.ToolResult</pre></div>
+                                    }
+                                </MudExpansionPanel>
+                            </MudExpansionPanels>
+                        </div>
+                    }
                 }
                 @if (!GetStreamingDisplayItems().Any() && !string.IsNullOrEmpty(_streamingText))
                 {
@@ -258,24 +275,7 @@
                 _scrollToBottomRequested = true;
                 StateHasChanged();
             }
-            var items = GetStreamingDisplayItems().ToList();
-            var segments = new List<AssistantSegment>();
-            foreach (var x in items)
-            {
-                if (x is { IsReasoningGroup: true, ReasoningSteps: not null })
-                {
-                    foreach (var step in x.ReasoningSteps)
-                    {
-                        segments.Add(step.IsThink ? new AssistantSegment(IsText: false, IsThink: true, Text: step.Text ?? "") : new AssistantSegment(IsText: false, IsThink: false, ToolName: step.ToolName ?? "", Arguments: step.ToolArguments, Result: step.ToolResult));
-                    }
-                }
-                else if (x.IsText)
-                {
-                    segments.Add(new AssistantSegment(IsText: true, Text: x.Text ?? ""));
-                }
-            }
-            if (segments.Count == 0 && !string.IsNullOrEmpty(_streamingText))
-                segments.Add(new AssistantSegment(IsText: true, Text: _streamingText));
+            var segments = BuildSegmentsForPersist();
             await AgentSvc.CompleteTurnWithAssistantAsync(ConversationId!.Value, turnId, segments);
             persisted = true;
         }
@@ -348,28 +348,10 @@
         return item.Message is { Role: "assistant" } msg && (msg.Content?.StartsWith("Error: ", StringComparison.Ordinal) ?? false);
     }
 
-    private sealed class ReasoningStep
-    {
-        public bool IsThink { get; init; }
-        public string? Text { get; set; }
-        public string? ToolName { get; init; }
-        public string? ToolArguments { get; init; }
-        public string? ToolResult { get; set; }
-    }
-
-    private sealed class StreamDisplayItem
-    {
-        public bool IsReasoningGroup { get; init; }
-        public List<ReasoningStep>? ReasoningSteps { get; init; }
-        public bool IsText { get; init; }
-        public string? Text { get; init; }
-    }
-
     private IEnumerable<StreamDisplayItem> GetStreamingDisplayItems()
     {
-        var rawList = new List<StreamDisplayItem>();
         var reasoningSteps = new List<ReasoningStep>();
-        var toolStepsAfterText = new List<ReasoningStep>();
+        var replyItems = new List<StreamDisplayItem>();
         var seenText = false;
 
         foreach (var update in _streamingUpdates)
@@ -377,20 +359,20 @@
             if (update is TextStreamUpdate t)
             {
                 seenText = true;
-                if (rawList.Count > 0 && rawList[^1] is { IsText: true } lastText)
-                    rawList[^1] = new StreamDisplayItem { IsText = true, Text = (lastText.Text ?? "") + t.Text };
+                if (replyItems.Count > 0 && replyItems[^1] is { IsText: true } lastText)
+                    replyItems[^1] = new StreamDisplayItem { IsText = true, Text = (lastText.Text ?? "") + t.Text };
                 else
-                    rawList.Add(new StreamDisplayItem { IsText = true, Text = t.Text });
+                    replyItems.Add(new StreamDisplayItem { IsText = true, Text = t.Text });
                 continue;
             }
             if (update is ThinkStreamUpdate think)
             {
                 if (seenText)
                 {
-                    if (rawList.Count > 0 && rawList[^1] is { IsText: true } lt)
-                        rawList[^1] = new StreamDisplayItem { IsText = true, Text = (lt.Text ?? "") + think.Text };
+                    if (replyItems.Count > 0 && replyItems[^1] is { IsText: true } lt)
+                        replyItems[^1] = new StreamDisplayItem { IsText = true, Text = (lt.Text ?? "") + think.Text };
                     else
-                        rawList.Add(new StreamDisplayItem { IsText = true, Text = think.Text });
+                        replyItems.Add(new StreamDisplayItem { IsText = true, Text = think.Text });
                 }
                 else
                 {
@@ -403,15 +385,30 @@
             }
             if (update is ToolCallStreamUpdate tc)
             {
-                var targetList = seenText ? toolStepsAfterText : reasoningSteps;
-                if (tc is { Result: not null, Arguments: null })
+                if (seenText)
                 {
-                    var lastTool = targetList.LastOrDefault(x => !x.IsThink);
-                    lastTool?.ToolResult = tc.Result;
+                    if (tc is { Result: not null, Arguments: null })
+                    {
+                        var lastTool = replyItems.LastOrDefault(x => x.IsReplyTool);
+                        if (lastTool != null)
+                            lastTool.ToolResult = tc.Result;
+                    }
+                    else if (!string.IsNullOrEmpty(tc.ToolName) || tc.Arguments != null)
+                    {
+                        replyItems.Add(new StreamDisplayItem { IsReplyTool = true, ToolName = tc.ToolName, ToolArguments = tc.Arguments, ToolResult = tc.Result });
+                    }
                 }
-                else if (!string.IsNullOrEmpty(tc.ToolName) || tc.Arguments != null)
+                else
                 {
-                    targetList.Add(new ReasoningStep { IsThink = false, ToolName = tc.ToolName, ToolArguments = tc.Arguments, ToolResult = tc.Result });
+                    if (tc is { Result: not null, Arguments: null })
+                    {
+                        var lastTool = reasoningSteps.LastOrDefault(x => !x.IsThink);
+                        if (lastTool != null) lastTool.ToolResult = tc.Result;
+                    }
+                    else if (!string.IsNullOrEmpty(tc.ToolName) || tc.Arguments != null)
+                    {
+                        reasoningSteps.Add(new ReasoningStep { IsThink = false, ToolName = tc.ToolName, ToolArguments = tc.Arguments, ToolResult = tc.Result });
+                    }
                 }
             }
         }
@@ -425,15 +422,7 @@
                 ReasoningSteps = reasoningSteps
             });
         }
-        result.AddRange(rawList.Where(x => x.IsText));
-        if (toolStepsAfterText.Count > 0)
-        {
-            result.Add(new StreamDisplayItem
-            {
-                IsReasoningGroup = true,
-                ReasoningSteps = toolStepsAfterText
-            });
-        }
+        result.AddRange(replyItems);
         return result;
     }
 }
