@@ -1,0 +1,53 @@
+# SmallEBot
+
+A personal chat assistant built with ASP.NET Core Blazor Server. It supports multiple conversations, streaming replies, and optional “thinking” mode via the **Anthropic-compatible** API (e.g. DeepSeek at `api.deepseek.com/anthropic` or native Anthropic).
+
+## Features
+
+- **Multi-conversation**: Create, switch, and delete conversations; history is stored per user.
+- **Streaming chat**: Real-time streaming of assistant replies with optional reasoning/tool-call visibility.
+- **Thinking mode**: Toggle extended reasoning (e.g. DeepSeek Reasoner) via Anthropic thinking support.
+- **Themes**: Several UI themes (e.g. editorial-dark, paper-light, terminal) with persistence.
+- **No login**: First visit asks for a username; data is scoped by that name (session + local preferences file).
+
+## Tech stack
+
+| Layer    | Choice                          |
+|----------|----------------------------------|
+| Runtime  | .NET 10                          |
+| UI       | Blazor Server + MudBlazor        |
+| Agent    | Microsoft Agent Framework (Anthropic) |
+| LLM      | DeepSeek via Anthropic API, or any Anthropic-compatible endpoint |
+| Data     | EF Core + SQLite                 |
+
+## Run locally
+
+**Prerequisites:** .NET 10 SDK.
+
+```bash
+# From repo root
+dotnet run --project SmallEBot
+```
+
+Set the API key via environment variable (do not put it in config or source):
+
+- **Anthropic / DeepSeek:** `ANTHROPIC_API_KEY` or `DeepseekKey`
+
+Example (PowerShell):
+
+```powershell
+$env:ANTHROPIC_API_KEY = "your-api-key"; dotnet run --project SmallEBot
+```
+
+Then open the URL shown in the console (e.g. `https://localhost:5xxx`).
+
+## Configuration
+
+Main options live in `SmallEBot/appsettings.json` under `SmallEBot` and `Anthropic` / `DeepSeek` (e.g. default title, model name, base URL). For DeepSeek use base URL `https://api.deepseek.com/anthropic`. API keys stay in environment or user secrets only.
+
+## Project layout
+
+- `SmallEBot/` — Single Blazor Server app: `Program.cs`, `Components/`, `Services/`, `Data/`, `Models/`.
+- `docs/plans/` — Design and implementation notes (e.g. phase 1 design, ChatArea refactor).
+
+For build, migrations, and architecture details, see [AGENTS.md](AGENTS.md).
