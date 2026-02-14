@@ -49,7 +49,7 @@
                                                     <MudText Typo="Typo.caption" Class="mb-1 smallebot-reasoning-label">思考</MudText>
                                                     @if (!string.IsNullOrEmpty(step.Text))
                                                     {
-                                                        <div class="markdown-body smallebot-reasoning-body">@((MarkupString)MarkdownSvc.ToHtml(step.Text))</div>
+                                                        <MarkdownContentView Content="@step.Text" CssClass="smallebot-reasoning-body" />
                                                     }
                                                 </div>
                                             }
@@ -137,7 +137,7 @@
                                                 <MudText Typo="Typo.caption" Class="mb-1 smallebot-reasoning-label">思考</MudText>
                                                 @if (!string.IsNullOrEmpty(step.Text))
                                                 {
-                                                    <div class="markdown-body smallebot-reasoning-body">@((MarkupString)MarkdownSvc.ToHtml(step.Text))</div>
+                                                    <MarkdownContentView Content="@step.Text" CssClass="smallebot-reasoning-body" />
                                                 }
                                             </div>
                                         }
