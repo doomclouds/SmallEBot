@@ -79,7 +79,18 @@
                 <MudText Typo="Typo.caption">SmallEBot · @DateTime.Now.ToString("g")</MudText>
                 @foreach (var item in GetStreamingDisplayItems())
                 {
-                    if (item.IsText)
+                    if (item.IsThink)
+                    {
+                        <MudExpansionPanels Class="mt-2" Elevation="0">
+                            <MudExpansionPanel expanded="false" Text="💭 思考">
+                                @if (!string.IsNullOrEmpty(item.Text))
+                                {
+                                    <div class="markdown-body" style="font-size:0.9em; color:var(--mud-palette-text-secondary);">@((MarkupString)MarkdownSvc.ToHtml(item.Text))</div>
+                                }
+                            </MudExpansionPanel>
+                        </MudExpansionPanels>
+                    }
+                    else if (item.IsText)
                     {
                         <div class="markdown-body">@((MarkupString)MarkdownSvc.ToHtml(item.Text))</div>
                     }
@@ -179,6 +190,9 @@
                         _streamingText += t.Text;
                         _streamingUpdates.Add(update);
                         break;
+                    case ThinkStreamUpdate:
+                        _streamingUpdates.Add(update);
+                        break;
                     case ToolCallStreamUpdate:
                         _streamingUpdates.Add(update);
                         break;
@@ -189,11 +203,14 @@
                 StateHasChanged();
             }
             var items = GetStreamingDisplayItems().ToList();
-            var segments = items.Count > 0
-                ? items.Select(x => x.IsText
-                    ? new AssistantSegment(true, Text: x.Text)
-                    : new AssistantSegment(false, ToolName: x.ToolName, Arguments: x.ToolArguments, Result: x.ToolResult)).ToList()
-                : (!string.IsNullOrEmpty(_streamingText) ? [new AssistantSegment(true, Text: _streamingText)] : []);
+            var segments = items
+                .Where(x => x.IsText || !x.IsThink)
+                .Select(x => x.IsText
+                    ? new AssistantSegment(true, Text: x.Text ?? "")
+                    : new AssistantSegment(false, ToolName: x.ToolName ?? "", Arguments: x.ToolArguments, Result: x.ToolResult))
+                .ToList();
+            if (segments.Count == 0 && !string.IsNullOrEmpty(_streamingText))
+                segments.Add(new AssistantSegment(true, Text: _streamingText));
             await AgentSvc.PersistMessagesAsync(ConversationId!.Value, userName, msg, segments);
             persisted = true;
         }
@@ -249,6 +266,7 @@
     private sealed class StreamDisplayItem
     {
         public bool IsText { get; init; }
+        public bool IsThink { get; init; }
         public string? Text { get; init; }
         public string? ToolName { get; init; }
         public string? ToolArguments { get; init; }
@@ -262,23 +280,31 @@
         {
             if (update is TextStreamUpdate t)
             {
-                if (list.Count > 0 && list[^1] is { IsText: true } lastText)
-                    list[list.Count - 1] = new StreamDisplayItem { IsText = true, Text = (lastText.Text ?? "") + t.Text };
+                if (list.Count > 0 && list[^1] is { IsText: true, IsThink: false } lastText)
+                    list[list.Count - 1] = new StreamDisplayItem { IsText = true, IsThink = false, Text = (lastText.Text ?? "") + t.Text };
                 else
-                    list.Add(new StreamDisplayItem { IsText = true, Text = t.Text });
+                    list.Add(new StreamDisplayItem { IsText = true, IsThink = false, Text = t.Text });
+                continue;
+            }
+            if (update is ThinkStreamUpdate think)
+            {
+                if (list.Count > 0 && list[^1] is { IsThink: true } lastThink)
+                    list[list.Count - 1] = new StreamDisplayItem { IsThink = true, Text = (lastThink.Text ?? "") + think.Text };
+                else
+                    list.Add(new StreamDisplayItem { IsThink = true, Text = think.Text });
                 continue;
             }
             if (update is ToolCallStreamUpdate tc)
             {
                 if (tc.Result != null && tc.Arguments == null)
                 {
-                    var lastTool = list.LastOrDefault(x => !x.IsText);
+                    var lastTool = list.LastOrDefault(x => !x.IsText && !x.IsThink);
                     if (lastTool != null)
                         lastTool.ToolResult = tc.Result;
                 }
                 else if (!string.IsNullOrEmpty(tc.ToolName) || tc.Arguments != null)
                 {
-                    list.Add(new StreamDisplayItem { IsText = false, ToolName = tc.ToolName, ToolArguments = tc.Arguments, ToolResult = tc.Result });
+                    list.Add(new StreamDisplayItem { IsText = false, IsThink = false, ToolName = tc.ToolName, ToolArguments = tc.Arguments, ToolResult = tc.Result });
                 }
             }
         }
