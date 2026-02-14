@@ -115,7 +115,8 @@
     private string _pendingUserMessage = "";
     private DateTime _pendingUserMessageTime;
     private bool _scrollToBottomRequested;
-    /// <summary>True after persist: show last streamed reply without refetching (avoids full re-render). Cleared when conversation changes or next send.</summary>
+    /// <summary>Bubble count at start of Send(); used to detect when parent has refreshed with new turn so we clear streaming without a visible flash.</summary>
+    private int _bubbleCountBeforeSend;
 
     private async Task Send()
     {
@@ -126,6 +127,7 @@
         _input = "";
         _pendingUserMessage = msg;
         _pendingUserMessageTime = DateTime.UtcNow;
+        _bubbleCountBeforeSend = Bubbles.Count;
         _streaming = true;
         _streamingText = "";
         _streamingUpdates.Clear();
@@ -189,14 +191,12 @@
             if (persisted)
             {
                 _pendingUserMessage = "";
-                _streaming = false;
                 _scrollToBottomRequested = true;
-                StateHasChanged();
-                await Task.Yield();
+                // Refresh parent first so new Bubbles arrive; then we clear streaming in OnParametersSet to avoid a visible flash (reply disappearing then reappearing).
                 await OnMessageSent.InvokeAsync();
-                // Parent does full refresh; one render with streaming off already done so no duplicate assistant bubble
             }
             _streaming = false;
+            _streamingUpdates.Clear();
             _scrollToBottomRequested = true;
             await InvokeAsync(StateHasChanged);
         }
@@ -209,6 +209,12 @@
             _lastConversationId = ConversationId;
             if (Bubbles.Count > 0)
                 _scrollToBottomRequested = true;
+        }
+        // When parent refreshes with new turn after streaming, clear streaming state so we show only Bubbles (no duplicate, no flash).
+        if (_streaming && Bubbles.Count > _bubbleCountBeforeSend)
+        {
+            _streaming = false;
+            _streamingUpdates.Clear();
         }
     }
 
