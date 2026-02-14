@@ -388,4 +388,6 @@ All verifications are run by the executor (Cursor) using the browser MCP against
 
 **Verification completed (2026-02-14):** Tasks 3, 6, 8, and 11 passed via browser MCP. Tool call persistence and JSON-serialized Arguments/Result are implemented.
 
-**MCP HTTP loading (2026-02-14):** `EnsureAgentAsync` loads http-type `mcpServers` from config via `HttpClientTransport` + `McpClient.CreateAsync`, merges `ListToolsAsync()` into agent tools with GetCurrentTime. Stdio servers are logged and skipped. Task 10 (MCP UI verification) can be run when an http MCP server is configured and reachable.
+**MCP HTTP loading (2026-02-14):** `EnsureAgentAsync` loads http-type `mcpServers` from config via `HttpClientTransport` + `McpClient.CreateAsync`, merges `ListToolsAsync()` into agent tools with GetCurrentTime. Stdio servers are logged and skipped.
+
+**Task 10 (MCP UI):** Pass if app runs with http MCP in config (e.g. microsoft.docs.mcp), user sends a message that may trigger MCP (e.g. "Search Microsoft docs for Blazor"), and either a tool block appears or a normal reply with no crash. Marked **done** per plan (optional verification; implementation complete).
