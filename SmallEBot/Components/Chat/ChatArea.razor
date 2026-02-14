@@ -1,5 +1,4 @@
 @using SmallEBot.Data.Entities
-@using SmallEBot.Services
 @inject AgentService AgentSvc
 @inject UserNameService UserNameSvc
 @inject IJSRuntime JS
@@ -10,14 +9,14 @@
          style="overflow-y: auto; max-height: 72vh; padding-right: 4px;">
     @if (Messages.Any())
     {
-        @foreach (var m in Messages)
+        @foreach (var chatMessage in Messages)
         {
-            <MudChat ChatPosition="@(m.Role == "user" ? ChatBubblePosition.End : ChatBubblePosition.Start)"
+            <MudChat ChatPosition="@(chatMessage.Role == "user" ? ChatBubblePosition.End : ChatBubblePosition.Start)"
                      ArrowPosition="ChatArrowPosition.Top"
                      Class="mb-3">
                 <MudChatBubble>
-                    <MudText Typo="Typo.caption">@(m.Role == "user" ? "You" : "SmallEBot") · @m.CreatedAt.ToString("g")</MudText>
-                    <MudText Typo="Typo.body1">@m.Content</MudText>
+                    <MudText Typo="Typo.caption">@(chatMessage.Role == "user" ? "You" : "SmallEBot") · @chatMessage.CreatedAt.ToString("g")</MudText>
+                    <MudText Typo="Typo.body1">@chatMessage.Content</MudText>
                 </MudChatBubble>
             </MudChat>
         }
@@ -49,10 +48,10 @@
                       Variant="Variant.Outlined"
                       FullWidth="true"
                       Immediate="true"
-                      OnKeyDown="OnKeyDown" />
+                      OnKeyDown="@OnKeyDown" />
         <MudButton Variant="Variant.Filled"
                    Color="Color.Primary"
-                   OnClick="Send"
+                   OnClick="@Send"
                    Disabled="@(_streaming || string.IsNullOrWhiteSpace(_input))">
             Send
         </MudButton>
@@ -98,7 +97,7 @@
                 await InvokeAsync(StateHasChanged);
                 return;
             }
-            await foreach (var chunk in AgentSvc.SendMessageStreamingAsync(ConversationId!.Value, userName, msg))
+            await foreach (var chunk in AgentSvc.SendMessageStreamingAsync(ConversationId!.Value, msg))
             {
                 _streamingText += chunk;
                 _scrollToBottomRequested = true;
@@ -152,6 +151,6 @@
 
     private async Task OnKeyDown(KeyboardEventArgs e)
     {
-        if (e.Key == "Enter" && !e.ShiftKey) await Send();
+        if (e is { Key: "Enter", ShiftKey: false }) await Send();
     }
 }

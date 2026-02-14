@@ -1,5 +1,4 @@
 @using SmallEBot.Data.Entities
-@using SmallEBot.Services
 @inject ConversationService ConvSvc
 @inject UserNameService UserNameSvc
 @inject IDialogService DialogSvc
@@ -10,22 +9,22 @@
         <MudText Typo="Typo.h6">Conversations</MudText>
     </MudDrawerHeader>
     <MudNavMenu>
-        <MudMenuItem Icon="@Icons.Material.Filled.Add" OnClick="CreateNew">New</MudMenuItem>
+        <MudMenuItem Icon="@Icons.Material.Filled.Add" OnClick="@CreateNew">New</MudMenuItem>
         <MudList T="Conversation" Dense="true"
-                 SelectedValue="@_selectedConversation"
-                 SelectedValueChanged="HandleSelectionChanged">
-            @foreach (var c in Conversations)
+                 SelectedValue="@SelectedConversation"
+                 SelectedValueChanged="@HandleSelectionChanged">
+            @foreach (var conversation in Conversations)
             {
-                <MudListItem T="Conversation" Value="@c">
+                <MudListItem T="Conversation" Value="@conversation">
                     <div class="d-flex justify-space-between align-center" style="width:100%">
                         <div>
-                            <MudText Typo="Typo.body1">@(string.IsNullOrEmpty(c.Title) ? "新对话" : c.Title)</MudText>
-                            <MudText Typo="Typo.caption">@c.UpdatedAt.ToString("g")</MudText>
+                            <MudText Typo="Typo.body1">@(string.IsNullOrEmpty(conversation.Title) ? "新对话" : conversation.Title)</MudText>
+                            <MudText Typo="Typo.caption">@conversation.UpdatedAt.ToString("g")</MudText>
                         </div>
                         <div @onclick="() => { }" @onclick:stopPropagation="true">
                             <MudIconButton Icon="@Icons.Material.Filled.Delete"
                                            Size="Size.Small"
-                                           OnClick="@(() => DeleteConversation(c.Id))" />
+                                           OnClick="@(() => DeleteConversation(conversation.Id))" />
                         </div>
                     </div>
                 </MudListItem>
@@ -35,7 +34,7 @@
 </MudDrawer>
 
 @code {
-    [Parameter] public List<Conversation> Conversations { get; set; } = new();
+    [Parameter] public List<Conversation> Conversations { get; set; } = [];
     [Parameter] public Guid? SelectedId { get; set; }
     [Parameter] public EventCallback<Guid> OnSelect { get; set; }
     [Parameter] public EventCallback<Guid> OnDelete { get; set; }
@@ -44,7 +43,7 @@
     [Parameter] public bool Open { get; set; } = true;
 
     private bool _open = true;
-    private Conversation? _selectedConversation => Conversations.FirstOrDefault(c => c.Id == SelectedId);
+    private Conversation? SelectedConversation => Conversations.FirstOrDefault(c => c.Id == SelectedId);
 
     private async Task HandleSelectionChanged(Conversation? c)
     {

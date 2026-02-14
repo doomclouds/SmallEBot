@@ -4,32 +4,18 @@ using Microsoft.Agents.AI;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using OpenAI;
-using OpenAI.Chat;
 using SmallEBot.Data;
-using SmallEBot.Data.Entities;
 using ChatMessage = Microsoft.Extensions.AI.ChatMessage;
 
 namespace SmallEBot.Services;
 
-public class AgentService
+public class AgentService(
+    AppDbContext db,
+    ConversationService convSvc,
+    IConfiguration config,
+    ILogger<AgentService> log)
 {
-    private readonly AppDbContext _db;
-    private readonly ConversationService _convSvc;
-    private readonly IConfiguration _config;
-    private readonly ILogger<AgentService> _log;
     private AIAgent? _agent;
-
-    public AgentService(
-        AppDbContext db,
-        ConversationService convSvc,
-        IConfiguration config,
-        ILogger<AgentService> log)
-    {
-        _db = db;
-        _convSvc = convSvc;
-        _config = config;
-        _log = log;
-    }
 
     private AIAgent GetAgent()
     {
@@ -38,17 +24,16 @@ public class AgentService
         var apiKey = Environment.GetEnvironmentVariable("DeepseekKey");
         if (string.IsNullOrEmpty(apiKey))
         {
-            _log.LogWarning("DeepseekKey environment variable is not set.");
+            log.LogWarning("DeepseekKey environment variable is not set.");
         }
 
-        var baseUrl = _config["DeepSeek:BaseUrl"] ?? "https://api.deepseek.com";
-        var model = _config["DeepSeek:Model"] ?? "deepseek-chat";
+        var baseUrl = config["DeepSeek:BaseUrl"] ?? "https://api.deepseek.com";
+        var model = config["DeepSeek:Model"] ?? "deepseek-chat";
 
         var options = new OpenAIClientOptions { Endpoint = new Uri(baseUrl) };
         var client = new OpenAIClient(new ApiKeyCredential(apiKey ?? ""), options);
-        var chatClient = client.GetChatClient(model);
-        var ichatClient = chatClient.AsIChatClient();
-        _agent = new ChatClientAgent(ichatClient,
+        var chatClient = client.GetChatClient(model).AsIChatClient();
+        _agent = new ChatClientAgent(chatClient,
             instructions: "You are SmallEBot, a helpful personal assistant. Be concise and friendly.",
             name: "SmallEBot");
         return _agent;
@@ -56,15 +41,13 @@ public class AgentService
 
     public async IAsyncEnumerable<string> SendMessageStreamingAsync(
         Guid conversationId,
-        string userName,
         string userMessage,
         [EnumeratorCancellation] CancellationToken ct = default)
     {
         var agent = GetAgent();
-        var fullText = "";
 
         // Load history and build message list for context
-        var store = new ChatMessageStoreAdapter(_db, conversationId);
+        var store = new ChatMessageStoreAdapter(db, conversationId);
         var history = await store.LoadMessagesAsync(ct);
         var frameworkMessages = history
             .Select(m => new ChatMessage(ToChatRole(m.Role), m.Content))
@@ -73,14 +56,12 @@ public class AgentService
 
         await foreach (var update in agent.RunStreamingAsync(frameworkMessages, null, null, ct))
         {
-            var text = update?.Text ?? update?.ToString() ?? "";
+            var text = update.Text;
             if (!string.IsNullOrEmpty(text))
             {
-                fullText += text;
                 yield return text;
             }
         }
-        // Caller must call PersistMessagesAsync(conversationId, userName, userMessage, fullText) after stream completes
     }
 
     /// <summary>Persist user and assistant messages; call after streaming completes.</summary>
@@ -91,13 +72,13 @@ public class AgentService
         string assistantMessage,
         CancellationToken ct = default)
     {
-        var conv = await _db.Conversations
+        var conv = await db.Conversations
             .FirstOrDefaultAsync(x => x.Id == conversationId && x.UserName == userName, ct);
         if (conv == null) return;
 
-        var msgCountBefore = await _convSvc.GetMessageCountAsync(conversationId, ct);
+        var msgCountBefore = await convSvc.GetMessageCountAsync(conversationId, ct);
 
-        _db.ChatMessages.Add(new Data.Entities.ChatMessage
+        db.ChatMessages.Add(new Data.Entities.ChatMessage
         {
             Id = Guid.NewGuid(),
             ConversationId = conversationId,
@@ -105,7 +86,7 @@ public class AgentService
             Content = userMessage,
             CreatedAt = DateTime.UtcNow
         });
-        _db.ChatMessages.Add(new Data.Entities.ChatMessage
+        db.ChatMessages.Add(new Data.Entities.ChatMessage
         {
             Id = Guid.NewGuid(),
             ConversationId = conversationId,
@@ -121,10 +102,10 @@ public class AgentService
             conv.Title = title;
         }
 
-        await _db.SaveChangesAsync(ct);
+        await db.SaveChangesAsync(ct);
     }
 
-    private static ChatRole ToChatRole(string role) => role?.ToLowerInvariant() switch
+    private static ChatRole ToChatRole(string role) => role.ToLowerInvariant() switch
     {
         "user" => ChatRole.User,
         "assistant" => ChatRole.Assistant,
@@ -132,20 +113,20 @@ public class AgentService
         _ => ChatRole.User
     };
 
-    public async Task<string> GenerateTitleAsync(string firstMessage, CancellationToken ct = default)
+    private async Task<string> GenerateTitleAsync(string firstMessage, CancellationToken ct = default)
     {
         var agent = GetAgent();
         var prompt = $"Generate a very short title (under 20 chars, no quotes) for a conversation that starts with: {firstMessage}";
         try
         {
             var result = await agent.RunAsync(prompt, null, null, ct);
-            var t = (result?.Text ?? result?.ToString() ?? "").Trim();
+            var t = result.Text.Trim();
             if (t.Length > 20) t = t[..20];
             return string.IsNullOrEmpty(t) ? "新对话" : t;
         }
         catch
         {
-            return firstMessage.Length > 20 ? firstMessage[..20] + "…" : (firstMessage ?? "新对话");
+            return firstMessage.Length > 20 ? firstMessage[..20] + "…" : firstMessage;
         }
     }
 }

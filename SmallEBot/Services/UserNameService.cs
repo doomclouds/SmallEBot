@@ -1,20 +1,12 @@
 using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage;
-using Microsoft.AspNetCore.Hosting;
 
 namespace SmallEBot.Services;
 
-public class UserNameService
+public class UserNameService(ProtectedSessionStorage storage, IWebHostEnvironment env)
 {
     private const string Key = "smallebot-username";
     private const string FileName = "smallebot-username.txt";
-    private readonly ProtectedSessionStorage _storage;
-    private readonly string _filePath;
-
-    public UserNameService(ProtectedSessionStorage storage, IWebHostEnvironment env)
-    {
-        _storage = storage;
-        _filePath = Path.Combine(env.ContentRootPath, FileName);
-    }
+    private readonly string _filePath = Path.Combine(env.ContentRootPath, FileName);
 
     /// <summary>Current username for display (set after load/dialog).</summary>
     public string? CurrentDisplayName { get; set; }
@@ -24,7 +16,7 @@ public class UserNameService
     {
         try
         {
-            var r = await _storage.GetAsync<string>(Key);
+            var r = await storage.GetAsync<string>(Key);
             var v = r.Success ? r.Value : null;
             if (!string.IsNullOrWhiteSpace(v))
             {
@@ -35,7 +27,7 @@ public class UserNameService
             if (!string.IsNullOrWhiteSpace(fromFile))
             {
                 CurrentDisplayName = fromFile;
-                await _storage.SetAsync(Key, fromFile);
+                await storage.SetAsync(Key, fromFile);
                 return fromFile;
             }
             return null;
@@ -44,12 +36,12 @@ public class UserNameService
     }
 
     /// <summary>Persist to session and to file so next time (even new session) no dialog.</summary>
-    public async Task SetAsync(string userName, CancellationToken ct = default)
+    public async Task SetAsync(string? userName, CancellationToken ct = default)
     {
         var value = userName?.Trim() ?? "";
         if (string.IsNullOrEmpty(value)) return;
         CurrentDisplayName = value;
-        await _storage.SetAsync(Key, value);
+        await storage.SetAsync(Key, value);
         await WriteToFileAsync(value, ct);
     }
 
