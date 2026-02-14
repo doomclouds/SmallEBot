@@ -172,13 +172,12 @@ public class AgentService(
         }
     }
 
-    /// <summary>Persist user and assistant messages and optional tool calls; call after streaming completes.</summary>
+    /// <summary>Persist user message and ordered assistant segments (text and tool calls) with CreatedAt for timeline.</summary>
     public async Task PersistMessagesAsync(
         Guid conversationId,
         string userName,
         string userMessage,
-        string assistantMessage,
-        IReadOnlyList<(string ToolName, string? Arguments, string? Result)>? toolCalls = null,
+        IReadOnlyList<AssistantSegment> assistantSegments,
         CancellationToken ct = default)
     {
         var conv = await db.Conversations
@@ -186,6 +185,7 @@ public class AgentService(
         if (conv == null) return;
 
         var msgCountBefore = await convSvc.GetMessageCountAsync(conversationId, ct);
+        var baseTime = DateTime.UtcNow;
 
         db.ChatMessages.Add(new Data.Entities.ChatMessage
         {
@@ -193,35 +193,38 @@ public class AgentService(
             ConversationId = conversationId,
             Role = "user",
             Content = userMessage,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = baseTime
         });
+        baseTime = baseTime.AddMilliseconds(1);
 
-        var assistantMsgId = Guid.NewGuid();
-        var assistantMsg = new Data.Entities.ChatMessage
+        var toolOrder = 0;
+        foreach (var seg in assistantSegments)
         {
-            Id = assistantMsgId,
-            ConversationId = conversationId,
-            Role = "assistant",
-            Content = assistantMessage,
-            CreatedAt = DateTime.UtcNow
-        };
-        db.ChatMessages.Add(assistantMsg);
-
-        if (toolCalls is { Count: > 0 })
-        {
-            for (var i = 0; i < toolCalls.Count; i++)
+            if (seg.IsText && !string.IsNullOrEmpty(seg.Text))
             {
-                var tc = toolCalls[i];
+                db.ChatMessages.Add(new Data.Entities.ChatMessage
+                {
+                    Id = Guid.NewGuid(),
+                    ConversationId = conversationId,
+                    Role = "assistant",
+                    Content = seg.Text,
+                    CreatedAt = baseTime
+                });
+            }
+            else if (!seg.IsText)
+            {
                 db.ToolCalls.Add(new ToolCall
                 {
                     Id = Guid.NewGuid(),
-                    ChatMessageId = assistantMsgId,
-                    ToolName = tc.ToolName ?? "",
-                    Arguments = tc.Arguments,
-                    Result = tc.Result,
-                    SortOrder = i
+                    ConversationId = conversationId,
+                    ToolName = seg.ToolName ?? "",
+                    Arguments = seg.Arguments,
+                    Result = seg.Result,
+                    SortOrder = toolOrder++,
+                    CreatedAt = baseTime
                 });
             }
+            baseTime = baseTime.AddMilliseconds(1);
         }
 
         conv.UpdatedAt = DateTime.UtcNow;

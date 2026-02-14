@@ -30,10 +30,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         modelBuilder.Entity<ToolCall>(e =>
         {
             e.HasKey(x => x.Id);
-            e.HasIndex(x => x.ChatMessageId);
-            e.HasOne(x => x.ChatMessage)
+            e.HasIndex(x => new { x.ConversationId, x.CreatedAt });
+            e.HasOne(x => x.Conversation)
                 .WithMany(x => x.ToolCalls)
-                .HasForeignKey(x => x.ChatMessageId)
+                .HasForeignKey(x => x.ConversationId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
     }

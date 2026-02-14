@@ -1,8 +1,9 @@
 using System.ComponentModel.DataAnnotations;
+using SmallEBot.Models;
 
 namespace SmallEBot.Data.Entities;
 
-public class ChatMessage
+public class ChatMessage : ICreateTime
 {
     public Guid Id { get; set; }
     public Guid ConversationId { get; set; }
@@ -12,5 +13,4 @@ public class ChatMessage
     public DateTime CreatedAt { get; set; }
 
     public Conversation Conversation { get; set; } = null!;
-    public ICollection<ToolCall> ToolCalls { get; set; } = new List<ToolCall>();
 }

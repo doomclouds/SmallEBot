@@ -8,40 +8,46 @@
 <MudPaper Class="pa-4" Elevation="2">
     <div @ref="_chatScrollRef"
          style="overflow-y: auto; max-height: 72vh; padding-right: 4px;">
-    @if (Messages.Any())
+    @if (Timeline.Any())
     {
-        @foreach (var chatMessage in Messages)
+        @foreach (var item in Timeline)
         {
-            <MudChat ChatPosition="@(chatMessage.Role == "user" ? ChatBubblePosition.End : ChatBubblePosition.Start)"
-                     ArrowPosition="ChatArrowPosition.Top"
-                     Class="mb-3">
-                <MudChatBubble>
-                    <MudText Typo="Typo.caption">@(chatMessage.Role == "user" ? "You" : "SmallEBot") · @chatMessage.CreatedAt.ToString("g")</MudText>
-                    @if (!string.IsNullOrEmpty(chatMessage.Content))
-                    {
-                        <MudText Typo="Typo.body1">@chatMessage.Content</MudText>
-                    }
-                    @if (chatMessage.Role == "assistant" && ShowToolCalls && (chatMessage.ToolCalls?.Count ?? 0) > 0)
-                    {
+            @if (item.Message != null)
+            {
+                var msg = item.Message;
+                <MudChat ChatPosition="@(msg.Role == "user" ? ChatBubblePosition.End : ChatBubblePosition.Start)"
+                         ArrowPosition="ChatArrowPosition.Top"
+                         Class="mb-3">
+                    <MudChatBubble>
+                        <MudText Typo="Typo.caption">@(msg.Role == "user" ? "You" : "SmallEBot") · @msg.CreatedAt.ToString("g")</MudText>
+                        @if (!string.IsNullOrEmpty(msg.Content))
+                        {
+                            <MudText Typo="Typo.body1">@msg.Content</MudText>
+                        }
+                    </MudChatBubble>
+                </MudChat>
+            }
+            else if (item.ToolCall != null && ShowToolCalls)
+            {
+                var tool = item.ToolCall;
+                <MudChat ChatPosition="ChatBubblePosition.Start" ArrowPosition="ChatArrowPosition.Top" Class="mb-3">
+                    <MudChatBubble>
+                        <MudText Typo="Typo.caption">SmallEBot · @tool.CreatedAt.ToString("g")</MudText>
                         <MudExpansionPanels Class="mt-2" Elevation="0">
-                            @foreach (var tool in chatMessage.ToolCalls!.OrderBy(t => t.SortOrder))
-                            {
-                                <MudExpansionPanel expanded="false" title="@($"🔧 {tool.ToolName}")">
-                                    <MudText Typo="Typo.body2"><strong>Tool:</strong> @tool.ToolName</MudText>
-                                    @if (!string.IsNullOrEmpty(tool.Arguments))
-                                    {
-                                        <MudText Typo="Typo.caption" Class="mt-1">Arguments: <pre class="d-inline">@tool.Arguments</pre></MudText>
-                                    }
-                                    @if (!string.IsNullOrEmpty(tool.Result))
-                                    {
-                                        <MudText Typo="Typo.caption" Class="mt-1">Result: <pre class="d-inline">@tool.Result</pre></MudText>
-                                    }
-                                </MudExpansionPanel>
-                            }
+                            <MudExpansionPanel expanded="false" Text="@($"🔧 {tool.ToolName}")">
+                                @if (!string.IsNullOrEmpty(tool.Arguments))
+                                {
+                                    <MudText Typo="Typo.caption" Class="mt-1">Arguments: <pre class="d-inline">@tool.Arguments</pre></MudText>
+                                }
+                                @if (!string.IsNullOrEmpty(tool.Result))
+                                {
+                                    <MudText Typo="Typo.caption" Class="mt-1">Result: <pre class="d-inline">@tool.Result</pre></MudText>
+                                }
+                            </MudExpansionPanel>
                         </MudExpansionPanels>
-                    }
-                </MudChatBubble>
-            </MudChat>
+                    </MudChatBubble>
+                </MudChat>
+            }
         }
     }
     @* Optimistic user message: show immediately when sent, until parent refreshes with persisted messages *@
@@ -68,8 +74,7 @@
                     else if (ShowToolCalls)
                     {
                         <MudExpansionPanels Class="mt-2" Elevation="0">
-                            <MudExpansionPanel expanded="false" title="@($"🔧 {item.ToolName ?? "Tool"}")">
-                                <MudText Typo="Typo.body2"><strong>Tool:</strong> @(item.ToolName ?? "-")</MudText>
+                            <MudExpansionPanel expanded="false" Text="@($"🔧 {item.ToolName ?? "Tool"}")">
                                 @if (!string.IsNullOrEmpty(item.ToolArguments))
                                 {
                                     <MudText Typo="Typo.caption" Class="mt-1">Arguments: <pre class="d-inline">@item.ToolArguments</pre></MudText>
@@ -108,7 +113,7 @@
 </MudPaper>
 
 @code {
-    [Parameter] public List<ChatMessage> Messages { get; set; } = new();
+    [Parameter] public List<TimelineItem> Timeline { get; set; } = new();
     [Parameter] public Guid? ConversationId { get; set; }
     [Parameter] public string UserName { get; set; } = "";
     [Parameter] public EventCallback OnMessageSent { get; set; }
@@ -165,11 +170,13 @@
                 _scrollToBottomRequested = true;
                 StateHasChanged();
             }
-            var toolCallsToPersist = GetStreamingDisplayItems()
-                .Where(x => !x.IsText)
-                .Select(x => (x.ToolName ?? "", x.ToolArguments, x.ToolResult))
-                .ToList();
-            await AgentSvc.PersistMessagesAsync(ConversationId!.Value, userName, msg, _streamingText, toolCallsToPersist);
+            var items = GetStreamingDisplayItems().ToList();
+            var segments = items.Count > 0
+                ? items.Select(x => x.IsText
+                    ? new AssistantSegment(true, Text: x.Text)
+                    : new AssistantSegment(false, ToolName: x.ToolName, Arguments: x.ToolArguments, Result: x.ToolResult)).ToList()
+                : (!string.IsNullOrEmpty(_streamingText) ? [new AssistantSegment(true, Text: _streamingText)] : []);
+            await AgentSvc.PersistMessagesAsync(ConversationId!.Value, userName, msg, segments);
             persisted = true;
         }
         catch (Exception ex)
@@ -195,7 +202,7 @@
         if (ConversationId.HasValue && ConversationId != _lastConversationId)
         {
             _lastConversationId = ConversationId;
-            if (Messages.Count > 0)
+            if (Timeline.Count > 0)
                 _scrollToBottomRequested = true;
         }
     }

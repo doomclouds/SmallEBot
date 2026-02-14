@@ -13,4 +13,5 @@ public class Conversation
     public DateTime UpdatedAt { get; set; }
 
     public ICollection<ChatMessage> Messages { get; set; } = new List<ChatMessage>();
+    public ICollection<ToolCall> ToolCalls { get; set; } = new List<ToolCall>();
 }

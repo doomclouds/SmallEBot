@@ -1,6 +1,8 @@
 @page "/"
 @layout MainLayout
 @using SmallEBot.Data.Entities
+@using SmallEBot.Models
+@using SmallEBot.Services
 @inject UserNameService UserNameSvc
 @inject ConversationService ConvSvc
 @inject IDialogService DialogSvc
@@ -22,7 +24,7 @@ else
         <MudMainContent>
             @if (_selectedConversation != null)
             {
-                <ChatArea Messages="_selectedConversation.Messages.ToList()"
+                <ChatArea Timeline="@(ConversationService.GetTimeline(_selectedConversation!))"
                           ConversationId="_selectedConversation.Id"
                           UserName="_userName"
                           OnMessageSent="RefreshSidebar" />

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using SmallEBot.Data;
 using SmallEBot.Data.Entities;
+using SmallEBot.Models;
 
 namespace SmallEBot.Services;
 
@@ -30,17 +31,29 @@ public class ConversationService(AppDbContext db)
     public async Task<Conversation?> GetByIdAsync(Guid id, string userName, CancellationToken ct = default) =>
         await db.Conversations
             .Include(x => x.Messages.OrderBy(m => m.CreatedAt))
-            .ThenInclude(m => m.ToolCalls)
+            .Include(x => x.ToolCalls.OrderBy(t => t.CreatedAt))
             .FirstOrDefaultAsync(x => x.Id == id && x.UserName == userName, ct);
+
+    /// <summary>Returns conversation timeline (messages and tool calls) sorted by CreatedAt for display.</summary>
+    public static List<TimelineItem> GetTimeline(Conversation conv)
+    {
+        var list = conv.Messages.Select(m => new TimelineItem(m, null))
+            .Concat(conv.ToolCalls.Select(t => new TimelineItem(null, t)))
+            .OrderBy(x => x.CreatedAt)
+            .ToList();
+        return list;
+    }
 
     public async Task<bool> DeleteAsync(Guid id, string userName, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(userName)) return false;
         var c = await db.Conversations
             .Include(x => x.Messages)
+            .Include(x => x.ToolCalls)
             .FirstOrDefaultAsync(x => x.Id == id && x.UserName == userName, ct);
         if (c == null) return false;
         db.ChatMessages.RemoveRange(c.Messages);
+        db.ToolCalls.RemoveRange(c.ToolCalls);
         db.Conversations.Remove(c);
         await db.SaveChangesAsync(ct);
         return true;
