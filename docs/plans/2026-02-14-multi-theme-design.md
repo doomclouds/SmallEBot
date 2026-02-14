@@ -1,7 +1,7 @@
 # Multi-Theme Switching Design
 
 **Date:** 2026-02-14  
-**Status:** Design  
+**Status:** Implemented (2026-02-14)  
 **Scope:** 4–5 fixed theme presets, AppBar-only switcher, localStorage persistence.
 
 ---
