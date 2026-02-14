@@ -19,6 +19,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.HasIndex(x => new { x.UserName, x.UpdatedAt });
         });
 
+        // Relationships use navigation properties; delete order is handled in app (ConversationService.DeleteAsync).
         modelBuilder.Entity<ConversationTurn>(e =>
         {
             e.HasKey(x => x.Id);
@@ -26,7 +27,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.HasOne(x => x.Conversation)
                 .WithMany(x => x.Turns)
                 .HasForeignKey(x => x.ConversationId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.NoAction);
         });
 
         modelBuilder.Entity<ChatMessage>(e =>
@@ -36,11 +37,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.HasOne(x => x.Conversation)
                 .WithMany(x => x.Messages)
                 .HasForeignKey(x => x.ConversationId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.NoAction);
             e.HasOne(x => x.Turn)
                 .WithMany()
                 .HasForeignKey(x => x.TurnId)
-                .OnDelete(DeleteBehavior.SetNull);
+                .OnDelete(DeleteBehavior.NoAction);
         });
 
         modelBuilder.Entity<ToolCall>(e =>
@@ -50,11 +51,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.HasOne(x => x.Conversation)
                 .WithMany(x => x.ToolCalls)
                 .HasForeignKey(x => x.ConversationId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.NoAction);
             e.HasOne(x => x.Turn)
                 .WithMany()
                 .HasForeignKey(x => x.TurnId)
-                .OnDelete(DeleteBehavior.SetNull);
+                .OnDelete(DeleteBehavior.NoAction);
         });
 
         modelBuilder.Entity<ThinkBlock>(e =>
@@ -64,11 +65,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.HasOne(x => x.Conversation)
                 .WithMany(x => x.ThinkBlocks)
                 .HasForeignKey(x => x.ConversationId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.NoAction);
             e.HasOne(x => x.Turn)
                 .WithMany()
                 .HasForeignKey(x => x.TurnId)
-                .OnDelete(DeleteBehavior.SetNull);
+                .OnDelete(DeleteBehavior.NoAction);
         });
     }
 }

@@ -105,8 +105,8 @@
             }
         }
     }
-    @* Optimistic user message: show immediately when sent, until parent refreshes with persisted messages *@
-    @if (!string.IsNullOrEmpty(_pendingUserMessage))
+    @* Optimistic user message: show immediately when sent, until parent refreshes with persisted messages. Hide if already in Groups to avoid duplicate (H5). *@
+    @if (!string.IsNullOrEmpty(_pendingUserMessage) && !IsPendingMessageAlreadyInGroups())
     {
         <MudChat ChatPosition="ChatBubblePosition.End" ArrowPosition="ChatArrowPosition.Top" Class="mb-3 smallebot-bubble">
             <MudChatBubble>
@@ -115,7 +115,8 @@
             </MudChatBubble>
         </MudChat>
     }
-    @if (_streaming || _showLastStreamedReply)
+    @* Only show streaming block while actively streaming; after persist parent refresh shows reply from Groups (avoids duplicate AI bubble). *@
+    @if (_streaming)
     {
         <MudChat ChatPosition="ChatBubblePosition.Start" ArrowPosition="ChatArrowPosition.Top" Class="mb-3 smallebot-bubble">
             <MudChatBubble>
@@ -194,20 +195,21 @@
     }
     </div>
 
-    <MudStack Row="true" Spacing="2" Class="mt-4">
-        <MudTextField @bind-Value="_input"
-                      Label="Message"
-                      Variant="Variant.Outlined"
-                      FullWidth="true"
-                      Immediate="true"
-                      OnKeyDown="@OnKeyDown" />
-        <MudButton Variant="Variant.Filled"
-                   Color="Color.Primary"
-                   OnClick="@Send"
-                   Disabled="@(_streaming || string.IsNullOrWhiteSpace(_input))">
-            Send
-        </MudButton>
-    </MudStack>
+    <form @onsubmit="HandleSubmit" @onsubmit:preventDefault>
+        <MudStack Row="true" Spacing="2" Class="mt-4">
+            <MudTextField @bind-Value="_input"
+                          Label="Message"
+                          Variant="Variant.Outlined"
+                          FullWidth="true"
+                          Immediate="true" />
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       ButtonType="ButtonType.Submit"
+                       Disabled="@(_streaming || string.IsNullOrWhiteSpace(_input))">
+                Send
+            </MudButton>
+        </MudStack>
+    </form>
 </MudPaper>
 
 @code {
@@ -233,17 +235,20 @@
     private async Task Send()
     {
         if (string.IsNullOrWhiteSpace(_input) || !ConversationId.HasValue) return;
-        await OnBeforeSend.InvokeAsync();
-        _showLastStreamedReply = false;
+        // Guard and capture synchronously before any await to prevent double submit (e.g. double-click or Enter+click).
+        if (_streaming) return;
         var msg = _input.Trim();
         _input = "";
         _pendingUserMessage = msg;
         _pendingUserMessageTime = DateTime.UtcNow;
         _streaming = true;
+        _showLastStreamedReply = false;
         _streamingText = "";
         _streamingUpdates.Clear();
         _scrollToBottomRequested = true;
         StateHasChanged();
+
+        await OnBeforeSend.InvokeAsync();
 
         var persisted = false;
         Guid turnId = default;
@@ -299,9 +304,14 @@
         {
             if (persisted)
             {
-                await OnMessageSent.InvokeAsync();
                 _pendingUserMessage = "";
-                // Parent does full refresh; do not show streaming block to avoid duplicate reply
+                _streaming = false;
+                _showLastStreamedReply = false;
+                _scrollToBottomRequested = true;
+                StateHasChanged();
+                await Task.Yield();
+                await OnMessageSent.InvokeAsync();
+                // Parent does full refresh; one render with streaming off already done so no duplicate assistant bubble
             }
             _streaming = false;
             _scrollToBottomRequested = true;
@@ -335,9 +345,18 @@
         }
     }
 
-    private async Task OnKeyDown(KeyboardEventArgs e)
+    /// <summary>True if the last user message in Groups has the same content as _pendingUserMessage (avoids duplicate bubble when refresh and pending overlap).</summary>
+    private bool IsPendingMessageAlreadyInGroups()
     {
-        if (e is { Key: "Enter", ShiftKey: false }) await Send();
+        if (string.IsNullOrEmpty(_pendingUserMessage) || Groups == null || Groups.Count == 0) return false;
+        var lastUser = Groups.OfType<UserMessageGroup>().LastOrDefault();
+        return lastUser?.Message?.Content?.Trim() == _pendingUserMessage.Trim();
+    }
+
+    /// <summary>Form submit (Enter or Send button); single entry point to avoid double send.</summary>
+    private async Task HandleSubmit()
+    {
+        await Send();
     }
 
     /// <summary>Detects if the assistant group is a single error message (Content starts with "Error: ").</summary>
