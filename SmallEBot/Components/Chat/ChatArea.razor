@@ -43,10 +43,10 @@
                     {
                         <MudText Typo="Typo.body1">@item.Text</MudText>
                     }
-                    else
+                    else if (ShowToolCalls)
                     {
                         <MudExpansionPanels Class="mt-2" Elevation="0">
-                            <MudExpansionPanel IsInitiallyExpanded="false" Text="@($"🔧 {item.ToolName ?? "Tool"}")">
+                            <MudExpansionPanel expanded="false" title="@($"🔧 {item.ToolName ?? "Tool"}")">
                                 <MudText Typo="Typo.body2"><strong>Tool:</strong> @(item.ToolName ?? "-")</MudText>
                                 @if (!string.IsNullOrEmpty(item.ToolArguments))
                                 {
@@ -90,6 +90,7 @@
     [Parameter] public Guid? ConversationId { get; set; }
     [Parameter] public string UserName { get; set; } = "";
     [Parameter] public EventCallback OnMessageSent { get; set; }
+    [CascadingParameter(Name = "ShowToolCalls")] public bool ShowToolCalls { get; set; } = true;
 
     private ElementReference _chatScrollRef;
     private string _input = "";

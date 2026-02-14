@@ -9,16 +9,24 @@
     <MudAppBar Elevation="1">
         <MudText Typo="Typo.h6">SmallEBot</MudText>
         <MudSpacer />
+        <MudTooltip Text="@(_showToolCalls ? "隐藏工具" : "显示工具")">
+            <MudIconButton Icon="@Icons.Material.Filled.Build"
+                           Color="@(_showToolCalls ? Color.Primary : Color.Default)"
+                           OnClick="@(() => { _showToolCalls = !_showToolCalls; StateHasChanged(); })" />
+        </MudTooltip>
         @if (!string.IsNullOrEmpty(UserNameSvc.CurrentDisplayName))
         {
             <MudText Typo="Typo.body2">@UserNameSvc.CurrentDisplayName</MudText>
         }
     </MudAppBar>
     <MudMainContent>
-        @Body
+        <CascadingValue Value="_showToolCalls" Name="ShowToolCalls">
+            @Body
+        </CascadingValue>
     </MudMainContent>
 </MudLayout>
 
 @code {
     private readonly MudTheme _theme = new();
+    private bool _showToolCalls = true;
 }
