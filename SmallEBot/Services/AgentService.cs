@@ -2,6 +2,8 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Anthropic;
+using Anthropic.Core;
+using Anthropic.Models.Messages;
 using Microsoft.Agents.AI;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
@@ -20,26 +22,11 @@ public class AgentService(
     ILogger<AgentService> log)
 {
     private AIAgent? _agent;
+    private AIAgent? _agentWithThinking;
     private List<IAsyncDisposable>? _mcpClients;
 
-    private async Task<AIAgent> EnsureAgentAsync(CancellationToken ct)
+    private async Task<AITool[]> EnsureToolsAsync(CancellationToken ct)
     {
-        if (_agent != null) return _agent;
-
-        var apiKey = Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY")
-            ?? Environment.GetEnvironmentVariable("DeepseekKey");
-        if (string.IsNullOrEmpty(apiKey))
-        {
-            log.LogWarning("ANTHROPIC_API_KEY or DeepseekKey environment variable is not set.");
-        }
-
-        var baseUrl = config["Anthropic:BaseUrl"] ?? config["DeepSeek:AnthropicBaseUrl"] ?? "https://api.deepseek.com/anthropic";
-        var model = config["Anthropic:Model"] ?? config["DeepSeek:Model"] ?? "deepseek-chat";
-
-        Environment.SetEnvironmentVariable("ANTHROPIC_API_KEY", apiKey ?? "");
-        Environment.SetEnvironmentVariable("ANTHROPIC_BASE_URL", baseUrl);
-        var anthropicClient = new AnthropicClient();
-
         var tools = new List<AITool> { AIFunctionFactory.Create(GetCurrentTime) };
         _mcpClients = [];
 
@@ -115,10 +102,56 @@ public class AgentService(
             }
         }
 
-        _agent = anthropicClient.AsAIAgent(
+        return tools.ToArray();
+    }
+
+    private const string AgentInstructions = "You are SmallEBot, a helpful personal assistant. Be concise and friendly. When the user asks for the current time or date, use the GetCurrentTime tool. Use any other available MCP tools when they help answer the user.";
+
+    private async Task<AIAgent> EnsureAgentAsync(bool useThinking, CancellationToken ct)
+    {
+        var apiKey = Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY")
+            ?? Environment.GetEnvironmentVariable("DeepseekKey");
+        if (string.IsNullOrEmpty(apiKey))
+        {
+            log.LogWarning("ANTHROPIC_API_KEY or DeepseekKey environment variable is not set.");
+        }
+
+        var baseUrl = config["Anthropic:BaseUrl"] ?? config["DeepSeek:AnthropicBaseUrl"] ?? "https://api.deepseek.com/anthropic";
+        var model = config["Anthropic:Model"] ?? config["DeepSeek:Model"] ?? "deepseek-chat";
+        var tools = await EnsureToolsAsync(ct);
+
+        if (useThinking)
+        {
+            if (_agentWithThinking != null) return _agentWithThinking;
+            var clientOptions = new ClientOptions { ApiKey = apiKey ?? "", BaseUrl = baseUrl };
+            var anthropicClient = new AnthropicClient(clientOptions);
+            var thinkingTokens = 2048;
+            _agentWithThinking = anthropicClient.AsAIAgent(
+                model: model,
+                name: "SmallEBot",
+                instructions: AgentInstructions,
+                tools: tools,
+                clientFactory: (chatClient) => chatClient
+                    .AsBuilder()
+                    .ConfigureOptions(
+                        options => options.RawRepresentationFactory = (_) => new MessageCreateParams
+                        {
+                            Model = options.ModelId ?? model,
+                            MaxTokens = options.MaxOutputTokens ?? 4096,
+                            Messages = [],
+                            Thinking = new ThinkingConfigParam(new ThinkingConfigEnabled(thinkingTokens))
+                        })
+                    .Build());
+            return _agentWithThinking;
+        }
+
+        if (_agent != null) return _agent;
+        var opts = new ClientOptions { ApiKey = apiKey ?? "", BaseUrl = baseUrl };
+        var client = new AnthropicClient(opts);
+        _agent = client.AsAIAgent(
             model: model,
             name: "SmallEBot",
-            instructions: "You are SmallEBot, a helpful personal assistant. Be concise and friendly. When the user asks for the current time or date, use the GetCurrentTime tool. Use any other available MCP tools when they help answer the user.",
+            instructions: AgentInstructions,
             tools: tools);
         return _agent;
     }
@@ -132,7 +165,7 @@ public class AgentService(
         bool useThinking = false,
         [EnumeratorCancellation] CancellationToken ct = default)
     {
-        var agent = await EnsureAgentAsync(ct);
+        var agent = await EnsureAgentAsync(useThinking, ct);
 
         var store = new ChatMessageStoreAdapter(db, conversationId);
         var history = await store.LoadMessagesAsync(ct);
@@ -273,7 +306,7 @@ public class AgentService(
 
     private async Task<string> GenerateTitleAsync(string firstMessage, CancellationToken ct = default)
     {
-        var agent = await EnsureAgentAsync(ct);
+        var agent = await EnsureAgentAsync(useThinking: false, ct);
         var prompt = $"Generate a very short title (under 20 chars, no quotes) for a conversation that starts with: {firstMessage}";
         try
         {
