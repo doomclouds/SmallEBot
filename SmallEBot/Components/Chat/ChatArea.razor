@@ -236,7 +236,10 @@
         {
             if (update is TextStreamUpdate t)
             {
-                list.Add(new StreamDisplayItem { IsText = true, Text = t.Text });
+                if (list.Count > 0 && list[^1] is { IsText: true } lastText)
+                    list[list.Count - 1] = new StreamDisplayItem { IsText = true, Text = (lastText.Text ?? "") + t.Text };
+                else
+                    list.Add(new StreamDisplayItem { IsText = true, Text = t.Text });
                 continue;
             }
             if (update is ToolCallStreamUpdate tc)
