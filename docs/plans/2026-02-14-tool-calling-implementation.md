@@ -386,4 +386,6 @@ git commit -m "docs: link design to implementation plan"
 
 All verifications are run by the executor (Cursor) using the browser MCP against the running app. Do not mark the feature complete until Tasks 3, 6, 8, and 11 pass; Task 10 can be skipped if no http MCP is configured or reachable.
 
-**Verification completed (2026-02-14):** Tasks 3, 6, 8, and 11 passed via browser MCP. Tool call persistence and JSON-serialized Arguments/Result are implemented; Task 10 (MCP UI) deferred until http MCP tool loading is implemented.
+**Verification completed (2026-02-14):** Tasks 3, 6, 8, and 11 passed via browser MCP. Tool call persistence and JSON-serialized Arguments/Result are implemented.
+
+**MCP HTTP loading (2026-02-14):** `EnsureAgentAsync` loads http-type `mcpServers` from config via `HttpClientTransport` + `McpClient.CreateAsync`, merges `ListToolsAsync()` into agent tools with GetCurrentTime. Stdio servers are logged and skipped. Task 10 (MCP UI verification) can be run when an http MCP server is configured and reachable.

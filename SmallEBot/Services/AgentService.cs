@@ -5,6 +5,7 @@ using System.Text.Json;
 using Microsoft.Agents.AI;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
+using ModelContextProtocol.Client;
 using OpenAI;
 using SmallEBot.Data;
 using SmallEBot.Data.Entities;
@@ -20,8 +21,9 @@ public class AgentService(
     ILogger<AgentService> log)
 {
     private AIAgent? _agent;
+    private List<IAsyncDisposable>? _mcpClients;
 
-    private AIAgent GetAgent()
+    private async Task<AIAgent> EnsureAgentAsync(CancellationToken ct)
     {
         if (_agent != null) return _agent;
 
@@ -39,6 +41,8 @@ public class AgentService(
         var chatClient = client.GetChatClient(model).AsIChatClient();
 
         var tools = new List<AITool> { AIFunctionFactory.Create(GetCurrentTime) };
+        _mcpClients = [];
+
         var mcpSection = config.GetSection("mcpServers");
         if (mcpSection.Exists())
         {
@@ -47,7 +51,7 @@ public class AgentService(
                 var type = child["type"]?.ToString();
                 if (type == "stdio")
                 {
-                    log.LogInformation("MCP stdio server '{Name}' configured but not loaded in this phase.", child.Key);
+                    log.LogInformation("MCP stdio server '{Name}' configured but not loaded (http only in this phase).", child.Key);
                     continue;
                 }
                 if (type == "http")
@@ -58,14 +62,31 @@ public class AgentService(
                         log.LogWarning("MCP http server '{Name}' has no url, skipped.", child.Key);
                         continue;
                     }
-                    log.LogInformation("MCP http server '{Name}' at {Url} configured (tool loading requires async init, skipped in this phase).", child.Key, url);
+                    try
+                    {
+                        var transport = new HttpClientTransport(new HttpClientTransportOptions
+                        {
+                            Endpoint = new Uri(url),
+                            TransportMode = HttpTransportMode.AutoDetect,
+                            ConnectionTimeout = TimeSpan.FromSeconds(30)
+                        });
+                        var mcpClient = await McpClient.CreateAsync(transport, null, null, ct);
+                        _mcpClients.Add(mcpClient);
+                        var mcpTools = await mcpClient.ListToolsAsync();
+                        tools.AddRange(mcpTools.Cast<AITool>());
+                        log.LogInformation("MCP http server '{Name}' at {Url} loaded with {Count} tools.", child.Key, url, mcpTools.Count);
+                    }
+                    catch (Exception ex)
+                    {
+                        log.LogWarning(ex, "Failed to load MCP http server '{Name}' at {Url}, skipping.", child.Key, url);
+                    }
                 }
             }
         }
 
         _agent = new ChatClientAgent(
             chatClient,
-            instructions: "You are SmallEBot, a helpful personal assistant. Be concise and friendly. When the user asks for the current time or date, use the GetCurrentTime tool.",
+            instructions: "You are SmallEBot, a helpful personal assistant. Be concise and friendly. When the user asks for the current time or date, use the GetCurrentTime tool. Use any other available MCP tools when they help answer the user.",
             name: "SmallEBot",
             description: null,
             tools: tools,
@@ -82,7 +103,7 @@ public class AgentService(
         string userMessage,
         [EnumeratorCancellation] CancellationToken ct = default)
     {
-        var agent = GetAgent();
+        var agent = await EnsureAgentAsync(ct);
 
         var store = new ChatMessageStoreAdapter(db, conversationId);
         var history = await store.LoadMessagesAsync(ct);
@@ -217,7 +238,7 @@ public class AgentService(
 
     private async Task<string> GenerateTitleAsync(string firstMessage, CancellationToken ct = default)
     {
-        var agent = GetAgent();
+        var agent = await EnsureAgentAsync(ct);
         var prompt = $"Generate a very short title (under 20 chars, no quotes) for a conversation that starts with: {firstMessage}";
         try
         {
