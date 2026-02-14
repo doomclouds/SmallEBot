@@ -37,7 +37,33 @@
         <MudChat ChatPosition="ChatBubblePosition.Start" ArrowPosition="ChatArrowPosition.Top" Class="mb-3">
             <MudChatBubble>
                 <MudText Typo="Typo.caption">SmallEBot · @DateTime.Now.ToString("g")</MudText>
-                <MudText Typo="Typo.body1">@_streamingText</MudText>
+                @foreach (var item in GetStreamingDisplayItems())
+                {
+                    if (item.IsText)
+                    {
+                        <MudText Typo="Typo.body1">@item.Text</MudText>
+                    }
+                    else
+                    {
+                        <MudExpansionPanels Class="mt-2" Elevation="0">
+                            <MudExpansionPanel IsInitiallyExpanded="false" Text="@($"🔧 {item.ToolName ?? "Tool"}")">
+                                <MudText Typo="Typo.body2"><strong>Tool:</strong> @(item.ToolName ?? "-")</MudText>
+                                @if (!string.IsNullOrEmpty(item.ToolArguments))
+                                {
+                                    <MudText Typo="Typo.caption" Class="mt-1">Arguments: <pre class="d-inline">@item.ToolArguments</pre></MudText>
+                                }
+                                @if (!string.IsNullOrEmpty(item.ToolResult))
+                                {
+                                    <MudText Typo="Typo.caption" Class="mt-1">Result: <pre class="d-inline">@item.ToolResult</pre></MudText>
+                                }
+                            </MudExpansionPanel>
+                        </MudExpansionPanels>
+                    }
+                }
+                @if (!GetStreamingDisplayItems().Any() && !string.IsNullOrEmpty(_streamingText))
+                {
+                    <MudText Typo="Typo.body1">@_streamingText</MudText>
+                }
             </MudChatBubble>
         </MudChat>
     }
@@ -165,5 +191,41 @@
     private async Task OnKeyDown(KeyboardEventArgs e)
     {
         if (e is { Key: "Enter", ShiftKey: false }) await Send();
+    }
+
+    private sealed class StreamDisplayItem
+    {
+        public bool IsText { get; init; }
+        public string? Text { get; init; }
+        public string? ToolName { get; init; }
+        public string? ToolArguments { get; init; }
+        public string? ToolResult { get; set; }
+    }
+
+    private IEnumerable<StreamDisplayItem> GetStreamingDisplayItems()
+    {
+        var list = new List<StreamDisplayItem>();
+        foreach (var update in _streamingUpdates)
+        {
+            if (update is TextStreamUpdate t)
+            {
+                list.Add(new StreamDisplayItem { IsText = true, Text = t.Text });
+                continue;
+            }
+            if (update is ToolCallStreamUpdate tc)
+            {
+                if (tc.Result != null && tc.Arguments == null)
+                {
+                    var lastTool = list.LastOrDefault(x => !x.IsText);
+                    if (lastTool != null)
+                        lastTool.ToolResult = tc.Result;
+                }
+                else if (!string.IsNullOrEmpty(tc.ToolName) || tc.Arguments != null)
+                {
+                    list.Add(new StreamDisplayItem { IsText = false, ToolName = tc.ToolName, ToolArguments = tc.Arguments, ToolResult = tc.Result });
+                }
+            }
+        }
+        return list;
     }
 }

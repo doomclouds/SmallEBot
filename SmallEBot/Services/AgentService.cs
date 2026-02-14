@@ -1,4 +1,5 @@
 using System.ClientModel;
+using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Microsoft.Agents.AI;
 using Microsoft.EntityFrameworkCore;
@@ -34,11 +35,19 @@ public class AgentService(
         var options = new OpenAIClientOptions { Endpoint = new Uri(baseUrl) };
         var client = new OpenAIClient(new ApiKeyCredential(apiKey ?? ""), options);
         var chatClient = client.GetChatClient(model).AsIChatClient();
-        _agent = new ChatClientAgent(chatClient,
-            instructions: "You are SmallEBot, a helpful personal assistant. Be concise and friendly.",
-            name: "SmallEBot");
+        _agent = new ChatClientAgent(
+            chatClient,
+            instructions: "You are SmallEBot, a helpful personal assistant. Be concise and friendly. When the user asks for the current time or date, use the GetCurrentTime tool.",
+            name: "SmallEBot",
+            description: null,
+            tools: [AIFunctionFactory.Create(GetCurrentTime)],
+            loggerFactory: null,
+            services: null);
         return _agent;
     }
+
+    [Description("Get the current UTC date and time in ISO 8601 format.")]
+    private static string GetCurrentTime() => DateTime.UtcNow.ToString("O");
 
     public async IAsyncEnumerable<StreamUpdate> SendMessageStreamingAsync(
         Guid conversationId,
@@ -56,10 +65,30 @@ public class AgentService(
 
         await foreach (var update in agent.RunStreamingAsync(frameworkMessages, null, null, ct))
         {
-            var text = update.Text;
-            if (!string.IsNullOrEmpty(text))
-                yield return new TextStreamUpdate(text);
-            // TODO: when SDK exposes update.Contents, yield ToolCallStreamUpdate for FunctionCallContent / FunctionResultContent
+            if (update.Contents is { Count: > 0 } contents)
+            {
+                foreach (var content in contents)
+                {
+                    switch (content)
+                    {
+                        case TextContent textContent when !string.IsNullOrEmpty(textContent.Text):
+                            yield return new TextStreamUpdate(textContent.Text);
+                            break;
+                        case FunctionCallContent fnCall:
+                            yield return new ToolCallStreamUpdate(fnCall.Name, fnCall.Arguments?.ToString());
+                            break;
+                        case FunctionResultContent fnResult:
+                            yield return new ToolCallStreamUpdate(fnResult.CallId ?? "result", Result: fnResult.Result?.ToString());
+                            break;
+                        default:
+                            break;
+                    }
+                }
+            }
+            else if (!string.IsNullOrEmpty(update.Text))
+            {
+                yield return new TextStreamUpdate(update.Text);
+            }
         }
     }
 
