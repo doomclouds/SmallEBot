@@ -79,7 +79,7 @@
                         {
                             @if (seg.IsText && !string.IsNullOrEmpty(seg.Text))
                             {
-                                <div class="markdown-body">@((MarkupString)MarkdownSvc.ToHtml(seg.Text))</div>
+                                <MarkdownContentView Content="@seg.Text" />
                             }
                             else if (!seg.IsText && ShowToolCalls)
                             {
@@ -165,7 +165,7 @@
                     }
                     else if (item.IsText)
                     {
-                        <div class="markdown-body">@((MarkupString)MarkdownSvc.ToHtml(item.Text))</div>
+                        <MarkdownContentView Content="@item.Text" />
                     }
                     else if (item.IsReplyTool && ShowToolCalls)
                     {
@@ -187,7 +187,7 @@
                 }
                 @if (!GetStreamingDisplayItems().Any() && !string.IsNullOrEmpty(_streamingText))
                 {
-                    <div class="markdown-body">@((MarkupString)MarkdownSvc.ToHtml(_streamingText))</div>
+                    <MarkdownContentView Content="@_streamingText" />
                 }
             </MudChatBubble>
         </MudChat>
