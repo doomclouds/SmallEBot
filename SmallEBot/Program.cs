@@ -11,6 +11,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddScoped<ConversationService>();
 builder.Services.AddScoped<AgentService>();
 builder.Services.AddScoped<UserNameService>();
+builder.Services.AddSingleton<MarkdownService>();
 builder.Services.AddMudServices();
 
 // Add services to the container.

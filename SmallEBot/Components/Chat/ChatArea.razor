@@ -2,6 +2,7 @@
 @using SmallEBot.Models
 @inject AgentService AgentSvc
 @inject UserNameService UserNameSvc
+@inject MarkdownService MarkdownSvc
 @inject IJSRuntime JS
 @inject ISnackbar Snackbar
 
@@ -20,7 +21,7 @@
                         <MudText Typo="Typo.caption">You · @msg.CreatedAt.ToString("g")</MudText>
                         @if (!string.IsNullOrEmpty(msg.Content))
                         {
-                            <MudText Typo="Typo.body1">@msg.Content</MudText>
+                            <div class="markdown-body">@((MarkupString)MarkdownSvc.ToHtml(msg.Content))</div>
                         }
                     </MudChatBubble>
                 </MudChat>
@@ -37,7 +38,7 @@
                             {
                                 @if (!string.IsNullOrEmpty(item.Message.Content))
                                 {
-                                    <MudText Typo="Typo.body1">@item.Message.Content</MudText>
+                                    <div class="markdown-body">@((MarkupString)MarkdownSvc.ToHtml(item.Message.Content))</div>
                                 }
                             }
                             else if (item.ToolCall != null && ShowToolCalls)
@@ -68,7 +69,7 @@
         <MudChat ChatPosition="ChatBubblePosition.End" ArrowPosition="ChatArrowPosition.Top" Class="mb-3">
             <MudChatBubble>
                 <MudText Typo="Typo.caption">You · @_pendingUserMessageTime.ToString("g")</MudText>
-                <MudText Typo="Typo.body1">@_pendingUserMessage</MudText>
+                <div class="markdown-body">@((MarkupString)MarkdownSvc.ToHtml(_pendingUserMessage))</div>
             </MudChatBubble>
         </MudChat>
     }
@@ -81,7 +82,7 @@
                 {
                     if (item.IsText)
                     {
-                        <MudText Typo="Typo.body1">@item.Text</MudText>
+                        <div class="markdown-body">@((MarkupString)MarkdownSvc.ToHtml(item.Text))</div>
                     }
                     else if (ShowToolCalls)
                     {
@@ -101,7 +102,7 @@
                 }
                 @if (!GetStreamingDisplayItems().Any() && !string.IsNullOrEmpty(_streamingText))
                 {
-                    <MudText Typo="Typo.body1">@_streamingText</MudText>
+                    <div class="markdown-body">@((MarkupString)MarkdownSvc.ToHtml(_streamingText))</div>
                 }
             </MudChatBubble>
         </MudChat>
