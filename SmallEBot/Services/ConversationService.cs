@@ -55,12 +55,12 @@ public class ConversationService(AppDbContext db)
         var currentAssistant = new List<TimelineItem>();
         foreach (var item in timeline)
         {
-            if (item.Message != null && item.Message.Role == "user")
+            if (item.Message is { Role: "user" })
             {
                 if (currentAssistant.Count > 0)
                 {
                     groups.Add(new AssistantMessageGroup(currentAssistant.ToList()));
-                    currentAssistant = new List<TimelineItem>();
+                    currentAssistant = [];
                 }
                 groups.Add(new UserMessageGroup(item.Message));
             }

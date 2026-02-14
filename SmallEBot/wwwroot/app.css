@@ -202,6 +202,13 @@ html, body {
     border-bottom: 1px solid var(--seb-border);
 }
 .smallebot-reasoning-step:last-child { border-bottom: none; }
+.smallebot-reasoning-label {
+    color: var(--seb-primary);
+}
+.smallebot-reasoning-body {
+    font-size: 0.9em;
+    color: var(--seb-text-secondary);
+}
 
 .smallebot-chat-paper .mud-chat-bubble .mud-typography-caption {
     color: var(--seb-text-secondary);

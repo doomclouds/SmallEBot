@@ -18,7 +18,7 @@ public class AgentService(
     AppDbContext db,
     ConversationService convSvc,
     IConfiguration config,
-    ILogger<AgentService> log)
+    ILogger<AgentService> log) : IAsyncDisposable
 {
     private AIAgent? _agent;
     private AIAgent? _agentWithThinking;
@@ -34,8 +34,8 @@ public class AgentService(
         {
             foreach (var child in mcpSection.GetChildren())
             {
-                var type = child["type"]?.ToString();
-                var command = child["command"]?.ToString();
+                var type = child["type"];
+                var command = child["command"];
 
                 if (type == "stdio" || (string.IsNullOrEmpty(type) && !string.IsNullOrEmpty(command)))
                 {
@@ -61,8 +61,8 @@ public class AgentService(
                         });
                         var mcpClient = await McpClient.CreateAsync(transport, null, null, ct);
                         _mcpClients.Add(mcpClient);
-                        var mcpTools = await mcpClient.ListToolsAsync();
-                        tools.AddRange(mcpTools.Cast<AITool>());
+                        var mcpTools = await mcpClient.ListToolsAsync(cancellationToken: ct);
+                        tools.AddRange(mcpTools);
                         log.LogInformation("MCP stdio server '{Name}' ({Command}) loaded with {Count} tools.", child.Key, command, mcpTools.Count);
                     }
                     catch (Exception ex)
@@ -71,9 +71,10 @@ public class AgentService(
                     }
                     continue;
                 }
+                
                 if (type == "http")
                 {
-                    var url = child["url"]?.ToString();
+                    var url = child["url"];
                     if (string.IsNullOrEmpty(url))
                     {
                         log.LogWarning("MCP http server '{Name}' has no url, skipped.", child.Key);
@@ -89,8 +90,8 @@ public class AgentService(
                         });
                         var mcpClient = await McpClient.CreateAsync(transport, null, null, ct);
                         _mcpClients.Add(mcpClient);
-                        var mcpTools = await mcpClient.ListToolsAsync();
-                        tools.AddRange(mcpTools.Cast<AITool>());
+                        var mcpTools = await mcpClient.ListToolsAsync(cancellationToken: ct);
+                        tools.AddRange(mcpTools);
                         log.LogInformation("MCP http server '{Name}' at {Url} loaded with {Count} tools.", child.Key, url, mcpTools.Count);
                     }
                     catch (Exception ex)
@@ -180,9 +181,7 @@ public class AgentService(
                             yield return new ToolCallStreamUpdate(fnCall.Name, ToJsonString(fnCall.Arguments));
                             break;
                         case FunctionResultContent fnResult:
-                            yield return new ToolCallStreamUpdate(fnResult.CallId ?? "result", Result: ToJsonString(fnResult.Result));
-                            break;
-                        default:
+                            yield return new ToolCallStreamUpdate(fnResult.CallId, Result: ToJsonString(fnResult.Result));
                             break;
                     }
                 }
@@ -236,7 +235,7 @@ public class AgentService(
             }
             else if (seg.IsThink && !string.IsNullOrEmpty(seg.Text))
             {
-                db.ThinkBlocks.Add(new Data.Entities.ThinkBlock
+                db.ThinkBlocks.Add(new ThinkBlock
                 {
                     Id = Guid.NewGuid(),
                     ConversationId = conversationId,
@@ -245,7 +244,7 @@ public class AgentService(
                     CreatedAt = baseTime
                 });
             }
-            else if (!seg.IsText && !seg.IsThink)
+            else if (seg is { IsText: false, IsThink: false })
             {
                 db.ToolCalls.Add(new ToolCall
                 {
@@ -319,5 +318,18 @@ public class AgentService(
         {
             return firstMessage.Length > 20 ? firstMessage[..20] + "…" : firstMessage;
         }
+    }
+    
+    public async ValueTask DisposeAsync()
+    {
+        await db.DisposeAsync();
+        if (_mcpClients != null)
+        {
+            foreach (var client in _mcpClients)
+            {
+                await client.DisposeAsync();
+            }
+        }
+        GC.SuppressFinalize(this);
     }
 }

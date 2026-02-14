@@ -12,7 +12,6 @@ public class MarkdownService
     /// <summary>Converts Markdown to safe HTML. Returns empty string for null/whitespace.</summary>
     public string ToHtml(string? markdown)
     {
-        if (string.IsNullOrWhiteSpace(markdown)) return string.Empty;
-        return Markdown.ToHtml(markdown, _pipeline);
+        return string.IsNullOrWhiteSpace(markdown) ? string.Empty : Markdown.ToHtml(markdown, _pipeline);
     }
 }

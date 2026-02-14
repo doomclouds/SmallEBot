@@ -1,8 +1,6 @@
 @page "/"
 @layout MainLayout
 @using SmallEBot.Data.Entities
-@using SmallEBot.Models
-@using SmallEBot.Services
 @inject UserNameService UserNameSvc
 @inject ConversationService ConvSvc
 @inject IDialogService DialogSvc
@@ -108,13 +106,6 @@ else
         _conversations = await ConvSvc.GetListAsync(_userName!);
         if (_selectedId.HasValue)
             _selectedConversation = await ConvSvc.GetByIdAsync(_selectedId.Value, _userName!);
-        await InvokeAsync(StateHasChanged);
-    }
-
-    /// <summary>Refresh only sidebar list (titles/dates). Does not replace current conversation to avoid full re-render and scroll reset.</summary>
-    private async Task RefreshSidebarOnly()
-    {
-        _conversations = await ConvSvc.GetListAsync(_userName!);
         await InvokeAsync(StateHasChanged);
     }
 
