@@ -64,7 +64,7 @@
         if (result == null || result.Canceled || result.Data is not true)
             return;
 
-        var userName = UserNameSvc.CurrentDisplayName ?? UserName;
+        var userName = await UserNameSvc.GetAsync() ?? UserName;
         if (string.IsNullOrWhiteSpace(userName))
         {
             Snackbar.Add("Username missing, cannot delete.", Severity.Warning);

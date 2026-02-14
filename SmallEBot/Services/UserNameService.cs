@@ -11,6 +11,9 @@ public class UserNameService(ProtectedSessionStorage storage, IWebHostEnvironmen
     /// <summary>Current username for display (set after load/dialog).</summary>
     public string? CurrentDisplayName { get; set; }
 
+    /// <summary>Raised when CurrentDisplayName is updated (e.g. after dialog or load). Layout can subscribe to refresh AppBar.</summary>
+    public event Action? UsernameChanged;
+
     /// <summary>Get username: session first, then file. Only first visit has neither and will show dialog.</summary>
     public async Task<string?> GetAsync(CancellationToken ct = default)
     {
@@ -21,12 +24,14 @@ public class UserNameService(ProtectedSessionStorage storage, IWebHostEnvironmen
             if (!string.IsNullOrWhiteSpace(v))
             {
                 CurrentDisplayName = v;
+                UsernameChanged?.Invoke();
                 return v;
             }
             var fromFile = await ReadFromFileAsync(ct);
             if (!string.IsNullOrWhiteSpace(fromFile))
             {
                 CurrentDisplayName = fromFile;
+                UsernameChanged?.Invoke();
                 await storage.SetAsync(Key, fromFile);
                 return fromFile;
             }
@@ -41,6 +46,7 @@ public class UserNameService(ProtectedSessionStorage storage, IWebHostEnvironmen
         var value = userName?.Trim() ?? "";
         if (string.IsNullOrEmpty(value)) return;
         CurrentDisplayName = value;
+        UsernameChanged?.Invoke();
         await storage.SetAsync(Key, value);
         await WriteToFileAsync(value, ct);
     }

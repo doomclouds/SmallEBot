@@ -38,7 +38,7 @@ public class ConversationService(AppDbContext db)
             .FirstOrDefaultAsync(x => x.Id == id && x.UserName == userName, ct);
 
     /// <summary>Returns conversation timeline (messages, tool calls, think blocks) sorted by CreatedAt.</summary>
-    public static List<TimelineItem> GetTimeline(IEnumerable<ChatMessage> messages, IEnumerable<ToolCall> toolCalls, IEnumerable<ThinkBlock> thinkBlocks)
+    private static List<TimelineItem> GetTimeline(IEnumerable<ChatMessage> messages, IEnumerable<ToolCall> toolCalls, IEnumerable<ThinkBlock> thinkBlocks)
     {
         var list = messages.Select(m => new TimelineItem(m, null, null))
             .Concat(toolCalls.Select(t => new TimelineItem(null, t, null)))
@@ -107,16 +107,6 @@ public class ConversationService(AppDbContext db)
         db.ThinkBlocks.RemoveRange(c.ThinkBlocks);
         db.ConversationTurns.RemoveRange(c.Turns);
         db.Conversations.Remove(c);
-        await db.SaveChangesAsync(ct);
-        return true;
-    }
-
-    public async Task<bool> UpdateTitleAsync(Guid id, string userName, string title, CancellationToken ct = default)
-    {
-        var c = await db.Conversations.FirstOrDefaultAsync(x => x.Id == id && x.UserName == userName, ct);
-        if (c == null) return false;
-        c.Title = title;
-        c.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
         return true;
     }

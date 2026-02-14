@@ -27,9 +27,9 @@ public partial class ChatArea
 
     private static AssistantSegment ToAssistantSegment(ReasoningStep step)
     {
-        if (step.IsThink)
-            return new AssistantSegment(false, true, step.Text ?? "");
-        return new AssistantSegment(false, false, null, step.ToolName ?? "", step.ToolArguments, step.ToolResult);
+        return step.IsThink
+            ? new AssistantSegment(false, true, step.Text ?? "")
+            : new AssistantSegment(false, false, null, step.ToolName ?? "", step.ToolArguments, step.ToolResult);
     }
 
     private static AssistantSegment ToAssistantSegmentFromReplyTool(StreamDisplayItem item)
@@ -50,8 +50,7 @@ public partial class ChatArea
         {
             if (x is { IsReasoningGroup: true, ReasoningSteps: not null })
             {
-                foreach (var step in x.ReasoningSteps)
-                    segments.Add(ToAssistantSegment(step));
+                segments.AddRange(x.ReasoningSteps.Select(ToAssistantSegment));
             }
             else if (x.IsText)
             {
@@ -62,6 +61,7 @@ public partial class ChatArea
                 segments.Add(ToAssistantSegmentFromReplyTool(x));
             }
         }
+
         if (segments.Count == 0 && !string.IsNullOrEmpty(_streamingText))
             segments.Add(ToTextSegment(_streamingText));
         return segments;

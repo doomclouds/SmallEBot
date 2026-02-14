@@ -7,13 +7,13 @@ window.SmallEBot.scrollChatToBottom = function (element) {
 };
 
 // Theme persistence and root attribute
-var DEFAULT_THEME = 'editorial-dark';
-var THEME_KEY = 'smallebot.theme';
-var VALID_IDS = ['editorial-dark', 'paper-light', 'terminal', 'dusk', 'mono'];
+let DEFAULT_THEME = 'editorial-dark';
+let THEME_KEY = 'smallebot.theme';
+let VALID_IDS = ['editorial-dark', 'paper-light', 'terminal', 'dusk', 'mono'];
 
 window.SmallEBot.getTheme = function () {
     try {
-        var id = localStorage.getItem(THEME_KEY);
+        let id = localStorage.getItem(THEME_KEY);
         if (id && VALID_IDS.indexOf(id) !== -1) return id;
     } catch (e) {}
     return DEFAULT_THEME;

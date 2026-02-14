@@ -1,5 +1,4 @@
 @using SmallEBot.Models
-@using SmallEBot.Services
 @inject AgentService AgentSvc
 @inject UserNameService UserNameSvc
 @inject MarkdownService MarkdownSvc
@@ -251,10 +250,10 @@
         await OnBeforeSend.InvokeAsync();
 
         var persisted = false;
-        Guid turnId = default;
+        var turnId = Guid.Empty;
         try
         {
-            var userName = UserNameSvc.CurrentDisplayName ?? UserName;
+            var userName = await UserNameSvc.GetAsync() ?? UserName;
             if (string.IsNullOrWhiteSpace(userName))
             {
                 Snackbar.Add("Username is missing. Please refresh and enter your name.", Severity.Warning);

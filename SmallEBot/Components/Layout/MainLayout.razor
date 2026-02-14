@@ -1,4 +1,5 @@
 @inherits LayoutComponentBase
+@implements IDisposable
 @inject UserNameService UserNameSvc
 @inject IJSRuntime JS
 
@@ -30,21 +31,12 @@
                            Color="@(_showToolCalls ? Color.Primary : Color.Default)"
                            OnClick="@ToggleShowToolCalls" />
         </MudTooltip>
-        <MudSwitch @bind-Value="_showToolCalls" Color="Color.Primary" Class="ms-2">
-            <MudText Typo="Typo.body2">工具调用</MudText>
-        </MudSwitch>
         <MudTooltip Text="@(_useThinkingMode ? "关闭思考模式" : "开启思考模式")">
             <MudIconButton Icon="@Icons.Material.Filled.Psychology"
                            Color="@(_useThinkingMode ? Color.Primary : Color.Default)"
                            OnClick="@ToggleUseThinkingMode" />
         </MudTooltip>
-        <MudSwitch @bind-Value="_useThinkingMode" Color="Color.Primary" Class="ms-2">
-            <MudText Typo="Typo.body2">思考</MudText>
-        </MudSwitch>
-        @if (!string.IsNullOrEmpty(UserNameSvc.CurrentDisplayName))
-        {
-            <MudText Typo="Typo.body2" Class="smallebot-username">@UserNameSvc.CurrentDisplayName</MudText>
-        }
+        <MudText Typo="Typo.body2" Class="smallebot-username">@UserNameSvc.CurrentDisplayName</MudText>
     </MudAppBar>
     <MudMainContent Class="smallebot-main">
         <CascadingValue Value="_showToolCalls" Name="ShowToolCalls">
@@ -59,6 +51,7 @@
     private string _currentThemeId = ThemeConstants.DefaultThemeId;
     private bool _showToolCalls = true;
     private bool _useThinkingMode;
+    private string? _userName;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -75,6 +68,9 @@
                 /* keep default */
             }
         }
+        
+        if(string.IsNullOrEmpty(_userName))
+            _userName = await UserNameSvc.GetAsync();
     }
 
     private async Task SelectTheme(string id)
@@ -112,5 +108,20 @@
     {
         _useThinkingMode = !_useThinkingMode;
         StateHasChanged();
+    }
+
+    protected override void OnInitialized()
+    {
+        UserNameSvc.UsernameChanged += OnUsernameChanged;
+    }
+
+    private void OnUsernameChanged()
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        UserNameSvc.UsernameChanged -= OnUsernameChanged;
     }
 }
