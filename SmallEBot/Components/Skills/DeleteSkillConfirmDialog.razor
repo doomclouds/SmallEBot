@@ -1,0 +1,18 @@
+<MudDialog>
+    <TitleContent><MudText Typo="Typo.h6">删除 Skill</MudText></TitleContent>
+    <DialogContent>
+        <MudText>确定要删除 Skill「@Id」吗？</MudText>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="Cancel">取消</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="Confirm">删除</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public string Id { get; set; } = "";
+
+    private void Cancel() => MudDialog.Cancel();
+    private void Confirm() => MudDialog.Close(DialogResult.Ok(true));
+}

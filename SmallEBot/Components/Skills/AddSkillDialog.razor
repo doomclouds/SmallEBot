@@ -1,0 +1,33 @@
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent><MudText Typo="Typo.h6">新增 Skill</MudText></TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_id" Label="Id (目录名)" Variant="Variant.Outlined" Required RequiredError="必填" Class="mb-2" />
+        <MudTextField @bind-Value="_name" Label="名称" Variant="Variant.Outlined" Required RequiredError="必填" Class="mb-2" />
+        <MudTextField @bind-Value="_description" Label="描述" Variant="Variant.Outlined" Required RequiredError="必填" Lines="2" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="Cancel">取消</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Submit">添加</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    private string _id = "";
+    private string _name = "";
+    private string _description = "";
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private void Submit()
+    {
+        if (string.IsNullOrWhiteSpace(_id) || string.IsNullOrWhiteSpace(_name) || string.IsNullOrWhiteSpace(_description))
+        {
+            Snackbar.Add("请填写 Id、名称和描述", Severity.Warning);
+            return;
+        }
+        MudDialog.Close(DialogResult.Ok((_id.Trim(), _name.Trim(), _description.Trim())));
+    }
+}

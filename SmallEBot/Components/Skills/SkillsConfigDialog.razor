@@ -1,0 +1,133 @@
+@inject ISkillsConfigService SkillsConfig
+@inject AgentService AgentService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">Skills 配置</MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (_loading)
+        {
+            <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+        }
+        else
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="StartAdd" Class="mb-3">新增 Skill</MudButton>
+            <MudButton Variant="Variant.Outlined" Class="mb-3 ms-2" StartIcon="@Icons.Material.Filled.Upload" OnClick="StartImport">导入</MudButton>
+            <MudTable Items="@_rows" Hover="true" Breakpoint="Breakpoint.Sm" Dense="true">
+                <HeaderContent>
+                    <MudTh>名称 (id)</MudTh>
+                    <MudTh>描述</MudTh>
+                    <MudTh>来源</MudTh>
+                    <MudTh Style="width: 100px;">操作</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="名称">@context.Name (@context.Id)</MudTd>
+                    <MudTd DataLabel="描述">@Truncate(context.Description, 60)</MudTd>
+                    <MudTd DataLabel="来源">@(context.IsSystem ? "系统" : "用户")</MudTd>
+                    <MudTd DataLabel="操作">
+                        @if (!context.IsSystem)
+                        {
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => ConfirmDelete(context.Id))" title="删除" />
+                        }
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="Close">关闭</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+
+    private bool _loading = true;
+    private List<SmallEBot.Models.SkillMetadata> _rows = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadListAsync();
+    }
+
+    private async Task LoadListAsync()
+    {
+        _loading = true;
+        try
+        {
+            var all = await SkillsConfig.GetAllAsync();
+            _rows = all.ToList();
+        }
+        catch
+        {
+            Snackbar.Add("加载 Skills 失败", Severity.Warning);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task StartAdd()
+    {
+        var dialog = await DialogService.ShowAsync<AddSkillDialog>("新增 Skill", new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dialog.Result;
+        if (result?.Canceled != false || result?.Data is not (string id, string name, string desc)) return;
+        await SaveAddAsync(id, name, desc);
+    }
+
+    private async Task StartImport()
+    {
+        // Task 6 will add import dialog; for now show snackbar
+        Snackbar.Add("导入功能请在下一任务中完成", Severity.Info);
+        await Task.CompletedTask;
+    }
+
+    private async Task SaveAddAsync(string id, string name, string desc)
+    {
+        try
+        {
+            await SkillsConfig.AddUserSkillAsync(id, name, desc);
+            await AgentService.InvalidateAgentAsync();
+            Snackbar.Add("已添加", Severity.Success);
+            await LoadListAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add("添加失败: " + ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task ConfirmDelete(string id)
+    {
+        var parameters = new DialogParameters { [nameof(DeleteSkillConfirmDialog.Id)] = id };
+        var dialog = await DialogService.ShowAsync<DeleteSkillConfirmDialog>("删除 Skill", parameters);
+        var result = await dialog.Result;
+        if (result?.Canceled == true) return;
+        if (result?.Data is true)
+            await DoDeleteAsync(id);
+    }
+
+    private async Task DoDeleteAsync(string id)
+    {
+        try
+        {
+            await SkillsConfig.DeleteUserSkillAsync(id);
+            await AgentService.InvalidateAgentAsync();
+            Snackbar.Add("已删除", Severity.Success);
+            await LoadListAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add("删除失败: " + ex.Message, Severity.Error);
+        }
+    }
+
+    private static string Truncate(string? s, int max) =>
+        string.IsNullOrEmpty(s) ? "" : s.Length <= max ? s : s[..max] + "…";
+
+    private void Close() => MudDialog.Close();
+}

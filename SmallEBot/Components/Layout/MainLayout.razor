@@ -43,6 +43,11 @@
                            Color="Color.Default"
                            OnClick="@OpenMcpConfig" />
         </MudTooltip>
+        <MudTooltip Text="Skills 配置">
+            <MudIconButton Icon="@Icons.Material.Filled.School"
+                           Color="Color.Default"
+                           OnClick="@OpenSkillsConfig" />
+        </MudTooltip>
         <MudText Typo="Typo.body2" Class="smallebot-username">@UserNameSvc.CurrentDisplayName</MudText>
     </MudAppBar>
     <MudMainContent Class="smallebot-main">
@@ -135,6 +140,9 @@
 
     private void OpenMcpConfig() =>
         DialogService.ShowAsync<SmallEBot.Components.Mcp.McpConfigDialog>(string.Empty, new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true });
+
+    private void OpenSkillsConfig() =>
+        DialogService.ShowAsync<SmallEBot.Components.Skills.SkillsConfigDialog>(string.Empty, new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true });
 
     protected override void OnInitialized()
     {
