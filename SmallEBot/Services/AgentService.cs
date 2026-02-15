@@ -21,6 +21,7 @@ public class AgentService(
     IConfiguration config,
     ITokenizer tokenizer,
     IMcpConfigService mcpConfig,
+    ISkillsConfigService skillsConfig,
     ILogger<AgentService> log) : IAsyncDisposable
 {
     private readonly int _contextWindowTokens = config.GetValue("DeepSeek:ContextWindowTokens", 128000);
@@ -28,9 +29,18 @@ public class AgentService(
     private AIAgent? _agentWithThinking;
     private List<IAsyncDisposable>? _mcpClients;
 
+    private static readonly HashSet<string> ReadFileAllowedExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".md", ".cs", ".py", ".txt", ".json", ".yml", ".yaml"
+    };
+
     private async Task<AITool[]> EnsureToolsAsync(CancellationToken ct)
     {
-        var tools = new List<AITool> { AIFunctionFactory.Create(GetCurrentTime) };
+        var tools = new List<AITool>
+        {
+            AIFunctionFactory.Create(GetCurrentTime),
+            AIFunctionFactory.Create(ReadFile)
+        };
         _mcpClients = [];
 
         var allEntries = await mcpConfig.GetAllAsync(ct);
@@ -120,6 +130,17 @@ public class AgentService(
 
     private const string AgentInstructions = "You are SmallEBot, a helpful personal assistant. Be concise and friendly. When the user asks for the current time or date, use the GetCurrentTime tool. Use any other available MCP tools when they help answer the user.";
 
+    private static string BuildSkillsBlock(IReadOnlyList<SkillMetadata> skills)
+    {
+        if (skills.Count == 0) return "";
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("You have access to the following skills. Each has an id and a short description. To read a skill's content, use the ReadFile tool with a path relative to the run directory (e.g. .agents/sys.skills/<id>/SKILL.md or .agents/skills/<id>/...). ReadFile can read any file under the run directory with allowed extensions (.md, .cs, .py, .txt, .json, .yml, .yaml).");
+        sb.AppendLine();
+        foreach (var s in skills)
+            sb.AppendLine($"- {s.Id}: {s.Name} — {s.Description}");
+        return sb.ToString();
+    }
+
     private async Task<AIAgent> EnsureAgentAsync(bool useThinking, CancellationToken ct)
     {
         var apiKey = Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY")
@@ -133,6 +154,9 @@ public class AgentService(
         var model = config["Anthropic:Model"] ?? config["DeepSeek:Model"] ?? "deepseek-chat";
         var thinkingModel = config["Anthropic:ThinkingModel"] ?? config["DeepSeek:ThinkingModel"] ?? "deepseek-reasoner";
         var tools = await EnsureToolsAsync(ct);
+        var skillList = await skillsConfig.GetMetadataForAgentAsync(ct);
+        var skillsBlock = BuildSkillsBlock(skillList);
+        var instructions = string.IsNullOrEmpty(skillsBlock) ? AgentInstructions : AgentInstructions + "\n\n" + skillsBlock;
 
         if (useThinking)
         {
@@ -142,7 +166,7 @@ public class AgentService(
             _agentWithThinking = anthropicClient.AsAIAgent(
                 model: thinkingModel,
                 name: "SmallEBot",
-                instructions: AgentInstructions,
+                instructions: instructions,
                 tools: tools);
             return _agentWithThinking;
         }
@@ -153,13 +177,36 @@ public class AgentService(
         _agent = client.AsAIAgent(
             model: model,
             name: "SmallEBot",
-            instructions: AgentInstructions,
+            instructions: instructions,
             tools: tools);
         return _agent;
     }
 
     [Description("Get the current UTC date and time in ISO 8601 format.")]
     private static string GetCurrentTime() => DateTime.UtcNow.ToString("O");
+
+    [Description("Read a text file under the current run directory. Pass path relative to the app directory (e.g. .agents/sys.skills/weekly-report-generator/SKILL.md or .agents/skills/my-skill/script.py). Only allowed extensions: .md, .cs, .py, .txt, .json, .yml, .yaml.")]
+    private string ReadFile(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return "Error: path is required.";
+        var baseDir = Path.GetFullPath(AppDomain.CurrentDomain.BaseDirectory);
+        var fullPath = Path.GetFullPath(Path.Combine(baseDir, path.Trim().Replace('\\', Path.DirectorySeparatorChar)));
+        if (!fullPath.StartsWith(baseDir, StringComparison.OrdinalIgnoreCase))
+            return "Error: path must be under the current run directory.";
+        var ext = Path.GetExtension(fullPath);
+        if (string.IsNullOrEmpty(ext) || !ReadFileAllowedExtensions.Contains(ext))
+            return "Error: file type not allowed. Allowed: " + string.Join(", ", ReadFileAllowedExtensions);
+        if (!File.Exists(fullPath))
+            return "Error: file not found.";
+        try
+        {
+            return File.ReadAllText(fullPath);
+        }
+        catch (Exception ex)
+        {
+            return "Error: " + ex.Message;
+        }
+    }
 
     /// <summary>Invalidates cached agent and MCP clients so the next request rebuilds with current MCP config (e.g. after enable/disable toggle).</summary>
     public async Task InvalidateAgentAsync()
