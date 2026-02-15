@@ -20,6 +20,7 @@ public class AgentService(
     IConfiguration config,
     ILogger<AgentService> log) : IAsyncDisposable
 {
+    private readonly int _contextWindowTokens = config.GetValue("DeepSeek:ContextWindowTokens", 128000);
     private AIAgent? _agent;
     private AIAgent? _agentWithThinking;
     private List<IAsyncDisposable>? _mcpClients;
@@ -148,6 +149,20 @@ public class AgentService(
     [Description("Get the current UTC date and time in ISO 8601 format.")]
     private static string GetCurrentTime() => DateTime.UtcNow.ToString("O");
 
+    /// <summary>Context window size in tokens (e.g. 128000 for DeepSeek). Used for context % display.</summary>
+    public int GetContextWindowTokens() => _contextWindowTokens;
+
+    /// <summary>Estimated context usage for the conversation (0.0–1.0) from message length. Used when Usage is not available.</summary>
+    public async Task<double> GetEstimatedContextUsageAsync(Guid conversationId, CancellationToken ct = default)
+    {
+        var store = new ChatMessageStoreAdapter(db, conversationId);
+        var messages = await store.LoadMessagesAsync(ct);
+        var totalChars = messages.Sum(m => m.Content?.Length ?? 0);
+        var estimatedTokens = totalChars / 4.0;
+        var cap = _contextWindowTokens;
+        return cap <= 0 ? 0 : Math.Min(1.0, estimatedTokens / cap);
+    }
+
     public async IAsyncEnumerable<StreamUpdate> SendMessageStreamingAsync(
         Guid conversationId,
         string userMessage,
@@ -189,6 +204,12 @@ public class AgentService(
             else if (!string.IsNullOrEmpty(update.Text))
             {
                 yield return new TextStreamUpdate(update.Text);
+            }
+
+            var usage = update.GetType().GetProperty("Usage")?.GetValue(update) as Microsoft.Extensions.AI.UsageDetails;
+            if (usage != null)
+            {
+                yield return new UsageStreamUpdate((int)(usage.InputTokenCount ?? 0), (int)(usage.OutputTokenCount ?? 0));
             }
         }
     }

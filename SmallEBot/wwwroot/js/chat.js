@@ -26,6 +26,21 @@ window.SmallEBot.setTheme = function (id) {
         document.documentElement.setAttribute('data-theme', id);
     } catch (e) {}
 };
+
+// Chat input: Enter sends, Shift+Enter newline (preventDefault only for Enter)
+window.SmallEBot.attachChatInputSend = function (wrapperId, dotNetRef) {
+    var wrap = document.getElementById(wrapperId);
+    if (!wrap) return;
+    var input = wrap.querySelector('textarea, input');
+    if (!input) return;
+    input.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            dotNetRef.invokeMethodAsync('InvokeSend');
+        }
+    });
+};
+
 // Expose for Blazor JSInvoke (cannot call SmallEBot.getTheme directly)
 window.SmallEBotGetTheme = function () { return window.SmallEBot.getTheme(); };
 window.SmallEBotSetTheme = function (id) { window.SmallEBot.setTheme(id); };

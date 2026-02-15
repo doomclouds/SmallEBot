@@ -1,0 +1,76 @@
+@* Chat input bar: multiline text area, bottom bar with context % and send/stop icon. Enter=send, Shift+Enter=newline. *@
+@inject IJSRuntime JS
+@implements IDisposable
+
+<div id="smallebot-chat-input-wrap" class="d-flex flex-column gap-2 @Class">
+    <MudTextField Value="@Value"
+                  ValueChanged="@(EventCallback.Factory.Create<string>(this, OnValueChanged))"
+                  Lines="3"
+                  Placeholder="@("Plan, @ for context, / for commands")"
+                  Variant="Variant.Outlined"
+                  FullWidth="true"
+                  Immediate="true"
+                  Class="smallebot-chat-input" />
+    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mt-2">
+        <div></div>
+        <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+            <MudText Typo="Typo.body2" Class="text-secondary" Style="min-width: 2.5rem;">@ContextPercentText</MudText>
+            @if (Streaming)
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.Stop"
+                               Color="Color.Secondary"
+                               OnClick="OnStop"
+                               title="Stop"
+                               aria-label="Stop" />
+            }
+            else
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.ArrowUpward"
+                               Color="Color.Primary"
+                               OnClick="OnSend"
+                               Disabled="@Disabled"
+                               title="Send"
+                               aria-label="Send" />
+            }
+        </MudStack>
+    </MudStack>
+</div>
+
+@code {
+    [Parameter] public string Value { get; set; } = "";
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+    [Parameter] public bool Streaming { get; set; }
+    [Parameter] public string ContextPercentText { get; set; } = "0%";
+    [Parameter] public EventCallback OnSend { get; set; }
+    [Parameter] public EventCallback OnStop { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public string Class { get; set; } = "";
+
+    private DotNetObjectReference<ChatInputBar>? _dotNetRef;
+    private bool _attachDone;
+
+    private async Task OnValueChanged(string v)
+    {
+        Value = v;
+        await ValueChanged.InvokeAsync(v);
+    }
+
+    [JSInvokable]
+    public Task InvokeSend() => OnSend.InvokeAsync();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !_attachDone)
+        {
+            _attachDone = true;
+            _dotNetRef = DotNetObjectReference.Create(this);
+            try
+            {
+                await JS.InvokeVoidAsync("SmallEBot.attachChatInputSend", "smallebot-chat-input-wrap", _dotNetRef);
+            }
+            catch { /* JS not loaded yet */ }
+        }
+    }
+
+    public void Dispose() => _dotNetRef?.Dispose();
+}

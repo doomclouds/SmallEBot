@@ -81,33 +81,13 @@
     }
     </div>
 
-    <MudStack Row="true" Spacing="2" Class="mt-4">
-        <MudTextField @bind-Value="_input"
-                      Label="Message"
-                      Variant="Variant.Outlined"
-                      FullWidth="true"
-                      Immediate="true"
-                      OnKeyDown="@HandleKeyDown" />
-        @if (_streaming)
-        {
-            <MudButton Variant="Variant.Filled"
-                       Color="Color.Secondary"
-                       OnClick="@StopSend"
-                       Disabled="false">
-                Stop
-            </MudButton>
-        }
-        else
-        {
-            <MudButton Variant="Variant.Filled"
-                       Color="Color.Primary"
-                       ButtonType="ButtonType.Submit"
-                       OnClick="@Send"
-                       Disabled="@string.IsNullOrWhiteSpace(_input)">
-                Send
-            </MudButton>
-        }
-    </MudStack>
+    <ChatInputBar @bind-Value="_input"
+                  Streaming="_streaming"
+                  ContextPercentText="@_contextPercentText"
+                  OnSend="Send"
+                  OnStop="StopSend"
+                  Disabled="@string.IsNullOrWhiteSpace(_input)"
+                  Class="mt-4" />
 </MudPaper>
 
 @code {
@@ -130,6 +110,9 @@
     /// <summary>Bubble count at start of Send(); used to detect when parent has refreshed with new turn so we clear streaming without a visible flash.</summary>
     private int _bubbleCountBeforeSend;
     private CancellationTokenSource? _sendCts;
+    private int _lastInputTokenCount;
+    private int _lastOutputTokenCount;
+    private string _contextPercentText = "0%";
 
     private void StopSend()
     {
@@ -191,6 +174,12 @@
                     case ToolCallStreamUpdate:
                         _streamingUpdates.Add(update);
                         break;
+                    case UsageStreamUpdate u:
+                        _lastInputTokenCount = u.InputTokenCount;
+                        _lastOutputTokenCount = u.OutputTokenCount;
+                        var cap = AgentSvc.GetContextWindowTokens();
+                        _contextPercentText = cap > 0 ? $"{u.InputTokenCount * 100.0 / cap:F0}%" : "0%";
+                        break;
                 }
                 _scrollToBottomRequested = true;
                 await InvokeAsync(StateHasChanged);
@@ -248,6 +237,7 @@
             {
                 _pendingUserMessage = "";
                 _scrollToBottomRequested = true;
+                _contextRefreshRequested = true;
                 await OnMessageSent.InvokeAsync();
             }
             _streaming = false;
@@ -264,12 +254,36 @@
             _lastConversationId = ConversationId;
             if (Bubbles.Count > 0)
                 _scrollToBottomRequested = true;
+            _contextRefreshRequested = true;
         }
         // When parent refreshes with new turn after streaming, clear streaming state so we show only Bubbles (no duplicate, no flash).
         if (_streaming && Bubbles.Count > _bubbleCountBeforeSend)
         {
             _streaming = false;
             _streamingUpdates.Clear();
+        }
+    }
+
+    private bool _contextRefreshRequested;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_contextRefreshRequested && ConversationId.HasValue)
+        {
+            _contextRefreshRequested = false;
+            try
+            {
+                var pct = await AgentSvc.GetEstimatedContextUsageAsync(ConversationId.Value);
+                _contextPercentText = $"{pct:P0}";
+            }
+            catch
+            {
+                _contextPercentText = "—";
+            }
+        }
+        else if (!ConversationId.HasValue)
+        {
+            _contextPercentText = "—";
         }
     }
 
@@ -285,15 +299,6 @@
                 await JS.InvokeVoidAsync("SmallEBot.scrollChatToBottom", _chatScrollRef);
             }
             catch { /* ignore if JS not loaded or disconnected */ }
-        }
-    }
-
-    /// <summary>Send message when Enter is pressed (without Shift).</summary>
-    private async Task HandleKeyDown(KeyboardEventArgs args)
-    {
-        if (args is { Key: "Enter", ShiftKey: false })
-        {
-            await Send();
         }
     }
 
