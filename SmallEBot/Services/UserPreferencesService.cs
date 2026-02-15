@@ -121,6 +121,23 @@ public class UserPreferencesService(IWebHostEnvironment env)
         }
     }
 
+    /// <summary>Update DisabledMcpIds and persist.</summary>
+    public async Task SetDisabledMcpIdsAsync(List<string> ids, CancellationToken ct = default)
+    {
+        await _lock.WaitAsync(ct);
+        try
+        {
+            var current = _cached ?? await LoadInternalAsync(ct);
+            if (_cached == null) _cached = current;
+            current.DisabledMcpIds = ids ?? new List<string>();
+            await SaveInternalAsync(current, ct);
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
     /// <summary>Get current username from persisted file (no session).</summary>
     public async Task<string?> GetUserNameAsync(CancellationToken ct = default)
     {
