@@ -44,10 +44,12 @@ Example `.sys.mcp.json` / `.mcp.json`:
 
 - **McpConfigService (new):** Resolves `.agents` path; reads `.sys.mcp.json` (read-only) and `.mcp.json` (read + write); merges into a full MCP list with source (system / user); provides save for user MCP (write `.mcp.json`). Singleton or scoped, inject `IWebHostEnvironment`.
 - **UserPreferencesService:** Extend `SmallEBotSettings` with `DisabledMcpIds: List<string>` (or equivalent); add get/set; default empty list means all enabled.
-- **AgentService:** In `EnsureToolsAsync`, stop reading `IConfiguration["mcpServers"]`. Call McpConfigService for merged list, filter by UserPreferencesService `DisabledMcpIds`, then for each enabled entry create transport (http/stdio) and load tools. On per-MCP failure: log and skip.
+- **AgentService:** In `EnsureToolsAsync`, do not read `IConfiguration["mcpServers"]`. Call McpConfigService for merged list, filter by UserPreferencesService `DisabledMcpIds`, then for each enabled entry create transport (http/stdio) and load tools. On per-MCP failure: log and skip.
 
-**Migration**  
-On first use: if `.agents/.mcp.json` does not exist and appsettings has `mcpServers`, optionally seed `.sys.mcp.json` from current appsettings (or ship a default `.sys.mcp.json`) and stop using appsettings for MCP. Agent loads only from files.
+**Default system MCP and appsettings cleanup**
+
+- **Default system MCP:** The current `appsettings.json` `mcpServers` content (e.g. microsoft.docs.mcp, nuget, context7) is the default system MCP set. Ship this content as `.agents/.sys.mcp.json` in the repo so out-of-the-box behavior matches today; the repo includes this file with the former appsettings entries.
+- **Remove MCP from appsettings:** Delete the `mcpServers` node from `appsettings.json` (and `appsettings.Development.json` if present). After this change, MCP config lives only under `.agents` (`.sys.mcp.json` + `.mcp.json`). No fallback to appsettings for MCP. Implementation must switch `AgentService` to load MCP from `McpConfigService` (file-based); until then, removing `mcpServers` means no MCP loads at runtime.
 
 ---
 
