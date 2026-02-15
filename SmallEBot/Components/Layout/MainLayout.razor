@@ -2,6 +2,7 @@
 @implements IDisposable
 @inject UserNameService UserNameSvc
 @inject UserPreferencesService Preferences
+@inject IDialogService DialogService
 @inject IJSRuntime JS
 
 <MudThemeProvider Theme="@(ThemeProviderHelper.GetMudTheme(_currentThemeId))" IsDarkMode="@(ThemeProviderHelper.IsDarkModeForTheme(_currentThemeId))" />
@@ -36,6 +37,11 @@
             <MudIconButton Icon="@Icons.Material.Filled.Psychology"
                            Color="@(_useThinkingMode ? Color.Primary : Color.Default)"
                            OnClick="@ToggleUseThinkingMode" />
+        </MudTooltip>
+        <MudTooltip Text="MCP 配置">
+            <MudIconButton Icon="@Icons.Material.Filled.Extension"
+                           Color="Color.Default"
+                           OnClick="@OpenMcpConfig" />
         </MudTooltip>
         <MudText Typo="Typo.body2" Class="smallebot-username">@UserNameSvc.CurrentDisplayName</MudText>
     </MudAppBar>
@@ -126,6 +132,9 @@
         catch { /* ignore */ }
         StateHasChanged();
     }
+
+    private void OpenMcpConfig() =>
+        DialogService.ShowAsync<SmallEBot.Components.Mcp.McpConfigDialog>(string.Empty, new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true });
 
     protected override void OnInitialized()
     {

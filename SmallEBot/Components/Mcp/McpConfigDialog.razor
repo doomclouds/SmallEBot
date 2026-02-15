@@ -1,0 +1,366 @@
+@inject IMcpConfigService McpConfig
+@inject UserPreferencesService UserPrefs
+@inject IMcpToolsLoaderService McpToolsLoader
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">MCP 配置</MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (_loading)
+        {
+            <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+        }
+        else if (_editingId != null)
+        {
+            <MudStepper linear="true" @bind-active-step="_wizardStep" Class="mb-4">
+                <MudStep label="类型" step="0">
+                    <MudRadioGroup T="string" @bind-selected-option="_editType" Name="editType">
+                        <MudRadio T="string" option="@("http")" Color="Color.Primary">HTTP</MudRadio>
+                        <MudRadio T="string" option="@("stdio")" Color="Color.Primary">Stdio</MudRadio>
+                    </MudRadioGroup>
+                </MudStep>
+                <MudStep label="配置" step="1">
+                    @if ("http".Equals(_editType, StringComparison.OrdinalIgnoreCase))
+                    {
+                        <MudTextField @bind-Value="_editId" Label="名称 (Id)" Variant="Variant.Outlined" Class="mb-2" />
+                        <MudTextField @bind-Value="_editUrl" Label="URL" Variant="Variant.Outlined" />
+                    }
+                    else
+                    {
+                        <MudTextField @bind-Value="_editId" Label="名称 (Id)" Variant="Variant.Outlined" Class="mb-2" />
+                        <MudTextField @bind-Value="_editCommand" Label="Command" Variant="Variant.Outlined" Class="mb-2" />
+                        <MudTextField @bind-Value="_editArgsString" Label="Args (逗号分隔)" Variant="Variant.Outlined" Placeholder="arg1, arg2, arg3" />
+                    }
+                </MudStep>
+            </MudStepper>
+            <div class="d-flex gap-2">
+                @if (_wizardStep > 0)
+                {
+                    <MudButton Variant="Variant.Text" OnClick="WizardPrevious">上一步</MudButton>
+                }
+                @if (_wizardStep < 1)
+                {
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="WizardNext">下一步</MudButton>
+                }
+                else
+                {
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveUserMcp">保存</MudButton>
+                }
+                <MudButton Variant="Variant.Text" OnClick="CancelWizard">取消</MudButton>
+            </div>
+        }
+        else
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="StartAdd" Class="mb-3">新增 MCP</MudButton>
+            <MudTable Items="@_rows" Hover="true" Breakpoint="Breakpoint.Sm" Dense="true">
+                <HeaderContent>
+                    <MudTh Style="width: 48px;"></MudTh>
+                    <MudTh>名称</MudTh>
+                    <MudTh>类型</MudTh>
+                    <MudTh>信息</MudTh>
+                    <MudTh>来源</MudTh>
+                    <MudTh>启用</MudTh>
+                    <MudTh Style="width: 120px;">操作</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>
+                        <MudIconButton Icon="@(_expandedId == context.Id ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)" Size="Size.Small" OnClick="@(() => ToggleExpand(context))" title="@(_expandedId == context.Id ? "收起" : "展开")" />
+                    </MudTd>
+                    <MudTd DataLabel="名称">@context.Id</MudTd>
+                    <MudTd DataLabel="类型">@GetTypeLabel(context.Entry)</MudTd>
+                    <MudTd DataLabel="信息">@GetInfoLabel(context.Entry)</MudTd>
+                    <MudTd DataLabel="来源">@(context.IsSystem ? "系统" : "用户")</MudTd>
+                    <MudTd DataLabel="启用">
+                        <MudSwitch T="bool" checked="@context.IsEnabled" checked-changed="@GetToggleCallback(context.Id)" Color="Color.Primary" />
+                    </MudTd>
+                    <MudTd DataLabel="操作">
+                        @if (!context.IsSystem)
+                        {
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => StartEdit(context.Id))" title="编辑" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => DeleteUserMcp(context.Id))" title="删除" />
+                        }
+                    </MudTd>
+                </RowTemplate>
+                <ChildRowContent>
+                    @if (_expandedId == context.Id)
+                    {
+                        <MudTr>
+                            <td colspan="7" class="pa-4">
+                                @if (_loadingToolsIds.Contains(context.Id))
+                                {
+                                    <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="mb-2" />
+                                    <MudText Typo="Typo.body2">加载中…</MudText>
+                                }
+                                else if (_toolsCache.TryGetValue(context.Id, out var result))
+                                {
+                                    @if (result.Error != null)
+                                    {
+                                        <MudText Typo="Typo.body2" Color="Color.Error">加载失败: @result.Error</MudText>
+                                    }
+                                    else
+                                    {
+                                        <MudText Typo="Typo.subtitle2" Class="mb-2">工具</MudText>
+                                        @if (result.Tools.Count == 0)
+                                        {
+                                            <MudText Typo="Typo.body2" Class="mb-3">无</MudText>
+                                        }
+                                        else
+                                        {
+                                            <ul class="mb-3 pl-4">
+                                                @foreach (var t in result.Tools)
+                                                {
+                                                    <li><strong>@t.Name</strong> @(string.IsNullOrEmpty(t.Description) ? "" : "— " + t.Description)</li>
+                                                }
+                                            </ul>
+                                        }
+                                        <MudText Typo="Typo.subtitle2" Class="mb-2">提示词</MudText>
+                                        @if (result.Prompts == null || result.Prompts.Count == 0)
+                                        {
+                                            <MudText Typo="Typo.body2">—</MudText>
+                                        }
+                                        else
+                                        {
+                                            <ul class="pl-4">
+                                                @foreach (var p in result.Prompts)
+                                                {
+                                                    <li><strong>@p.Name</strong> @(string.IsNullOrEmpty(p.Description) ? "" : "— " + p.Description)</li>
+                                                }
+                                            </ul>
+                                        }
+                                    }
+                                }
+                            </td>
+                        </MudTr>
+                    }
+                </ChildRowContent>
+            </MudTable>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="Close">关闭</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+
+    private bool _loading = true;
+    private List<McpRowViewModel> _rows = [];
+    private List<string> _disabledIds = [];
+    private HashSet<string> _systemIds = [];
+    private string? _expandedId;
+    private readonly Dictionary<string, McpToolsLoadResult> _toolsCache = [];
+    private readonly HashSet<string> _loadingToolsIds = [];
+
+    private string? _editingId;
+    private int _wizardStep;
+    private string _editId = "";
+    private string _editType = "http";
+    private string _editUrl = "";
+    private string _editCommand = "";
+    private string _editArgsString = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadListAsync();
+    }
+
+    private async Task LoadListAsync()
+    {
+        _loading = true;
+        try
+        {
+            var all = await McpConfig.GetAllAsync();
+            _systemIds = all.Where(x => x.IsSystem).Select(x => x.Id).ToHashSet();
+            var prefs = await UserPrefs.LoadAsync();
+            _disabledIds = prefs.DisabledMcpIds ?? [];
+            _rows = all.Select(x => new McpRowViewModel(x.Id, x.Entry, x.IsSystem, !_disabledIds.Contains(x.Id))).ToList();
+        }
+        catch
+        {
+            Snackbar.Add("加载 MCP 配置失败", Severity.Warning);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void StartAdd()
+    {
+        _editingId = "";
+        _wizardStep = 0;
+        _editId = "";
+        _editType = "http";
+        _editUrl = "";
+        _editCommand = "";
+        _editArgsString = "";
+    }
+
+    private void StartEdit(string id)
+    {
+        var row = _rows.FirstOrDefault(r => r.Id == id);
+        if (row == null) return;
+        _editingId = id;
+        _wizardStep = 0;
+        _editId = id;
+        _editType = "http".Equals(row.Entry.Type, StringComparison.OrdinalIgnoreCase) ? "http" : "stdio";
+        _editUrl = row.Entry.Url ?? "";
+        _editCommand = row.Entry.Command ?? "";
+        _editArgsString = row.Entry.Args != null ? string.Join(", ", row.Entry.Args) : "";
+    }
+
+    private void WizardNext()
+    {
+        if (_wizardStep < 1) _wizardStep++;
+    }
+
+    private void WizardPrevious()
+    {
+        if (_wizardStep > 0) _wizardStep--;
+    }
+
+    private void CancelWizard()
+    {
+        _editingId = null;
+    }
+
+    private async Task SaveUserMcp()
+    {
+        var id = _editId?.Trim() ?? "";
+        if (string.IsNullOrEmpty(id))
+        {
+            Snackbar.Add("请输入名称", Severity.Warning);
+            return;
+        }
+        if (_systemIds.Contains(id))
+        {
+            Snackbar.Add("该名称已被系统 MCP 使用，请使用其他名称", Severity.Warning);
+            return;
+        }
+        var user = await McpConfig.GetUserMcpAsync();
+        var dict = new Dictionary<string, SmallEBot.Models.McpServerEntry>(user);
+        var entry = new SmallEBot.Models.McpServerEntry();
+        if ("http".Equals(_editType, StringComparison.OrdinalIgnoreCase))
+        {
+            entry.Type = "http";
+            entry.Url = _editUrl?.Trim();
+        }
+        else
+        {
+            entry.Type = "stdio";
+            entry.Command = _editCommand?.Trim();
+            entry.Args = string.IsNullOrWhiteSpace(_editArgsString)
+                ? []
+                : _editArgsString.Split(',').Select(a => a.Trim()).Where(a => a.Length > 0).ToArray();
+        }
+        dict[id] = entry;
+        try
+        {
+            await McpConfig.SaveUserMcpAsync(dict);
+            Snackbar.Add("已保存", Severity.Success);
+            _editingId = null;
+            await LoadListAsync();
+        }
+        catch
+        {
+            Snackbar.Add("保存失败", Severity.Error);
+        }
+    }
+
+    private async Task ToggleExpand(McpRowViewModel row)
+    {
+        if (_expandedId == row.Id)
+        {
+            _expandedId = null;
+            return;
+        }
+        _expandedId = row.Id;
+        if (!_toolsCache.ContainsKey(row.Id) && !_loadingToolsIds.Contains(row.Id))
+        {
+            _loadingToolsIds.Add(row.Id);
+            StateHasChanged();
+            try
+            {
+                var result = await McpToolsLoader.LoadAsync(row.Id, row.Entry);
+                _toolsCache[row.Id] = result;
+            }
+            finally
+            {
+                _loadingToolsIds.Remove(row.Id);
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+    }
+
+    private async Task DeleteUserMcp(string id)
+    {
+        var user = await McpConfig.GetUserMcpAsync();
+        var dict = new Dictionary<string, SmallEBot.Models.McpServerEntry>(user);
+        dict.Remove(id);
+        try
+        {
+            await McpConfig.SaveUserMcpAsync(dict);
+            Snackbar.Add("已删除", Severity.Success);
+            await LoadListAsync();
+        }
+        catch (Exception)
+        {
+            Snackbar.Add("删除失败", Severity.Error);
+        }
+    }
+
+    private static string GetTypeLabel(SmallEBot.Models.McpServerEntry entry)
+    {
+        if ("http".Equals(entry.Type, StringComparison.OrdinalIgnoreCase)) return "HTTP";
+        if ("stdio".Equals(entry.Type, StringComparison.OrdinalIgnoreCase) || !string.IsNullOrEmpty(entry.Command)) return "Stdio";
+        return entry.Type ?? "—";
+    }
+
+    private static string GetInfoLabel(SmallEBot.Models.McpServerEntry entry)
+    {
+        if (!string.IsNullOrEmpty(entry.Url)) return entry.Url;
+        if (!string.IsNullOrEmpty(entry.Command)) return entry.Command;
+        return "—";
+    }
+
+    private EventCallback<bool> GetToggleCallback(string id) =>
+        EventCallback.Factory.Create<bool>(this, v => OnToggleEnabled(id, v));
+
+    private async Task OnToggleEnabled(string id, bool enabled)
+    {
+        var row = _rows.FirstOrDefault(r => r.Id == id);
+        if (row != null) row.IsEnabled = enabled;
+        if (enabled)
+            _disabledIds.Remove(id);
+        else if (!_disabledIds.Contains(id))
+            _disabledIds.Add(id);
+        try
+        {
+            await UserPrefs.SetDisabledMcpIdsAsync(new List<string>(_disabledIds));
+        }
+        catch
+        {
+            Snackbar.Add("保存启用状态失败", Severity.Warning);
+        }
+    }
+
+    private void Close() => MudDialog.Close();
+
+    private sealed class McpRowViewModel
+    {
+        public string Id { get; }
+        public SmallEBot.Models.McpServerEntry Entry { get; }
+        public bool IsSystem { get; }
+        public bool IsEnabled { get; set; }
+        public McpRowViewModel(string id, SmallEBot.Models.McpServerEntry entry, bool isSystem, bool isEnabled)
+        {
+            Id = id;
+            Entry = entry;
+            IsSystem = isSystem;
+            IsEnabled = isEnabled;
+        }
+    }
+}

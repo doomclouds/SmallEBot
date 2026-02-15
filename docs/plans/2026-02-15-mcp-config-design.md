@@ -1,7 +1,8 @@
 # MCP Configuration UI and File-Based Config — Design
 
-**Status:** Draft  
+**Status:** Implemented  
 **Date:** 2026-02-15  
+**Implementation:** See `docs/plans/2026-02-15-mcp-config-implementation-plan.md` (2026-02-15).  
 **Target:** Toolbar MCP config button, dialog with guided MCP setup (http/stdio), file-based config under `.agents`, system vs user MCP, enable/disable persistence, and display of tools and prompts per MCP.
 
 ---
