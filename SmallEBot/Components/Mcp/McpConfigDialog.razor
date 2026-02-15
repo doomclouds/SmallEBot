@@ -235,6 +235,11 @@
             Snackbar.Add("请输入名称", Severity.Warning);
             return;
         }
+        if (_systemIds.Contains(id))
+        {
+            Snackbar.Add("该名称已被系统 MCP 使用，请使用其他名称", Severity.Warning);
+            return;
+        }
         var user = await McpConfig.GetUserMcpAsync();
         var dict = new Dictionary<string, SmallEBot.Models.McpServerEntry>(user);
         var entry = new SmallEBot.Models.McpServerEntry();
@@ -301,7 +306,7 @@
             Snackbar.Add("已删除", Severity.Success);
             await LoadListAsync();
         }
-        catch
+        catch (Exception)
         {
             Snackbar.Add("删除失败", Severity.Error);
         }
