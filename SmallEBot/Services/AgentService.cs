@@ -194,6 +194,12 @@ public class AgentService(
             {
                 yield return new TextStreamUpdate(update.Text);
             }
+
+            var usage = update.GetType().GetProperty("Usage")?.GetValue(update) as Microsoft.Extensions.AI.UsageDetails;
+            if (usage != null)
+            {
+                yield return new UsageStreamUpdate((int)(usage.InputTokenCount ?? 0), (int)(usage.OutputTokenCount ?? 0));
+            }
         }
     }
 
