@@ -130,12 +130,12 @@ html, body {
     font-family: var(--seb-font-ui);
 }
 
-/* Chat page: single minimal top gap so first message is visible, no double padding */
+/* Chat page: minimal top gap, minimal bottom so input bar sits near bottom */
 .smallebot-chat-page {
     height: 100%;
     display: flex;
     flex-direction: column;
-    padding: 3.5rem 1.5rem 1rem 1.5rem;
+    padding: 3.5rem 1.5rem 0.35rem 1.5rem;
     min-height: 0;
 }
 .smallebot-chat-outer {
@@ -146,12 +146,12 @@ html, body {
     width: 100%;
 }
 
-/* Chat area: paper fills space, only this region scrolls */
+/* Chat area: paper fills space, only this region scrolls; minimal bottom padding so input is near bottom */
 .smallebot-chat-paper {
     background: var(--seb-surface) !important;
     border-radius: 12px;
     border: 1px solid var(--seb-border);
-    padding: 1.5rem !important;
+    padding: 1.5rem 1.5rem 0.5rem 1.5rem !important;
     box-shadow: none;
     flex: 1;
     min-height: 0;

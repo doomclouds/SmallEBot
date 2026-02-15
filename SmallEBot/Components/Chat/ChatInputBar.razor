@@ -2,16 +2,16 @@
 @inject IJSRuntime JS
 @implements IDisposable
 
-<div id="smallebot-chat-input-wrap" class="d-flex flex-column gap-2 @Class">
+<div id="smallebot-chat-input-wrap" class="d-flex flex-column gap-1 @Class">
     <MudTextField Value="@Value"
                   ValueChanged="@(EventCallback.Factory.Create<string>(this, OnValueChanged))"
-                  Lines="3"
+                  Lines="2"
                   Placeholder="@("Plan, @ for context, / for commands")"
                   Variant="Variant.Outlined"
                   FullWidth="true"
                   Immediate="true"
                   Class="smallebot-chat-input" />
-    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mt-2">
+    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mt-1">
         <div></div>
         <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
             <MudText Typo="Typo.body2" Class="text-secondary" Style="min-width: 2.5rem;">@ContextPercentText</MudText>

@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Anthropic;
 using Anthropic.Core;
 using Microsoft.Agents.AI;
@@ -18,6 +19,7 @@ public class AgentService(
     AppDbContext db,
     ConversationService convSvc,
     IConfiguration config,
+    ITokenizer tokenizer,
     ILogger<AgentService> log) : IAsyncDisposable
 {
     private readonly int _contextWindowTokens = config.GetValue("DeepSeek:ContextWindowTokens", 128000);
@@ -152,15 +154,46 @@ public class AgentService(
     /// <summary>Context window size in tokens (e.g. 128000 for DeepSeek). Used for context % display.</summary>
     public int GetContextWindowTokens() => _contextWindowTokens;
 
-    /// <summary>Estimated context usage for the conversation (0.0–1.0) from message length. Used when Usage is not available.</summary>
+    /// <summary>Estimated context usage (0.0–1.0) from tokenized request body (system + messages as JSON). Inflated by 5%; result rounded to 0.1%.</summary>
     public async Task<double> GetEstimatedContextUsageAsync(Guid conversationId, CancellationToken ct = default)
     {
         var store = new ChatMessageStoreAdapter(db, conversationId);
         var messages = await store.LoadMessagesAsync(ct);
-        var totalChars = messages.Sum(m => m.Content?.Length ?? 0);
-        var estimatedTokens = totalChars / 4.0;
+        var json = SerializeRequestJsonForTokenCount(AgentInstructions, messages);
+        var rawTokens = tokenizer.CountTokens(json);
+        var withBuffer = (int)Math.Ceiling(rawTokens * 1.05);
         var cap = _contextWindowTokens;
-        return cap <= 0 ? 0 : Math.Min(1.0, estimatedTokens / cap);
+        var ratio = cap <= 0 ? 0.0 : Math.Min(1.0, withBuffer / (double)cap);
+        return Math.Round(ratio, 3);
+    }
+
+    /// <summary>Serializes system + messages as request JSON (same shape as HTTP body) for accurate token count.</summary>
+    private static string SerializeRequestJsonForTokenCount(string systemPrompt, List<Data.Entities.ChatMessage> messages)
+    {
+        var payload = new RequestPayloadForTokenCount
+        {
+            System = systemPrompt,
+            Messages = messages.Select(m => new MessageItemForTokenCount { Role = m.Role, Content = m.Content ?? "" }).ToList()
+        };
+        return JsonSerializer.Serialize(payload);
+    }
+
+    private sealed class RequestPayloadForTokenCount
+    {
+        [JsonPropertyName("system")]
+        public string System { get; set; } = "";
+
+        [JsonPropertyName("messages")]
+        public List<MessageItemForTokenCount> Messages { get; set; } = new List<MessageItemForTokenCount>();
+    }
+
+    private sealed class MessageItemForTokenCount
+    {
+        [JsonPropertyName("role")]
+        public string Role { get; set; } = "";
+
+        [JsonPropertyName("content")]
+        public string Content { get; set; } = "";
     }
 
     public async IAsyncEnumerable<StreamUpdate> SendMessageStreamingAsync(

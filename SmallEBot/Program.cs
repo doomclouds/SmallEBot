@@ -1,3 +1,4 @@
+using System.IO;
 using Microsoft.EntityFrameworkCore;
 using MudBlazor.Services;
 using SmallEBot.Components;
@@ -16,6 +17,19 @@ builder.Services.AddScoped<ConversationService>();
 builder.Services.AddScoped<AgentService>();
 builder.Services.AddScoped<UserNameService>();
 builder.Services.AddSingleton<MarkdownService>();
+builder.Services.AddSingleton<ITokenizer>(sp =>
+{
+    var config = sp.GetRequiredService<IConfiguration>();
+    var path = config["DeepSeek:TokenizerPath"];
+    try
+    {
+        return new DeepSeekTokenizer(path);
+    }
+    catch (FileNotFoundException)
+    {
+        return new CharEstimateTokenizer();
+    }
+});
 builder.Services.AddMudServices();
 
 // Add services to the container.

@@ -87,7 +87,7 @@
                   OnSend="Send"
                   OnStop="StopSend"
                   Disabled="@string.IsNullOrWhiteSpace(_input)"
-                  Class="mt-4" />
+                  Class="mt-2" />
 </MudPaper>
 
 @code {
@@ -178,7 +178,7 @@
                         _lastInputTokenCount = u.InputTokenCount;
                         _lastOutputTokenCount = u.OutputTokenCount;
                         var cap = AgentSvc.GetContextWindowTokens();
-                        _contextPercentText = cap > 0 ? $"{u.InputTokenCount * 100.0 / cap:F0}%" : "0%";
+                        _contextPercentText = cap > 0 ? $"{u.InputTokenCount * 100.0 / cap:F1}%" : "0%";
                         break;
                 }
                 _scrollToBottomRequested = true;
@@ -274,7 +274,7 @@
             try
             {
                 var pct = await AgentSvc.GetEstimatedContextUsageAsync(ConversationId.Value);
-                _contextPercentText = $"{pct:P0}";
+                _contextPercentText = $"{pct:P1}";
             }
             catch
             {
