@@ -9,15 +9,16 @@
                   Immediate="true"
                   OnKeyDown="HandleKeyDown"
                   Class="smallebot-chat-input" />
-    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mt-1">
+    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mt-2">
         <div></div>
         <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
-            <MudText Typo="Typo.body2" Class="text-secondary">@ContextPercentText</MudText>
+            <MudText Typo="Typo.body2" Class="text-secondary" Style="min-width: 2.5rem;">@ContextPercentText</MudText>
             @if (Streaming)
             {
                 <MudIconButton Icon="@Icons.Material.Filled.Stop"
                                Color="Color.Secondary"
                                OnClick="OnStop"
+                               title="Stop"
                                aria-label="Stop" />
             }
             else
@@ -26,6 +27,7 @@
                                Color="Color.Primary"
                                OnClick="OnSend"
                                Disabled="@Disabled"
+                               title="Send"
                                aria-label="Send" />
             }
         </MudStack>
