@@ -177,6 +177,8 @@
                     case UsageStreamUpdate u:
                         _lastInputTokenCount = u.InputTokenCount;
                         _lastOutputTokenCount = u.OutputTokenCount;
+                        var cap = AgentSvc.GetContextWindowTokens();
+                        _contextPercentText = cap > 0 ? $"{u.InputTokenCount * 100.0 / cap:F0}%" : "0%";
                         break;
                 }
                 _scrollToBottomRequested = true;
@@ -235,6 +237,7 @@
             {
                 _pendingUserMessage = "";
                 _scrollToBottomRequested = true;
+                _contextRefreshRequested = true;
                 await OnMessageSent.InvokeAsync();
             }
             _streaming = false;
@@ -251,12 +254,36 @@
             _lastConversationId = ConversationId;
             if (Bubbles.Count > 0)
                 _scrollToBottomRequested = true;
+            _contextRefreshRequested = true;
         }
         // When parent refreshes with new turn after streaming, clear streaming state so we show only Bubbles (no duplicate, no flash).
         if (_streaming && Bubbles.Count > _bubbleCountBeforeSend)
         {
             _streaming = false;
             _streamingUpdates.Clear();
+        }
+    }
+
+    private bool _contextRefreshRequested;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_contextRefreshRequested && ConversationId.HasValue)
+        {
+            _contextRefreshRequested = false;
+            try
+            {
+                var pct = await AgentSvc.GetEstimatedContextUsageAsync(ConversationId.Value);
+                _contextPercentText = $"{pct:P0}";
+            }
+            catch
+            {
+                _contextPercentText = "—";
+            }
+        }
+        else if (!ConversationId.HasValue)
+        {
+            _contextPercentText = "—";
         }
     }
 
