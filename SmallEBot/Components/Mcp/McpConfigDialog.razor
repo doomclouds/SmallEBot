@@ -1,5 +1,6 @@
 @inject IMcpConfigService McpConfig
 @inject UserPreferencesService UserPrefs
+@inject IMcpToolsLoaderService McpToolsLoader
 @inject ISnackbar Snackbar
 
 <MudDialog>
@@ -55,6 +56,7 @@
             <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="StartAdd" Class="mb-3">新增 MCP</MudButton>
             <MudTable Items="@_rows" Hover="true" Breakpoint="Breakpoint.Sm" Dense="true">
                 <HeaderContent>
+                    <MudTh Style="width: 48px;"></MudTh>
                     <MudTh>名称</MudTh>
                     <MudTh>类型</MudTh>
                     <MudTh>信息</MudTh>
@@ -63,6 +65,9 @@
                     <MudTh Style="width: 120px;">操作</MudTh>
                 </HeaderContent>
                 <RowTemplate>
+                    <MudTd>
+                        <MudIconButton Icon="@(_expandedId == context.Id ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)" Size="Size.Small" OnClick="@(() => ToggleExpand(context))" title="@(_expandedId == context.Id ? "收起" : "展开")" />
+                    </MudTd>
                     <MudTd DataLabel="名称">@context.Id</MudTd>
                     <MudTd DataLabel="类型">@GetTypeLabel(context.Entry)</MudTd>
                     <MudTd DataLabel="信息">@GetInfoLabel(context.Entry)</MudTd>
@@ -78,6 +83,58 @@
                         }
                     </MudTd>
                 </RowTemplate>
+                <ChildRowContent>
+                    @if (_expandedId == context.Id)
+                    {
+                        <MudTr>
+                            <td colspan="7" class="pa-4">
+                                @if (_loadingToolsIds.Contains(context.Id))
+                                {
+                                    <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="mb-2" />
+                                    <MudText Typo="Typo.body2">加载中…</MudText>
+                                }
+                                else if (_toolsCache.TryGetValue(context.Id, out var result))
+                                {
+                                    @if (result.Error != null)
+                                    {
+                                        <MudText Typo="Typo.body2" Color="Color.Error">加载失败: @result.Error</MudText>
+                                    }
+                                    else
+                                    {
+                                        <MudText Typo="Typo.subtitle2" Class="mb-2">工具</MudText>
+                                        @if (result.Tools.Count == 0)
+                                        {
+                                            <MudText Typo="Typo.body2" Class="mb-3">无</MudText>
+                                        }
+                                        else
+                                        {
+                                            <ul class="mb-3 pl-4">
+                                                @foreach (var t in result.Tools)
+                                                {
+                                                    <li><strong>@t.Name</strong> @(string.IsNullOrEmpty(t.Description) ? "" : "— " + t.Description)</li>
+                                                }
+                                            </ul>
+                                        }
+                                        <MudText Typo="Typo.subtitle2" Class="mb-2">提示词</MudText>
+                                        @if (result.Prompts == null || result.Prompts.Count == 0)
+                                        {
+                                            <MudText Typo="Typo.body2">—</MudText>
+                                        }
+                                        else
+                                        {
+                                            <ul class="pl-4">
+                                                @foreach (var p in result.Prompts)
+                                                {
+                                                    <li><strong>@p.Name</strong> @(string.IsNullOrEmpty(p.Description) ? "" : "— " + p.Description)</li>
+                                                }
+                                            </ul>
+                                        }
+                                    }
+                                }
+                            </td>
+                        </MudTr>
+                    }
+                </ChildRowContent>
             </MudTable>
         }
     </DialogContent>
@@ -93,6 +150,9 @@
     private List<McpRowViewModel> _rows = [];
     private List<string> _disabledIds = [];
     private HashSet<string> _systemIds = [];
+    private string? _expandedId;
+    private readonly Dictionary<string, McpToolsLoadResult> _toolsCache = [];
+    private readonly HashSet<string> _loadingToolsIds = [];
 
     private string? _editingId;
     private int _wizardStep;
@@ -202,6 +262,31 @@
         catch
         {
             Snackbar.Add("保存失败", Severity.Error);
+        }
+    }
+
+    private async Task ToggleExpand(McpRowViewModel row)
+    {
+        if (_expandedId == row.Id)
+        {
+            _expandedId = null;
+            return;
+        }
+        _expandedId = row.Id;
+        if (!_toolsCache.ContainsKey(row.Id) && !_loadingToolsIds.Contains(row.Id))
+        {
+            _loadingToolsIds.Add(row.Id);
+            StateHasChanged();
+            try
+            {
+                var result = await McpToolsLoader.LoadAsync(row.Id, row.Entry);
+                _toolsCache[row.Id] = result;
+            }
+            finally
+            {
+                _loadingToolsIds.Remove(row.Id);
+                await InvokeAsync(StateHasChanged);
+            }
         }
     }
 
