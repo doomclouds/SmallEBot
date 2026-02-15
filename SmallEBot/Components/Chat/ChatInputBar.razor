@@ -1,13 +1,15 @@
-@* Chat input bar: multiline text area, bottom bar with context % and send/stop icon. *@
+@* Chat input bar: multiline text area, bottom bar with context % and send/stop icon. Enter=send, Shift+Enter=newline. *@
+@inject IJSRuntime JS
+@implements IDisposable
 
-<div class="d-flex flex-column gap-2 @Class">
-    <MudTextField @bind-Value="Value"
+<div id="smallebot-chat-input-wrap" class="d-flex flex-column gap-2 @Class">
+    <MudTextField Value="@Value"
+                  ValueChanged="@(EventCallback.Factory.Create<string>(this, OnValueChanged))"
                   Lines="3"
                   Placeholder="@("Plan, @ for context, / for commands")"
                   Variant="Variant.Outlined"
                   FullWidth="true"
                   Immediate="true"
-                  OnKeyDown="HandleKeyDown"
                   Class="smallebot-chat-input" />
     <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mt-2">
         <div></div>
@@ -44,11 +46,31 @@
     [Parameter] public bool Disabled { get; set; }
     [Parameter] public string Class { get; set; } = "";
 
-    private async Task HandleKeyDown(KeyboardEventArgs args)
+    private DotNetObjectReference<ChatInputBar>? _dotNetRef;
+    private bool _attachDone;
+
+    private async Task OnValueChanged(string v)
     {
-        if (args is { Key: "Enter", ShiftKey: false })
+        Value = v;
+        await ValueChanged.InvokeAsync(v);
+    }
+
+    [JSInvokable]
+    public Task InvokeSend() => OnSend.InvokeAsync();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !_attachDone)
         {
-            await OnSend.InvokeAsync();
+            _attachDone = true;
+            _dotNetRef = DotNetObjectReference.Create(this);
+            try
+            {
+                await JS.InvokeVoidAsync("SmallEBot.attachChatInputSend", "smallebot-chat-input-wrap", _dotNetRef);
+            }
+            catch { /* JS not loaded yet */ }
         }
     }
+
+    public void Dispose() => _dotNetRef?.Dispose();
 }
