@@ -20,6 +20,8 @@ public class AgentService(
     ConversationService convSvc,
     IConfiguration config,
     ITokenizer tokenizer,
+    IMcpConfigService mcpConfig,
+    UserPreferencesService userPrefs,
     ILogger<AgentService> log) : IAsyncDisposable
 {
     private readonly int _contextWindowTokens = config.GetValue("DeepSeek:ContextWindowTokens", 128000);
@@ -32,75 +34,71 @@ public class AgentService(
         var tools = new List<AITool> { AIFunctionFactory.Create(GetCurrentTime) };
         _mcpClients = [];
 
-        var mcpSection = config.GetSection("mcpServers");
-        if (mcpSection.Exists())
-        {
-            foreach (var child in mcpSection.GetChildren())
-            {
-                var type = child["type"];
-                var command = child["command"];
+        var allEntries = await mcpConfig.GetAllAsync(ct);
+        var prefs = await userPrefs.LoadAsync(ct);
+        var disabled = prefs.DisabledMcpIds ?? new List<string>();
 
-                if (type == "stdio" || (string.IsNullOrEmpty(type) && !string.IsNullOrEmpty(command)))
+        foreach (var item in allEntries)
+        {
+            if (disabled.Contains(item.Id)) continue;
+
+            var entry = item.Entry;
+            var isStdio = "stdio".Equals(entry.Type, StringComparison.OrdinalIgnoreCase)
+                || (string.IsNullOrEmpty(entry.Type) && !string.IsNullOrEmpty(entry.Command));
+
+            if (isStdio)
+            {
+                if (string.IsNullOrEmpty(entry.Command))
                 {
-                    if (string.IsNullOrEmpty(command))
-                    {
-                        log.LogWarning("MCP stdio server '{Name}' has no command, skipped.", child.Key);
-                        continue;
-                    }
-                    var argsSection = child.GetSection("args");
-                    var arguments = argsSection.GetChildren()
-                        .OrderBy(c => int.TryParse(c.Key, out var i) ? i : 0)
-                        .Select(c => c.Value ?? "")
-                        .ToArray();
-                    var env = child.GetSection("env").Get<Dictionary<string, string?>>() ?? new Dictionary<string, string?>();
-                    try
-                    {
-                        var transport = new StdioClientTransport(new StdioClientTransportOptions
-                        {
-                            Name = child.Key,
-                            Command = command,
-                            Arguments = arguments,
-                            EnvironmentVariables = env
-                        });
-                        var mcpClient = await McpClient.CreateAsync(transport, null, null, ct);
-                        _mcpClients.Add(mcpClient);
-                        var mcpTools = await mcpClient.ListToolsAsync(cancellationToken: ct);
-                        tools.AddRange(mcpTools);
-                        log.LogInformation("MCP stdio server '{Name}' ({Command}) loaded with {Count} tools.", child.Key, command, mcpTools.Count);
-                    }
-                    catch (Exception ex)
-                    {
-                        log.LogWarning(ex, "Failed to load MCP stdio server '{Name}' (command: {Command}), skipping.", child.Key, command);
-                    }
+                    log.LogWarning("MCP stdio server '{Name}' has no command, skipped.", item.Id);
                     continue;
                 }
-                
-                if (type == "http")
+                try
                 {
-                    var url = child["url"];
-                    if (string.IsNullOrEmpty(url))
+                    var transport = new StdioClientTransport(new StdioClientTransportOptions
                     {
-                        log.LogWarning("MCP http server '{Name}' has no url, skipped.", child.Key);
-                        continue;
-                    }
-                    try
+                        Name = item.Id,
+                        Command = entry.Command,
+                        Arguments = entry.Args ?? [],
+                        EnvironmentVariables = entry.Env ?? new Dictionary<string, string?>()
+                    });
+                    var mcpClient = await McpClient.CreateAsync(transport, null, null, ct);
+                    _mcpClients.Add(mcpClient);
+                    var mcpTools = await mcpClient.ListToolsAsync(cancellationToken: ct);
+                    tools.AddRange(mcpTools);
+                    log.LogInformation("MCP stdio server '{Name}' ({Command}) loaded with {Count} tools.", item.Id, entry.Command, mcpTools.Count);
+                }
+                catch (Exception ex)
+                {
+                    log.LogWarning(ex, "Failed to load MCP stdio server '{Name}' (command: {Command}), skipping.", item.Id, entry.Command);
+                }
+                continue;
+            }
+
+            if ("http".Equals(entry.Type, StringComparison.OrdinalIgnoreCase))
+            {
+                if (string.IsNullOrEmpty(entry.Url))
+                {
+                    log.LogWarning("MCP http server '{Name}' has no url, skipped.", item.Id);
+                    continue;
+                }
+                try
+                {
+                    var transport = new HttpClientTransport(new HttpClientTransportOptions
                     {
-                        var transport = new HttpClientTransport(new HttpClientTransportOptions
-                        {
-                            Endpoint = new Uri(url),
-                            TransportMode = HttpTransportMode.AutoDetect,
-                            ConnectionTimeout = TimeSpan.FromSeconds(30)
-                        });
-                        var mcpClient = await McpClient.CreateAsync(transport, null, null, ct);
-                        _mcpClients.Add(mcpClient);
-                        var mcpTools = await mcpClient.ListToolsAsync(cancellationToken: ct);
-                        tools.AddRange(mcpTools);
-                        log.LogInformation("MCP http server '{Name}' at {Url} loaded with {Count} tools.", child.Key, url, mcpTools.Count);
-                    }
-                    catch (Exception ex)
-                    {
-                        log.LogWarning(ex, "Failed to load MCP http server '{Name}' at {Url}, skipping.", child.Key, url);
-                    }
+                        Endpoint = new Uri(entry.Url),
+                        TransportMode = HttpTransportMode.AutoDetect,
+                        ConnectionTimeout = TimeSpan.FromSeconds(30)
+                    });
+                    var mcpClient = await McpClient.CreateAsync(transport, null, null, ct);
+                    _mcpClients.Add(mcpClient);
+                    var mcpTools = await mcpClient.ListToolsAsync(cancellationToken: ct);
+                    tools.AddRange(mcpTools);
+                    log.LogInformation("MCP http server '{Name}' at {Url} loaded with {Count} tools.", item.Id, entry.Url, mcpTools.Count);
+                }
+                catch (Exception ex)
+                {
+                    log.LogWarning(ex, "Failed to load MCP http server '{Name}' at {Url}, skipping.", item.Id, entry.Url);
                 }
             }
         }
