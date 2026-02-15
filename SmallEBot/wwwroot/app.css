@@ -372,3 +372,13 @@ h1:focus {
 .markdown-body input[type="checkbox"] { margin-right: 0.4em; vertical-align: middle; }
 .markdown-body .task-list-item { list-style-type: none; }
 .markdown-body .task-list-item { padding-left: 0; margin-left: -1.2em; }
+
+/* Skill content view dialog – scrollable body */
+.view-skill-content-scroll {
+    max-height: 60vh;
+    overflow-y: auto;
+    padding-inline-end: 4px;
+}
+.view-skill-content-scroll::-webkit-scrollbar { width: 8px; }
+.view-skill-content-scroll::-webkit-scrollbar-track { background: transparent; }
+.view-skill-content-scroll::-webkit-scrollbar-thumb { background: var(--seb-border); border-radius: 4px; }

@@ -11,6 +11,8 @@ public interface ISkillsConfigService
     Task DeleteUserSkillAsync(string id, CancellationToken ct = default);
     Task ImportUserSkillFromFolderAsync(string sourceFolderPath, string? id = null, CancellationToken ct = default);
     Task ImportUserSkillFromFileContentsAsync(string? id, IReadOnlyDictionary<string, string> fileContents, CancellationToken ct = default);
+    /// <summary>Returns the raw content of SKILL.md for the given skill id, or null if not found.</summary>
+    Task<string?> GetSkillContentAsync(string id, CancellationToken ct = default);
 }
 
 public class SkillsConfigService : ISkillsConfigService
@@ -160,6 +162,18 @@ description: {EscapeFrontmatterValue(description)}
                 Directory.CreateDirectory(dir);
             await File.WriteAllTextAsync(fullPath, kv.Value, ct);
         }
+    }
+
+    public async Task<string?> GetSkillContentAsync(string id, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(id)) return null;
+        var sysPath = Path.Combine(_agentsPath, SysSkillsDir, id.Trim(), SkillFileName);
+        if (File.Exists(sysPath))
+            return await File.ReadAllTextAsync(sysPath, ct);
+        var userPath = Path.Combine(_agentsPath, UserSkillsDir, id.Trim(), SkillFileName);
+        if (File.Exists(userPath))
+            return await File.ReadAllTextAsync(userPath, ct);
+        return null;
     }
 
     private static string SanitizeSkillId(string id)

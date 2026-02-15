@@ -1,0 +1,72 @@
+@inject ISkillsConfigService SkillsConfig
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">技能内容 — @Name (@Id)</MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (_loading)
+        {
+            <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+        }
+        else if (_content == null)
+        {
+            <MudAlert Severity="Severity.Warning">未找到该技能内容。</MudAlert>
+        }
+        else
+        {
+            <div class="view-skill-content-scroll">
+                <MarkdownContentView Content="@_displayContent" />
+            </div>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="Close">关闭</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public string Id { get; set; } = "";
+    [Parameter] public string Name { get; set; } = "";
+
+    private bool _loading = true;
+    private string? _content;
+    private string? _displayContent;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (string.IsNullOrEmpty(Id)) return;
+        _loading = true;
+        try
+        {
+            _content = await SkillsConfig.GetSkillContentAsync(Id);
+            _displayContent = NormalizeFrontmatterLineBreaks(_content);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    /// <summary>Makes each line in the YAML frontmatter block render as its own line in Markdown (trailing two spaces = line break).</summary>
+    private static string? NormalizeFrontmatterLineBreaks(string? content)
+    {
+        if (string.IsNullOrEmpty(content)) return content;
+        var first = content.IndexOf("---", StringComparison.Ordinal);
+        if (first < 0) return content;
+        var afterFirst = first + 3;
+        var second = content.IndexOf("---", afterFirst, StringComparison.Ordinal);
+        if (second < 0) return content;
+        var bodyStart = afterFirst;
+        while (bodyStart < content.Length && (content[bodyStart] == '\r' || content[bodyStart] == '\n')) bodyStart++;
+        if (bodyStart >= second) return content;
+        var bodyEnd = second;
+        while (bodyEnd > bodyStart && (content[bodyEnd - 1] == '\r' || content[bodyEnd - 1] == '\n')) bodyEnd--;
+        var body = content[bodyStart..bodyEnd];
+        var normalized = string.Join("\n", body.Split(["\r\n", "\r", "\n"], StringSplitOptions.None).Select(line => line.TrimEnd() + "  ")).TrimEnd();
+        return content[..bodyStart] + normalized + content[second..];
+    }
+
+    private void Close() => MudDialog.Close();
+}

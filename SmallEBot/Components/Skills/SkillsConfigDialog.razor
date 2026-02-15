@@ -19,15 +19,14 @@
             <MudTable Items="@_rows" Hover="true" Breakpoint="Breakpoint.Sm" Dense="true">
                 <HeaderContent>
                     <MudTh>名称 (id)</MudTh>
-                    <MudTh>描述</MudTh>
                     <MudTh>来源</MudTh>
                     <MudTh Style="width: 100px;">操作</MudTh>
                 </HeaderContent>
                 <RowTemplate>
                     <MudTd DataLabel="名称">@context.Name (@context.Id)</MudTd>
-                    <MudTd DataLabel="描述">@Truncate(context.Description, 60)</MudTd>
                     <MudTd DataLabel="来源">@(context.IsSystem ? "系统" : "用户")</MudTd>
                     <MudTd DataLabel="操作">
+                        <MudIconButton Icon="@Icons.Material.Filled.Visibility" Size="Size.Small" OnClick="@(() => ViewContent(context))" title="查看内容" />
                         @if (!context.IsSystem)
                         {
                             <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => ConfirmDelete(context.Id))" title="删除" />
@@ -104,6 +103,17 @@
         }
     }
 
+    private async Task ViewContent(SmallEBot.Models.SkillMetadata skill)
+    {
+        var parameters = new DialogParameters
+        {
+            [nameof(ViewSkillContentDialog.Id)] = skill.Id,
+            [nameof(ViewSkillContentDialog.Name)] = skill.Name
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true };
+        await DialogService.ShowAsync<ViewSkillContentDialog>("技能内容", parameters, options);
+    }
+
     private async Task ConfirmDelete(string id)
     {
         var parameters = new DialogParameters { [nameof(DeleteSkillConfirmDialog.Id)] = id };
@@ -128,9 +138,6 @@
             Snackbar.Add("删除失败: " + ex.Message, Severity.Error);
         }
     }
-
-    private static string Truncate(string? s, int max) =>
-        string.IsNullOrEmpty(s) ? "" : s.Length <= max ? s : s[..max] + "…";
 
     private void Close() => MudDialog.Close();
 }
