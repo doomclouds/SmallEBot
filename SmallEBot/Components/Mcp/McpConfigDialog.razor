@@ -1,9 +1,46 @@
+@inject IMcpConfigService McpConfig
+@inject UserPreferencesService UserPrefs
+@inject ISnackbar Snackbar
+
 <MudDialog>
     <TitleContent>
         <MudText Typo="Typo.h6">MCP 配置</MudText>
     </TitleContent>
     <DialogContent>
-        <MudText>MCP list will be loaded here.</MudText>
+        @if (_loading)
+        {
+            <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+        }
+        else
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="@(() => { })" Class="mb-3">新增 MCP</MudButton>
+            <MudTable Items="@_rows" Hover="true" Breakpoint="Breakpoint.Sm" Dense="true">
+                <HeaderContent>
+                    <MudTh>名称</MudTh>
+                    <MudTh>类型</MudTh>
+                    <MudTh>信息</MudTh>
+                    <MudTh>来源</MudTh>
+                    <MudTh>启用</MudTh>
+                    <MudTh Style="width: 120px;">操作</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="名称">@context.Id</MudTd>
+                    <MudTd DataLabel="类型">@GetTypeLabel(context.Entry)</MudTd>
+                    <MudTd DataLabel="信息">@GetInfoLabel(context.Entry)</MudTd>
+                    <MudTd DataLabel="来源">@(context.IsSystem ? "系统" : "用户")</MudTd>
+                    <MudTd DataLabel="启用">
+                        <MudSwitch T="bool" checked="@context.IsEnabled" checked-changed="@GetToggleCallback(context.Id)" Color="Color.Primary" />
+                    </MudTd>
+                    <MudTd DataLabel="操作">
+                        @if (!context.IsSystem)
+                        {
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => { })" title="编辑" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => { })" title="删除" />
+                        }
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
     </DialogContent>
     <DialogActions>
         <MudButton Variant="Variant.Text" OnClick="Close">关闭</MudButton>
@@ -12,5 +49,79 @@
 
 @code {
     [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+
+    private bool _loading = true;
+    private List<McpRowViewModel> _rows = [];
+    private List<string> _disabledIds = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var all = await McpConfig.GetAllAsync();
+            var prefs = await UserPrefs.LoadAsync();
+            _disabledIds = prefs.DisabledMcpIds ?? [];
+            _rows = all.Select(x => new McpRowViewModel(x.Id, x.Entry, x.IsSystem, !_disabledIds.Contains(x.Id))).ToList();
+        }
+        catch
+        {
+            Snackbar.Add("加载 MCP 配置失败", Severity.Warning);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private static string GetTypeLabel(SmallEBot.Models.McpServerEntry entry)
+    {
+        if ("http".Equals(entry.Type, StringComparison.OrdinalIgnoreCase)) return "HTTP";
+        if ("stdio".Equals(entry.Type, StringComparison.OrdinalIgnoreCase) || !string.IsNullOrEmpty(entry.Command)) return "Stdio";
+        return entry.Type ?? "—";
+    }
+
+    private static string GetInfoLabel(SmallEBot.Models.McpServerEntry entry)
+    {
+        if (!string.IsNullOrEmpty(entry.Url)) return entry.Url;
+        if (!string.IsNullOrEmpty(entry.Command)) return entry.Command;
+        return "—";
+    }
+
+    private EventCallback<bool> GetToggleCallback(string id) =>
+        EventCallback.Factory.Create<bool>(this, v => OnToggleEnabled(id, v));
+
+    private async Task OnToggleEnabled(string id, bool enabled)
+    {
+        var row = _rows.FirstOrDefault(r => r.Id == id);
+        if (row != null) row.IsEnabled = enabled;
+        if (enabled)
+            _disabledIds.Remove(id);
+        else if (!_disabledIds.Contains(id))
+            _disabledIds.Add(id);
+        try
+        {
+            await UserPrefs.SetDisabledMcpIdsAsync(new List<string>(_disabledIds));
+        }
+        catch
+        {
+            Snackbar.Add("保存启用状态失败", Severity.Warning);
+        }
+    }
+
     private void Close() => MudDialog.Close();
+
+    private sealed class McpRowViewModel
+    {
+        public string Id { get; }
+        public SmallEBot.Models.McpServerEntry Entry { get; }
+        public bool IsSystem { get; }
+        public bool IsEnabled { get; set; }
+        public McpRowViewModel(string id, SmallEBot.Models.McpServerEntry entry, bool isSystem, bool isEnabled)
+        {
+            Id = id;
+            Entry = entry;
+            IsSystem = isSystem;
+            IsEnabled = isEnabled;
+        }
+    }
 }
