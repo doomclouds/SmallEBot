@@ -19,6 +19,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 });
 builder.Services.AddScoped<UserPreferencesService>();
 builder.Services.AddScoped<IMcpConfigService, McpConfigService>();
+builder.Services.AddScoped<ISkillsConfigService, SkillsConfigService>();
 builder.Services.AddScoped<IMcpToolsLoaderService, McpToolsLoaderService>();
 builder.Services.AddScoped<ConversationService>();
 builder.Services.AddScoped<AgentService>();
