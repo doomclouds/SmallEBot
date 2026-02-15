@@ -21,7 +21,6 @@ public class AgentService(
     IConfiguration config,
     ITokenizer tokenizer,
     IMcpConfigService mcpConfig,
-    UserPreferencesService userPrefs,
     ILogger<AgentService> log) : IAsyncDisposable
 {
     private readonly int _contextWindowTokens = config.GetValue("DeepSeek:ContextWindowTokens", 128000);
@@ -35,12 +34,10 @@ public class AgentService(
         _mcpClients = [];
 
         var allEntries = await mcpConfig.GetAllAsync(ct);
-        var prefs = await userPrefs.LoadAsync(ct);
-        var disabled = prefs.DisabledMcpIds ?? new List<string>();
 
         foreach (var item in allEntries)
         {
-            if (disabled.Contains(item.Id)) continue;
+            if (!item.IsEnabled) continue;
 
             var entry = item.Entry;
             var isStdio = "stdio".Equals(entry.Type, StringComparison.OrdinalIgnoreCase)
@@ -84,12 +81,27 @@ public class AgentService(
                 }
                 try
                 {
-                    var transport = new HttpClientTransport(new HttpClientTransportOptions
+                    var options = new HttpClientTransportOptions
                     {
                         Endpoint = new Uri(entry.Url),
                         TransportMode = HttpTransportMode.AutoDetect,
                         ConnectionTimeout = TimeSpan.FromSeconds(30)
-                    });
+                    };
+                    HttpClientTransport transport;
+                    if (entry.Headers is { Count: > 0 })
+                    {
+                        var httpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
+                        foreach (var h in entry.Headers)
+                        {
+                            if (string.IsNullOrEmpty(h.Key)) continue;
+                            httpClient.DefaultRequestHeaders.TryAddWithoutValidation(h.Key, h.Value ?? "");
+                        }
+                        transport = new HttpClientTransport(options, httpClient, ownsHttpClient: true);
+                    }
+                    else
+                    {
+                        transport = new HttpClientTransport(options);
+                    }
                     var mcpClient = await McpClient.CreateAsync(transport, null, null, ct);
                     _mcpClients.Add(mcpClient);
                     var mcpTools = await mcpClient.ListToolsAsync(cancellationToken: ct);
@@ -148,6 +160,19 @@ public class AgentService(
 
     [Description("Get the current UTC date and time in ISO 8601 format.")]
     private static string GetCurrentTime() => DateTime.UtcNow.ToString("O");
+
+    /// <summary>Invalidates cached agent and MCP clients so the next request rebuilds with current MCP config (e.g. after enable/disable toggle).</summary>
+    public async Task InvalidateAgentAsync()
+    {
+        if (_mcpClients != null)
+        {
+            foreach (var c in _mcpClients)
+                await c.DisposeAsync();
+            _mcpClients = null;
+        }
+        _agent = null;
+        _agentWithThinking = null;
+    }
 
     /// <summary>Context window size in tokens (e.g. 128000 for DeepSeek). Used for context % display.</summary>
     public int GetContextWindowTokens() => _contextWindowTokens;

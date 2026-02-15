@@ -1,0 +1,197 @@
+@inject IMcpConfigService McpConfig
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(_isEdit ? "编辑 MCP 服务" : "添加 MCP 服务")</MudText>
+    </TitleContent>
+    <DialogContent>
+        <div class="d-flex flex-column gap-3">
+            <MudTextField @bind-Value="_name" Label="名称" Variant="Variant.Outlined" Placeholder="输入服务名称" Required="true" RequiredError="请输入服务名称" />
+
+            <div>
+                <MudText Typo="Typo.subtitle2" Class="mb-2">类型</MudText>
+                <div class="d-flex gap-2 flex-wrap">
+                    <MudButton Variant="@(_isStdio ? Variant.Filled : Variant.Outlined)" Color="Color.Primary" OnClick="@(() => SetType(StdioType))">STDIO</MudButton>
+                    <MudButton Variant="@(_isStdio ? Variant.Outlined : Variant.Filled)" Color="Color.Primary" OnClick="@(() => SetType(HttpType))">SSE 或 Streamable HTTP</MudButton>
+                </div>
+            </div>
+
+            <div @key="_type">
+            @if (_isStdio)
+            {
+                <MudTextField @bind-Value="_command" Label="命令" Variant="Variant.Outlined" Placeholder="输入需要运行的命令" Required="true" RequiredError="请输入命令" />
+                <MudTextField @bind-Value="_argsString" Label="参数" Variant="Variant.Outlined" Placeholder="输入命令执行参数 (空格隔开)" />
+
+                <div>
+                    <MudText Typo="Typo.subtitle2" Class="mb-2">环境变量 (env)</MudText>
+                    <MudTable Items="@_envRows" Dense="true" Breakpoint="Breakpoint.Sm" Hover="true">
+                        <HeaderContent>
+                            <MudTh>环境变量 Key</MudTh>
+                            <MudTh>环境变量 Value</MudTh>
+                            <MudTh Style="width: 80px;">操作</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="环境变量 Key"><MudTextField @bind-Value="context.Key" Placeholder="输入环境变量 Key" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudTd>
+                            <MudTd DataLabel="环境变量 Value"><MudTextField @bind-Value="context.Value" Placeholder="输入环境变量 Value" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudTd>
+                            <MudTd DataLabel="操作">
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => RemoveEnvRow(context))" title="删除" />
+                            </MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                    <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Add" OnClick="AddEnvRow" Class="mt-1">添加环境变量</MudButton>
+                </div>
+            }
+            else
+            {
+                <MudTextField @bind-Value="_url" Label="服务地址" Variant="Variant.Outlined" Placeholder="输入 SSE endpoint 或 Streamable HTTP 的 URL" Required="true" RequiredError="请输入服务地址" />
+
+                <MudExpansionPanels Class="mt-2">
+                    <MudExpansionPanel Text="高级设置" expanded="false">
+                        <div>
+                            <MudText Typo="Typo.body2" Class="mb-2">请求头 (headers)</MudText>
+                            <MudTable Items="@_headerRows" Dense="true" Breakpoint="Breakpoint.Sm" Hover="true">
+                                <HeaderContent>
+                                    <MudTh>请求头 Key</MudTh>
+                                    <MudTh>请求头 Value</MudTh>
+                                    <MudTh Style="width: 80px;">操作</MudTh>
+                                </HeaderContent>
+                                <RowTemplate>
+                                    <MudTd DataLabel="请求头 Key"><MudTextField @bind-Value="context.Key" Placeholder="输入请求头 Key" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudTd>
+                                    <MudTd DataLabel="请求头 Value"><MudTextField @bind-Value="context.Value" Placeholder="输入请求头 Value" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudTd>
+                                    <MudTd DataLabel="操作">
+                                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => RemoveHeaderRow(context))" title="删除" />
+                                    </MudTd>
+                                </RowTemplate>
+                            </MudTable>
+                            <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Add" OnClick="AddHeaderRow" Class="mt-1">添加请求头</MudButton>
+                        </div>
+                    </MudExpansionPanel>
+                </MudExpansionPanels>
+            }
+            </div>
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="Cancel">取消</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Submit">@(_isEdit ? "保存" : "立即添加")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private const string StdioType = "stdio";
+    private const string HttpType = "http";
+
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public string? EditId { get; set; }
+    [Parameter] public SmallEBot.Models.McpServerEntry? EditEntry { get; set; }
+
+    private bool _isEdit => !string.IsNullOrEmpty(EditId);
+    private bool _isStdio => StdioType.Equals(_type, StringComparison.OrdinalIgnoreCase);
+
+    private string _name = "";
+    private string _type = StdioType;
+    private string _command = "";
+    private string _argsString = "";
+    private string _url = "";
+    private readonly List<KeyValueRow> _envRows = [];
+    private readonly List<KeyValueRow> _headerRows = [];
+
+    protected override void OnInitialized()
+    {
+        if (_isEdit && EditEntry != null)
+        {
+            _name = EditId ?? "";
+            _type = "http".Equals(EditEntry.Type, StringComparison.OrdinalIgnoreCase) ? HttpType : StdioType;
+            _command = EditEntry.Command ?? "";
+            _argsString = EditEntry.Args != null ? string.Join(" ", EditEntry.Args) : "";
+            _url = EditEntry.Url ?? "";
+            _envRows.Clear();
+            if (EditEntry.Env != null)
+            {
+                foreach (var kv in EditEntry.Env)
+                    _envRows.Add(new KeyValueRow { Key = kv.Key ?? "", Value = kv.Value ?? "" });
+            }
+            _headerRows.Clear();
+            if (EditEntry.Headers != null)
+            {
+                foreach (var kv in EditEntry.Headers)
+                    _headerRows.Add(new KeyValueRow { Key = kv.Key ?? "", Value = kv.Value ?? "" });
+            }
+        }
+        if (_envRows.Count == 0) _envRows.Add(new KeyValueRow());
+        if (_headerRows.Count == 0) _headerRows.Add(new KeyValueRow());
+    }
+
+    private void SetType(string value)
+    {
+        _type = value;
+        StateHasChanged();
+    }
+
+    private void AddEnvRow() => _envRows.Add(new KeyValueRow());
+    private void RemoveEnvRow(KeyValueRow row) => _envRows.Remove(row);
+    private void AddHeaderRow() => _headerRows.Add(new KeyValueRow());
+    private void RemoveHeaderRow(KeyValueRow row) => _headerRows.Remove(row);
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task Submit()
+    {
+        var id = _name?.Trim() ?? "";
+        if (string.IsNullOrEmpty(id))
+        {
+            Snackbar.Add("请输入服务名称", Severity.Warning);
+            return;
+        }
+        if (_isStdio)
+        {
+            var cmd = _command?.Trim() ?? "";
+            if (string.IsNullOrEmpty(cmd))
+            {
+                Snackbar.Add("请输入命令", Severity.Warning);
+                return;
+            }
+        }
+        else
+        {
+            var u = _url?.Trim() ?? "";
+            if (string.IsNullOrEmpty(u))
+            {
+                Snackbar.Add("请输入服务地址", Severity.Warning);
+                return;
+            }
+        }
+
+        var entry = new SmallEBot.Models.McpServerEntry();
+        if (_isStdio)
+        {
+            entry.Type = StdioType;
+            entry.Command = _command?.Trim();
+            entry.Args = string.IsNullOrWhiteSpace(_argsString)
+                ? []
+                : _argsString.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            entry.Env = _envRows
+                .Where(r => !string.IsNullOrWhiteSpace(r.Key))
+                .ToDictionary(r => r.Key.Trim(), r => (string?)r.Value?.Trim());
+        }
+        else
+        {
+            entry.Type = HttpType;
+            entry.Url = _url?.Trim();
+            var headers = _headerRows
+                .Where(r => !string.IsNullOrWhiteSpace(r.Key))
+                .ToDictionary(r => r.Key.Trim(), r => (string?)r.Value?.Trim());
+            if (headers.Count > 0) entry.Headers = headers;
+        }
+
+        MudDialog.Close(DialogResult.Ok((Id: id, Entry: entry)));
+        await Task.CompletedTask;
+    }
+
+    private sealed class KeyValueRow
+    {
+        public string Key { get; set; } = "";
+        public string Value { get; set; } = "";
+    }
+}

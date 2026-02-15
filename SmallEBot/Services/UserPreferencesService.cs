@@ -5,15 +5,17 @@ namespace SmallEBot.Services;
 
 /// <summary>
 /// Persists and loads theme, username, useThinkingMode, and showToolCalls in a single JSON file.
+/// Path: AppDomain.CurrentDomain.BaseDirectory (same as DB and MCP config).
 /// </summary>
-public class UserPreferencesService(IWebHostEnvironment env)
+public class UserPreferencesService()
 {
     private const string FileName = "smallebot-settings.json";
     private const string LegacyUserNameFileName = "smallebot-username.txt";
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
-    private readonly string _filePath = Path.Combine(env.ContentRootPath, FileName);
-    private readonly string _legacyUserNamePath = Path.Combine(env.ContentRootPath, LegacyUserNameFileName);
+    private static string BasePath => AppDomain.CurrentDomain.BaseDirectory;
+    private readonly string _filePath = Path.Combine(BasePath, FileName);
+    private readonly string _legacyUserNamePath = Path.Combine(BasePath, LegacyUserNameFileName);
     private SmallEBotSettings? _cached;
     private readonly SemaphoreSlim _lock = new(1, 1);
 
@@ -113,23 +115,6 @@ public class UserPreferencesService(IWebHostEnvironment env)
             var current = _cached ?? await LoadInternalAsync(ct);
             if (_cached == null) _cached = current;
             current.ShowToolCalls = value;
-            await SaveInternalAsync(current, ct);
-        }
-        finally
-        {
-            _lock.Release();
-        }
-    }
-
-    /// <summary>Update DisabledMcpIds and persist.</summary>
-    public async Task SetDisabledMcpIdsAsync(List<string> ids, CancellationToken ct = default)
-    {
-        await _lock.WaitAsync(ct);
-        try
-        {
-            var current = _cached ?? await LoadInternalAsync(ct);
-            if (_cached == null) _cached = current;
-            current.DisabledMcpIds = ids ?? new List<string>();
             await SaveInternalAsync(current, ct);
         }
         finally

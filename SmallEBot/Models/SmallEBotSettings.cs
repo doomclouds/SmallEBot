@@ -11,5 +11,4 @@ public sealed class SmallEBotSettings
     public string UserName { get; set; } = "";
     public bool UseThinkingMode { get; set; }
     public bool ShowToolCalls { get; set; } = true;
-    public List<string> DisabledMcpIds { get; set; } = [];
 }

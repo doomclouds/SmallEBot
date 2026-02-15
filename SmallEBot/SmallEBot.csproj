@@ -22,7 +22,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include=".agents\.sys.mcp.json" />
+    <Content Include=".agents\.sys.mcp.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
 </Project>

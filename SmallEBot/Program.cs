@@ -7,9 +7,14 @@ using SmallEBot.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// All data paths (DB, settings, MCP config) use app base directory
+var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+var dbPath = Path.Combine(baseDir, "smallebot.db");
+var connectionString = $"Data Source={dbPath}";
+
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
-    options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=smallebot.db");
+    options.UseSqlite(connectionString);
     options.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.NonTransactionalMigrationOperationWarning));
 });
 builder.Services.AddScoped<UserPreferencesService>();

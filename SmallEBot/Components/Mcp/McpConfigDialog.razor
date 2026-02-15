@@ -1,6 +1,7 @@
 @inject IMcpConfigService McpConfig
-@inject UserPreferencesService UserPrefs
 @inject IMcpToolsLoaderService McpToolsLoader
+@inject AgentService AgentService
+@inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
 <MudDialog>
@@ -11,45 +12,6 @@
         @if (_loading)
         {
             <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
-        }
-        else if (_editingId != null)
-        {
-            <MudStepper linear="true" @bind-active-step="_wizardStep" Class="mb-4">
-                <MudStep label="类型" step="0">
-                    <MudRadioGroup T="string" @bind-selected-option="_editType" Name="editType">
-                        <MudRadio T="string" option="@("http")" Color="Color.Primary">HTTP</MudRadio>
-                        <MudRadio T="string" option="@("stdio")" Color="Color.Primary">Stdio</MudRadio>
-                    </MudRadioGroup>
-                </MudStep>
-                <MudStep label="配置" step="1">
-                    @if ("http".Equals(_editType, StringComparison.OrdinalIgnoreCase))
-                    {
-                        <MudTextField @bind-Value="_editId" Label="名称 (Id)" Variant="Variant.Outlined" Class="mb-2" />
-                        <MudTextField @bind-Value="_editUrl" Label="URL" Variant="Variant.Outlined" />
-                    }
-                    else
-                    {
-                        <MudTextField @bind-Value="_editId" Label="名称 (Id)" Variant="Variant.Outlined" Class="mb-2" />
-                        <MudTextField @bind-Value="_editCommand" Label="Command" Variant="Variant.Outlined" Class="mb-2" />
-                        <MudTextField @bind-Value="_editArgsString" Label="Args (逗号分隔)" Variant="Variant.Outlined" Placeholder="arg1, arg2, arg3" />
-                    }
-                </MudStep>
-            </MudStepper>
-            <div class="d-flex gap-2">
-                @if (_wizardStep > 0)
-                {
-                    <MudButton Variant="Variant.Text" OnClick="WizardPrevious">上一步</MudButton>
-                }
-                @if (_wizardStep < 1)
-                {
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="WizardNext">下一步</MudButton>
-                }
-                else
-                {
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveUserMcp">保存</MudButton>
-                }
-                <MudButton Variant="Variant.Text" OnClick="CancelWizard">取消</MudButton>
-            </div>
         }
         else
         {
@@ -73,13 +35,13 @@
                     <MudTd DataLabel="信息">@GetInfoLabel(context.Entry)</MudTd>
                     <MudTd DataLabel="来源">@(context.IsSystem ? "系统" : "用户")</MudTd>
                     <MudTd DataLabel="启用">
-                        <MudSwitch T="bool" checked="@context.IsEnabled" checked-changed="@GetToggleCallback(context.Id)" Color="Color.Primary" />
+                        <MudSwitch T="bool" value="@context.IsEnabled" ValueChanged="@GetToggleCallback(context.Id)" Color="Color.Primary" />
                     </MudTd>
                     <MudTd DataLabel="操作">
                         @if (!context.IsSystem)
                         {
-                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => StartEdit(context.Id))" title="编辑" />
-                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => DeleteUserMcp(context.Id))" title="删除" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(async () => await StartEdit(context.Id))" title="编辑" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(async () => await ConfirmAndDeleteMcp(context.Id))" title="删除" />
                         }
                     </MudTd>
                 </RowTemplate>
@@ -148,19 +110,10 @@
 
     private bool _loading = true;
     private List<McpRowViewModel> _rows = [];
-    private List<string> _disabledIds = [];
     private HashSet<string> _systemIds = [];
     private string? _expandedId;
     private readonly Dictionary<string, McpToolsLoadResult> _toolsCache = [];
     private readonly HashSet<string> _loadingToolsIds = [];
-
-    private string? _editingId;
-    private int _wizardStep;
-    private string _editId = "";
-    private string _editType = "http";
-    private string _editUrl = "";
-    private string _editCommand = "";
-    private string _editArgsString = "";
 
     protected override async Task OnInitializedAsync()
     {
@@ -174,9 +127,7 @@
         {
             var all = await McpConfig.GetAllAsync();
             _systemIds = all.Where(x => x.IsSystem).Select(x => x.Id).ToHashSet();
-            var prefs = await UserPrefs.LoadAsync();
-            _disabledIds = prefs.DisabledMcpIds ?? [];
-            _rows = all.Select(x => new McpRowViewModel(x.Id, x.Entry, x.IsSystem, !_disabledIds.Contains(x.Id))).ToList();
+            _rows = all.Select(x => new McpRowViewModel(x.Id, x.Entry, x.IsSystem, x.IsEnabled)).ToList();
         }
         catch
         {
@@ -188,80 +139,55 @@
         }
     }
 
-    private void StartAdd()
+    private async Task StartAdd()
     {
-        _editingId = "";
-        _wizardStep = 0;
-        _editId = "";
-        _editType = "http";
-        _editUrl = "";
-        _editCommand = "";
-        _editArgsString = "";
+        var dialog = await DialogService.ShowAsync<SmallEBot.Components.Mcp.AddMcpServiceDialog>("添加 MCP 服务", new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dialog.Result;
+        if (result?.Canceled != false) return;
+        if (result.Data is not (string id, SmallEBot.Models.McpServerEntry entry))
+            return;
+        await SaveFromAddDialog(id, entry, isEdit: false);
     }
 
-    private void StartEdit(string id)
+    private async Task StartEdit(string id)
     {
         var row = _rows.FirstOrDefault(r => r.Id == id);
         if (row == null) return;
-        _editingId = id;
-        _wizardStep = 0;
-        _editId = id;
-        _editType = "http".Equals(row.Entry.Type, StringComparison.OrdinalIgnoreCase) ? "http" : "stdio";
-        _editUrl = row.Entry.Url ?? "";
-        _editCommand = row.Entry.Command ?? "";
-        _editArgsString = row.Entry.Args != null ? string.Join(", ", row.Entry.Args) : "";
+        var parameters = new DialogParameters
+        {
+            [nameof(AddMcpServiceDialog.EditId)] = id,
+            [nameof(AddMcpServiceDialog.EditEntry)] = row.Entry
+        };
+        var dialog = await DialogService.ShowAsync<SmallEBot.Components.Mcp.AddMcpServiceDialog>("编辑 MCP 服务", parameters, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dialog.Result;
+        if (result?.Canceled != false) return;
+        if (result.Data is not (string newId, SmallEBot.Models.McpServerEntry entry))
+            return;
+        await SaveFromAddDialog(newId, entry, isEdit: true, oldId: id);
     }
 
-    private void WizardNext()
+    private async Task SaveFromAddDialog(string id, SmallEBot.Models.McpServerEntry entry, bool isEdit, string? oldId = null)
     {
-        if (_wizardStep < 1) _wizardStep++;
-    }
-
-    private void WizardPrevious()
-    {
-        if (_wizardStep > 0) _wizardStep--;
-    }
-
-    private void CancelWizard()
-    {
-        _editingId = null;
-    }
-
-    private async Task SaveUserMcp()
-    {
-        var id = _editId?.Trim() ?? "";
-        if (string.IsNullOrEmpty(id))
+        var trimmedId = id.Trim();
+        if (string.IsNullOrEmpty(trimmedId))
         {
             Snackbar.Add("请输入名称", Severity.Warning);
             return;
         }
-        if (_systemIds.Contains(id))
+        if (_systemIds.Contains(trimmedId) && (isEdit ? trimmedId != oldId : true))
         {
             Snackbar.Add("该名称已被系统 MCP 使用，请使用其他名称", Severity.Warning);
             return;
         }
         var user = await McpConfig.GetUserMcpAsync();
         var dict = new Dictionary<string, SmallEBot.Models.McpServerEntry>(user);
-        var entry = new SmallEBot.Models.McpServerEntry();
-        if ("http".Equals(_editType, StringComparison.OrdinalIgnoreCase))
-        {
-            entry.Type = "http";
-            entry.Url = _editUrl?.Trim();
-        }
-        else
-        {
-            entry.Type = "stdio";
-            entry.Command = _editCommand?.Trim();
-            entry.Args = string.IsNullOrWhiteSpace(_editArgsString)
-                ? []
-                : _editArgsString.Split(',').Select(a => a.Trim()).Where(a => a.Length > 0).ToArray();
-        }
-        dict[id] = entry;
+        if (isEdit && !string.IsNullOrEmpty(oldId)) dict.Remove(oldId);
+        dict[trimmedId] = entry;
         try
         {
             await McpConfig.SaveUserMcpAsync(dict);
-            Snackbar.Add("已保存", Severity.Success);
-            _editingId = null;
+            await AgentService.InvalidateAgentAsync();
+            Snackbar.Add(isEdit ? "已保存" : "已添加", Severity.Success);
             await LoadListAsync();
         }
         catch
@@ -295,6 +221,16 @@
         }
     }
 
+    private async Task ConfirmAndDeleteMcp(string id)
+    {
+        var parameters = new DialogParameters { [nameof(DeleteMcpConfirmDialog.Name)] = id };
+        var dialog = await DialogService.ShowAsync<DeleteMcpConfirmDialog>("删除 MCP", parameters);
+        var result = await dialog.Result;
+        if (result?.Canceled == true) return;
+        if (result?.Data is true)
+            await DeleteUserMcp(id);
+    }
+
     private async Task DeleteUserMcp(string id)
     {
         var user = await McpConfig.GetUserMcpAsync();
@@ -303,6 +239,7 @@
         try
         {
             await McpConfig.SaveUserMcpAsync(dict);
+            await AgentService.InvalidateAgentAsync();
             Snackbar.Add("已删除", Severity.Success);
             await LoadListAsync();
         }
@@ -327,19 +264,35 @@
     }
 
     private EventCallback<bool> GetToggleCallback(string id) =>
-        EventCallback.Factory.Create<bool>(this, v => OnToggleEnabled(id, v));
+        EventCallback.Factory.Create<bool>(this, async v => await OnToggleEnabled(id, v));
 
     private async Task OnToggleEnabled(string id, bool enabled)
     {
         var row = _rows.FirstOrDefault(r => r.Id == id);
         if (row != null) row.IsEnabled = enabled;
-        if (enabled)
-            _disabledIds.Remove(id);
-        else if (!_disabledIds.Contains(id))
-            _disabledIds.Add(id);
         try
         {
-            await UserPrefs.SetDisabledMcpIdsAsync(new List<string>(_disabledIds));
+            if (row?.IsSystem == true)
+            {
+                var disabled = await McpConfig.GetDisabledSystemIdsAsync();
+                var list = disabled.ToList();
+                if (enabled)
+                    list.Remove(id);
+                else if (!list.Contains(id))
+                    list.Add(id);
+                await McpConfig.SetDisabledSystemIdsAsync(list);
+            }
+            else
+            {
+                var user = await McpConfig.GetUserMcpAsync();
+                var dict = new Dictionary<string, SmallEBot.Models.McpServerEntry>(user);
+                if (dict.TryGetValue(id, out var entry))
+                {
+                    entry.Enabled = enabled;
+                    await McpConfig.SaveUserMcpAsync(dict);
+                }
+            }
+            await AgentService.InvalidateAgentAsync();
         }
         catch
         {

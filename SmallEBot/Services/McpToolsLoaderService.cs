@@ -47,12 +47,27 @@ public class McpToolsLoaderService : IMcpToolsLoaderService
             {
                 if (string.IsNullOrEmpty(entry.Url))
                     return new McpToolsLoadResult([], null, "Missing URL");
-                var transport = new HttpClientTransport(new HttpClientTransportOptions
+                var options = new HttpClientTransportOptions
                 {
                     Endpoint = new Uri(entry.Url),
                     TransportMode = HttpTransportMode.AutoDetect,
                     ConnectionTimeout = TimeSpan.FromSeconds(30)
-                });
+                };
+                HttpClientTransport transport;
+                if (entry.Headers is { Count: > 0 })
+                {
+                    var httpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
+                    foreach (var h in entry.Headers)
+                    {
+                        if (string.IsNullOrEmpty(h.Key)) continue;
+                        httpClient.DefaultRequestHeaders.TryAddWithoutValidation(h.Key, h.Value ?? "");
+                    }
+                    transport = new HttpClientTransport(options, httpClient, ownsHttpClient: true);
+                }
+                else
+                {
+                    transport = new HttpClientTransport(options);
+                }
                 client = await McpClient.CreateAsync(transport, null, null, ct);
             }
             else
