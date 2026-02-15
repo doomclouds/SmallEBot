@@ -20,6 +20,7 @@ public class AgentService(
     IConfiguration config,
     ILogger<AgentService> log) : IAsyncDisposable
 {
+    private readonly int _contextWindowTokens = config.GetValue("DeepSeek:ContextWindowTokens", 128000);
     private AIAgent? _agent;
     private AIAgent? _agentWithThinking;
     private List<IAsyncDisposable>? _mcpClients;
@@ -147,6 +148,9 @@ public class AgentService(
 
     [Description("Get the current UTC date and time in ISO 8601 format.")]
     private static string GetCurrentTime() => DateTime.UtcNow.ToString("O");
+
+    /// <summary>Context window size in tokens (e.g. 128000 for DeepSeek). Used for context % display.</summary>
+    public int GetContextWindowTokens() => _contextWindowTokens;
 
     public async IAsyncEnumerable<StreamUpdate> SendMessageStreamingAsync(
         Guid conversationId,
