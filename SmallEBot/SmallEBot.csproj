@@ -25,6 +25,9 @@
     <Content Include=".agents\.sys.mcp.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Include=".agents\sys.skills\**\*" LinkBase=".agents\sys.skills">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
 </Project>
