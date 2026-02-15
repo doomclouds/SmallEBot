@@ -81,33 +81,13 @@
     }
     </div>
 
-    <MudStack Row="true" Spacing="2" Class="mt-4">
-        <MudTextField @bind-Value="_input"
-                      Label="Message"
-                      Variant="Variant.Outlined"
-                      FullWidth="true"
-                      Immediate="true"
-                      OnKeyDown="@HandleKeyDown" />
-        @if (_streaming)
-        {
-            <MudButton Variant="Variant.Filled"
-                       Color="Color.Secondary"
-                       OnClick="@StopSend"
-                       Disabled="false">
-                Stop
-            </MudButton>
-        }
-        else
-        {
-            <MudButton Variant="Variant.Filled"
-                       Color="Color.Primary"
-                       ButtonType="ButtonType.Submit"
-                       OnClick="@Send"
-                       Disabled="@string.IsNullOrWhiteSpace(_input)">
-                Send
-            </MudButton>
-        }
-    </MudStack>
+    <ChatInputBar @bind-Value="_input"
+                  Streaming="_streaming"
+                  ContextPercentText="@_contextPercentText"
+                  OnSend="Send"
+                  OnStop="StopSend"
+                  Disabled="@string.IsNullOrWhiteSpace(_input)"
+                  Class="mt-4" />
 </MudPaper>
 
 @code {
@@ -132,6 +112,7 @@
     private CancellationTokenSource? _sendCts;
     private int _lastInputTokenCount;
     private int _lastOutputTokenCount;
+    private string _contextPercentText = "0%";
 
     private void StopSend()
     {
@@ -291,15 +272,6 @@
                 await JS.InvokeVoidAsync("SmallEBot.scrollChatToBottom", _chatScrollRef);
             }
             catch { /* ignore if JS not loaded or disconnected */ }
-        }
-    }
-
-    /// <summary>Send message when Enter is pressed (without Shift).</summary>
-    private async Task HandleKeyDown(KeyboardEventArgs args)
-    {
-        if (args is { Key: "Enter", ShiftKey: false })
-        {
-            await Send();
         }
     }
 

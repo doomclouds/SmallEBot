@@ -1,0 +1,52 @@
+@* Chat input bar: multiline text area, bottom bar with context % and send/stop icon. *@
+
+<div class="d-flex flex-column gap-2 @Class">
+    <MudTextField @bind-Value="Value"
+                  Lines="3"
+                  Placeholder="@("Plan, @ for context, / for commands")"
+                  Variant="Variant.Outlined"
+                  FullWidth="true"
+                  Immediate="true"
+                  OnKeyDown="HandleKeyDown"
+                  Class="smallebot-chat-input" />
+    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mt-1">
+        <div></div>
+        <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+            <MudText Typo="Typo.body2" Class="text-secondary">@ContextPercentText</MudText>
+            @if (Streaming)
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.Stop"
+                               Color="Color.Secondary"
+                               OnClick="OnStop"
+                               aria-label="Stop" />
+            }
+            else
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.ArrowUpward"
+                               Color="Color.Primary"
+                               OnClick="OnSend"
+                               Disabled="@Disabled"
+                               aria-label="Send" />
+            }
+        </MudStack>
+    </MudStack>
+</div>
+
+@code {
+    [Parameter] public string Value { get; set; } = "";
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+    [Parameter] public bool Streaming { get; set; }
+    [Parameter] public string ContextPercentText { get; set; } = "0%";
+    [Parameter] public EventCallback OnSend { get; set; }
+    [Parameter] public EventCallback OnStop { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public string Class { get; set; } = "";
+
+    private async Task HandleKeyDown(KeyboardEventArgs args)
+    {
+        if (args is { Key: "Enter", ShiftKey: false })
+        {
+            await OnSend.InvokeAsync();
+        }
+    }
+}
