@@ -81,9 +81,12 @@
 
     private async Task StartImport()
     {
-        // Task 6 will add import dialog; for now show snackbar
-        Snackbar.Add("导入功能请在下一任务中完成", Severity.Info);
-        await Task.CompletedTask;
+        var dialog = await DialogService.ShowAsync<ImportSkillDialog>("导入 Skill", new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dialog.Result;
+        if (result?.Canceled != false) return;
+        await AgentService.InvalidateAgentAsync();
+        Snackbar.Add("已导入", Severity.Success);
+        await LoadListAsync();
     }
 
     private async Task SaveAddAsync(string id, string name, string desc)

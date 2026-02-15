@@ -1,0 +1,41 @@
+@inject ISkillsConfigService SkillsConfig
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent><MudText Typo="Typo.h6">导入 Skill</MudText></TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_sourcePath" Label="源文件夹路径" Variant="Variant.Outlined" Required RequiredError="必填" Class="mb-2" />
+        <MudTextField @bind-Value="_id" Label="Skill Id (可选，默认取文件夹名)" Variant="Variant.Outlined" Class="mb-2" />
+        <MudText Typo="Typo.caption">源文件夹内必须包含 SKILL.md 且含有效 frontmatter。</MudText>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="Cancel">取消</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Import">导入</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    private string _sourcePath = "";
+    private string _id = "";
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task Import()
+    {
+        if (string.IsNullOrWhiteSpace(_sourcePath))
+        {
+            Snackbar.Add("请输入源文件夹路径", Severity.Warning);
+            return;
+        }
+        try
+        {
+            await SkillsConfig.ImportUserSkillFromFolderAsync(_sourcePath.Trim(), string.IsNullOrWhiteSpace(_id) ? null : _id.Trim());
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add("导入失败: " + ex.Message, Severity.Error);
+        }
+    }
+}
