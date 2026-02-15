@@ -1,11 +1,11 @@
 ---
 name: skill-writer
-description: Guide users through creating Agent Skills for Cursor. Use when the user wants to create, write, author, or design a new Skill, or needs help with SKILL.md files, frontmatter, or skill structure. Scripts should be created using C# (.NET 10), which supports single-file execution as scripts.
+description: Guide users through creating Agent Skills for this app. Use when the user wants to create, write, author, or design a new Skill, or needs help with SKILL.md files, frontmatter, or skill structure. Scripts should be created using C# (.NET 10), which supports single-file execution as scripts.
 ---
 
 # Skill Writer
 
-This Skill helps you create well-structured Agent Skills for Cursor that follow best practices and validation requirements.
+This Skill helps you create well-structured Agent Skills for this app that follow best practices and validation requirements.
 
 **Note**: Scripts in Skills should be created using C# (.NET 10), which supports single-file execution. .NET 10 allows running C# files directly as scripts using `dotnet script.cs` or `dotnet run script.cs`, making it ideal for Skill scripts.
 
@@ -26,7 +26,7 @@ First, understand what the Skill should do:
 
 1. **Ask clarifying questions**:
    - What specific capability should this Skill provide?
-   - When should Claude use this Skill?
+   - When should the agent use this Skill?
    - What tools or resources does it need?
    - Is this for personal use or team sharing?
 
@@ -36,28 +36,20 @@ First, understand what the Skill should do:
 
 ### Step 2: Choose Skill location
 
-Determine where to create the Skill:
+All paths are relative to the **app run directory** (where the application runs).
 
-**Personal Skills** (`~/.claude/skills/`):
-- Individual workflows and preferences
-- Experimental Skills
-- Personal productivity tools
+- **System skills** (read-only, shipped with the app): `.agents/sys.skills/`. Each subdirectory is one skill; directory name = skill id.
+- **User skills** (add, edit, delete, import via app UI): `.agents/skills/`. Same structure—one subdirectory per skill with `SKILL.md` and optional other files.
 
-**Project Skills** (`.claude/skills/`):
-- Team workflows and conventions
-- Project-specific expertise
-- Shared utilities (committed to git)
+You can add or import user skills through the app's **Skills 配置** (Skills config) in the toolbar; the app creates `.agents/skills/<id>/` for you. To create a skill manually, ensure the directory exists under the run directory (e.g. `.agents/skills/skill-name/`).
 
 ### Step 3: Create Skill structure
 
-Create the directory and files:
+Create the directory and files (paths relative to app run directory):
 
 ```bash
-# Personal
-mkdir -p ~/.claude/skills/skill-name
-
-# Project
-mkdir -p .claude/skills/skill-name
+# User skill (manual creation; or use app UI "新增 Skill" / "导入")
+mkdir -p .agents/skills/skill-name
 ```
 
 For multi-file Skills:
@@ -123,7 +115,7 @@ description: Brief description of what this does and when to use it
 - **name**:
   - Lowercase letters, numbers, hyphens only
   - Max 64 characters
-  - Must match directory name
+  - In this app, skill id = directory name; frontmatter `name` is the display name (can match id).
   - Good: `pdf-processor`, `git-commit-helper`
   - Bad: `PDF_Processor`, `Git Commits!`
 
@@ -133,20 +125,11 @@ description: Brief description of what this does and when to use it
   - Use specific trigger words users would say
   - Mention file types, operations, and context
 
-**Optional frontmatter fields**:
-
-- **allowed-tools**: Restrict tool access (comma-separated list)
-  ```yaml
-  allowed-tools: Read, Grep, Glob
-  ```
-  Use for:
-  - Read-only Skills
-  - Security-sensitive workflows
-  - Limited-scope operations
+**Note**: This app currently parses only **name** and **description** from frontmatter. Other fields (e.g. allowed-tools) are not used; omit them or add later if the app supports them.
 
 ### Step 5: Write effective descriptions
 
-The description is critical for Claude to discover your Skill.
+The description is critical for the agent to discover your Skill.
 
 **Formula**: `[What it does] + [When to use it] + [Key triggers]`
 
@@ -189,7 +172,7 @@ Provide a simple example to get started immediately.
 
 ## Instructions
 
-Step-by-step guidance for Claude:
+Step-by-step guidance for the agent:
 1. First step with clear action
 2. Second step with expected outcome
 3. Handle edge cases
@@ -260,7 +243,7 @@ Check these requirements:
 - [ ] `description` is specific and < 1024 chars
 
 ✅ **Content quality**:
-- [ ] Clear instructions for Claude
+- [ ] Clear instructions for the agent
 - [ ] Concrete examples provided
 - [ ] Edge cases handled
 - [ ] Dependencies listed (if any)
@@ -272,40 +255,38 @@ Check these requirements:
 
 ### Step 9: Test the Skill
 
-1. **Restart Cursor** (if running) to load the Skill
+1. **No restart needed**: After adding or importing a skill, the app rebuilds the agent automatically. Confirm the skill appears in **Skills 配置** and send a message to use it.
 
 2. **Ask relevant questions** that match the description:
    ```
    Can you help me extract text from this PDF?
    ```
 
-3. **Verify activation**: Claude should use the Skill automatically
+3. **Verify activation**: The agent should use the Skill when the query matches the description.
 
-4. **Check behavior**: Confirm Claude follows the instructions correctly
+4. **Check behavior**: Confirm the agent follows the instructions correctly.
 
 ### Step 10: Debug if needed
 
-If Cursor doesn't use the Skill:
+If the agent doesn't use the Skill:
 
 1. **Make description more specific**:
    - Add trigger words
    - Include file types
    - Mention common user phrases
 
-2. **Check file location**:
+2. **Check file location** (paths relative to app run directory):
    ```bash
-   ls ~/.claude/skills/skill-name/SKILL.md
-   ls .claude/skills/skill-name/SKILL.md
+   # System skill
+   .agents/sys.skills/skill-name/SKILL.md
+   # User skill
+   .agents/skills/skill-name/SKILL.md
    ```
+   Use the app's Skills 配置 to confirm the skill is listed, or use the ReadFile tool to read `.agents/sys.skills/<id>/SKILL.md` or `.agents/skills/<id>/SKILL.md`.
 
 3. **Validate YAML**:
    ```bash
    cat SKILL.md | head -n 10
-   ```
-
-4. **Run debug mode**:
-   ```bash
-   claude --debug
    ```
 
 ## Common patterns
@@ -316,7 +297,6 @@ If Cursor doesn't use the Skill:
 ---
 name: code-reader
 description: Read and analyze code without making changes. Use for code review, understanding codebases, or documentation.
-allowed-tools: Read, Grep, Glob
 ---
 ```
 
@@ -377,7 +357,7 @@ Detailed reference: See [reference.md](reference.md)
 
 1. **One Skill, one purpose**: Don't create mega-Skills
 2. **Specific descriptions**: Include trigger words users will say
-3. **Clear instructions**: Write for Claude, not humans
+3. **Clear instructions**: Write for the agent, not humans
 4. **Concrete examples**: Show real code, not pseudocode
 5. **Use C# for scripts**: All scripts should be written in C# (.NET 10) which supports single-file execution
 6. **List dependencies**: Mention required .NET SDK version or NuGet packages in description
@@ -398,7 +378,7 @@ Before finalizing a Skill, verify:
 - [ ] Dependencies are documented
 - [ ] File paths use forward slashes
 - [ ] Skill activates on relevant queries
-- [ ] Claude follows instructions correctly
+- [ ] The agent follows instructions correctly
 
 ## Troubleshooting
 
@@ -423,7 +403,7 @@ Before finalizing a Skill, verify:
 
 See the documentation for complete examples:
 - Simple single-file Skill (commit-helper)
-- Skill with tool permissions (code-reviewer)
+- Read-only Skill (code-reader)
 - Multi-file Skill (pdf-processing)
 
 ## Output format
