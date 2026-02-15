@@ -65,6 +65,7 @@ public class SkillsConfigService : ISkillsConfigService
                 var content = await File.ReadAllTextAsync(skillPath, ct);
                 var parsed = SkillFrontmatterParser.TryParse(content);
                 if (parsed == null) continue;
+                if (!isSystem && list.Any(x => x.Id == id)) continue;
                 list.Add(new SkillMetadata(Id: id, parsed.Value.Name, parsed.Value.Description, IsSystem: isSystem));
             }
             catch (Exception ex)

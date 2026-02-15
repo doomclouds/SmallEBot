@@ -28,6 +28,8 @@ public class AgentService(
     private AIAgent? _agent;
     private AIAgent? _agentWithThinking;
     private List<IAsyncDisposable>? _mcpClients;
+    /// <summary>Cached instructions (including skills block) used for context token count. Cleared by InvalidateAgentAsync.</summary>
+    private string? _cachedInstructionsForTokenCount;
 
     private static readonly HashSet<string> ReadFileAllowedExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -157,6 +159,7 @@ public class AgentService(
         var skillList = await skillsConfig.GetMetadataForAgentAsync(ct);
         var skillsBlock = BuildSkillsBlock(skillList);
         var instructions = string.IsNullOrEmpty(skillsBlock) ? AgentInstructions : AgentInstructions + "\n\n" + skillsBlock;
+        _cachedInstructionsForTokenCount = instructions;
 
         if (useThinking)
         {
@@ -219,6 +222,7 @@ public class AgentService(
         }
         _agent = null;
         _agentWithThinking = null;
+        _cachedInstructionsForTokenCount = null;
     }
 
     /// <summary>Context window size in tokens (e.g. 128000 for DeepSeek). Used for context % display.</summary>
@@ -229,7 +233,8 @@ public class AgentService(
     {
         var store = new ChatMessageStoreAdapter(db, conversationId);
         var messages = await store.LoadMessagesAsync(ct);
-        var json = SerializeRequestJsonForTokenCount(AgentInstructions, messages);
+        var systemPrompt = _cachedInstructionsForTokenCount ?? AgentInstructions;
+        var json = SerializeRequestJsonForTokenCount(systemPrompt, messages);
         var rawTokens = tokenizer.CountTokens(json);
         var withBuffer = (int)Math.Ceiling(rawTokens * 1.05);
         var cap = _contextWindowTokens;
