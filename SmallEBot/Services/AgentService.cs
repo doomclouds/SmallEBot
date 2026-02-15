@@ -152,6 +152,17 @@ public class AgentService(
     /// <summary>Context window size in tokens (e.g. 128000 for DeepSeek). Used for context % display.</summary>
     public int GetContextWindowTokens() => _contextWindowTokens;
 
+    /// <summary>Estimated context usage for the conversation (0.0–1.0) from message length. Used when Usage is not available.</summary>
+    public async Task<double> GetEstimatedContextUsageAsync(Guid conversationId, CancellationToken ct = default)
+    {
+        var store = new ChatMessageStoreAdapter(db, conversationId);
+        var messages = await store.LoadMessagesAsync(ct);
+        var totalChars = messages.Sum(m => m.Content?.Length ?? 0);
+        var estimatedTokens = totalChars / 4.0;
+        var cap = _contextWindowTokens;
+        return cap <= 0 ? 0 : Math.Min(1.0, estimatedTokens / cap);
+    }
+
     public async IAsyncEnumerable<StreamUpdate> SendMessageStreamingAsync(
         Guid conversationId,
         string userMessage,
