@@ -1,36 +1,66 @@
 @inject ISkillsConfigService SkillsConfig
 @inject ISnackbar Snackbar
+@inject IJSRuntime JS
 
 <MudDialog>
     <TitleContent><MudText Typo="Typo.h6">导入 Skill</MudText></TitleContent>
     <DialogContent>
-        <MudTextField @bind-Value="_sourcePath" Label="源文件夹路径" Variant="Variant.Outlined" Required RequiredError="必填" Class="mb-2" />
+        <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.FolderOpen" OnClick="PickFolder" Class="mb-2">选择文件夹</MudButton>
+        @if (!string.IsNullOrEmpty(_pickedFolderName))
+        {
+            <MudText Typo="Typo.body2" Class="mb-2">已选: @_pickedFolderName</MudText>
+        }
         <MudTextField @bind-Value="_id" Label="Skill Id (可选，默认取文件夹名)" Variant="Variant.Outlined" Class="mb-2" />
-        <MudText Typo="Typo.caption">源文件夹内必须包含 SKILL.md 且含有效 frontmatter。</MudText>
+        <MudText Typo="Typo.caption">所选文件夹内必须包含 SKILL.md 且含有效 frontmatter。</MudText>
     </DialogContent>
     <DialogActions>
         <MudButton Variant="Variant.Text" OnClick="Cancel">取消</MudButton>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Import">导入</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Import" Disabled="@(_pickedFiles == null)">导入</MudButton>
     </DialogActions>
 </MudDialog>
 
 @code {
     [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
-    private string _sourcePath = "";
     private string _id = "";
+    private string _pickedFolderName = "";
+    private IReadOnlyDictionary<string, string>? _pickedFiles;
 
     private void Cancel() => MudDialog.Cancel();
 
+    private async Task PickFolder()
+    {
+        try
+        {
+            var result = await JS.InvokeAsync<System.Text.Json.JsonElement>("SmallEBotPickSkillFolder");
+            if (result.ValueKind == System.Text.Json.JsonValueKind.Null || result.ValueKind == System.Text.Json.JsonValueKind.Undefined)
+                return;
+            _pickedFolderName = result.GetProperty("folderName").GetString() ?? "";
+            var filesEl = result.GetProperty("files");
+            var dict = new Dictionary<string, string>();
+            foreach (var prop in filesEl.EnumerateObject())
+                dict[prop.Name] = prop.Value.GetString() ?? "";
+            _pickedFiles = dict;
+            if (string.IsNullOrWhiteSpace(_id))
+                _id = _pickedFolderName;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add("选择文件夹失败: " + ex.Message, Severity.Error);
+        }
+    }
+
     private async Task Import()
     {
-        if (string.IsNullOrWhiteSpace(_sourcePath))
+        if (_pickedFiles == null || _pickedFiles.Count == 0)
         {
-            Snackbar.Add("请输入源文件夹路径", Severity.Warning);
+            Snackbar.Add("请先选择文件夹", Severity.Warning);
             return;
         }
         try
         {
-            await SkillsConfig.ImportUserSkillFromFolderAsync(_sourcePath.Trim(), string.IsNullOrWhiteSpace(_id) ? null : _id.Trim());
+            await SkillsConfig.ImportUserSkillFromFileContentsAsync(
+                string.IsNullOrWhiteSpace(_id) ? null : _id.Trim(),
+                _pickedFiles);
             MudDialog.Close(DialogResult.Ok(true));
         }
         catch (Exception ex)

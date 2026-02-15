@@ -75,8 +75,8 @@
     {
         var dialog = await DialogService.ShowAsync<AddSkillDialog>("新增 Skill", new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
         var result = await dialog.Result;
-        if (result?.Canceled != false || result?.Data is not (string id, string name, string desc)) return;
-        await SaveAddAsync(id, name, desc);
+        if (result?.Canceled != false || result?.Data is not (string id, string name, string desc, string bodyPart)) return;
+        await SaveAddAsync(id, name, desc, string.IsNullOrWhiteSpace(bodyPart) ? null : bodyPart);
     }
 
     private async Task StartImport()
@@ -89,11 +89,11 @@
         await LoadListAsync();
     }
 
-    private async Task SaveAddAsync(string id, string name, string desc)
+    private async Task SaveAddAsync(string id, string name, string desc, string? body)
     {
         try
         {
-            await SkillsConfig.AddUserSkillAsync(id, name, desc);
+            await SkillsConfig.AddUserSkillAsync(id, name, desc, body);
             await AgentService.InvalidateAgentAsync();
             Snackbar.Add("已添加", Severity.Success);
             await LoadListAsync();

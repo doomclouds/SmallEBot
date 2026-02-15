@@ -5,7 +5,8 @@
     <DialogContent>
         <MudTextField @bind-Value="_id" Label="Id (目录名)" Variant="Variant.Outlined" Required RequiredError="必填" Class="mb-2" />
         <MudTextField @bind-Value="_name" Label="名称" Variant="Variant.Outlined" Required RequiredError="必填" Class="mb-2" />
-        <MudTextField @bind-Value="_description" Label="描述" Variant="Variant.Outlined" Required RequiredError="必填" Lines="2" />
+        <MudTextField @bind-Value="_description" Label="描述" Variant="Variant.Outlined" Required RequiredError="必填" Lines="2" Class="mb-2" />
+        <MudTextField @bind-Value="_body" Label="技能内容 (SKILL.md 正文，可选)" Variant="Variant.Outlined" Lines="8" Class="mb-2" />
     </DialogContent>
     <DialogActions>
         <MudButton Variant="Variant.Text" OnClick="Cancel">取消</MudButton>
@@ -18,6 +19,7 @@
     private string _id = "";
     private string _name = "";
     private string _description = "";
+    private string _body = "";
 
     private void Cancel() => MudDialog.Cancel();
 
@@ -28,6 +30,7 @@
             Snackbar.Add("请填写 Id、名称和描述", Severity.Warning);
             return;
         }
-        MudDialog.Close(DialogResult.Ok((_id.Trim(), _name.Trim(), _description.Trim())));
+        var bodyOut = string.IsNullOrWhiteSpace(_body) ? "" : _body.Trim();
+        MudDialog.Close(DialogResult.Ok((_id.Trim(), _name.Trim(), _description.Trim(), bodyOut)));
     }
 }
