@@ -1,5 +1,6 @@
 @inherits LayoutComponentBase
 @using SmallEBot.Components.Mcp
+@using SmallEBot.Components.Terminal
 @implements IDisposable
 @inject UserNameService UserNameSvc
 @inject UserPreferencesService Preferences
@@ -48,6 +49,11 @@
             <MudIconButton Icon="@Icons.Material.Filled.School"
                            Color="Color.Default"
                            OnClick="@OpenSkillsConfig" />
+        </MudTooltip>
+        <MudTooltip Text="Terminal config">
+            <MudIconButton Icon="@Icons.Material.Filled.Terminal"
+                           Color="Color.Default"
+                           OnClick="@OpenTerminalConfig" />
         </MudTooltip>
         <MudText Typo="Typo.body2" Class="smallebot-username">@UserNameSvc.CurrentDisplayName</MudText>
     </MudAppBar>
@@ -144,6 +150,9 @@
 
     private void OpenSkillsConfig() =>
         DialogService.ShowAsync<SkillsConfigDialog>(string.Empty, new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true });
+
+    private void OpenTerminalConfig() =>
+        DialogService.ShowAsync<TerminalConfigDialog>(string.Empty, new DialogOptions { MaxWidth = MaxWidth.Medium });
 
     protected override void OnInitialized()
     {
