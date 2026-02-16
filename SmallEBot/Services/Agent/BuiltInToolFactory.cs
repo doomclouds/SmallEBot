@@ -7,7 +7,7 @@ using SmallEBot.Services.Terminal;
 
 namespace SmallEBot.Services.Agent;
 
-/// <summary>Creates built-in AITools (GetCurrentTime, ReadFile, ReadSkill, ExecuteCommand, RunPython) for the agent.</summary>
+/// <summary>Creates built-in AITools (GetCurrentTime, ReadFile, WriteFile, ReadSkill, ExecuteCommand, RunPython) for the agent.</summary>
 public interface IBuiltInToolFactory
 {
     AITool[] CreateTools();
@@ -24,6 +24,7 @@ public sealed class BuiltInToolFactory(ITerminalConfigService terminalConfig, IP
     [
         AIFunctionFactory.Create(GetCurrentTime),
         AIFunctionFactory.Create(ReadFile),
+        AIFunctionFactory.Create(WriteFile),
         AIFunctionFactory.Create(ReadSkill),
         AIFunctionFactory.Create(ExecuteCommand),
         AIFunctionFactory.Create(RunPython)
@@ -48,6 +49,31 @@ public sealed class BuiltInToolFactory(ITerminalConfigService terminalConfig, IP
         try
         {
             return File.ReadAllText(fullPath);
+        }
+        catch (Exception ex)
+        {
+            return "Error: " + ex.Message;
+        }
+    }
+
+    [Description("Write a text file under the current run directory. Pass path relative to the app directory (e.g. .agents/skills/my-skill/notes.txt) and the content to write. Only allowed extensions: .md, .cs, .py, .txt, .json, .yml, .yaml. Parent directories are created if missing. Overwrites existing files.")]
+    private static string WriteFile(string path, string content)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return "Error: path is required.";
+        var baseDir = Path.GetFullPath(AppDomain.CurrentDomain.BaseDirectory);
+        var fullPath = Path.GetFullPath(Path.Combine(baseDir, path.Trim().Replace('\\', Path.DirectorySeparatorChar)));
+        if (!fullPath.StartsWith(baseDir, StringComparison.OrdinalIgnoreCase))
+            return "Error: path must be under the current run directory.";
+        var ext = Path.GetExtension(fullPath);
+        if (string.IsNullOrEmpty(ext) || !AllowedExtensions.Contains(ext))
+            return "Error: file type not allowed. Allowed: " + string.Join(", ", AllowedExtensions);
+        try
+        {
+            var dir = Path.GetDirectoryName(fullPath);
+            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+                Directory.CreateDirectory(dir);
+            File.WriteAllText(fullPath, content, System.Text.Encoding.UTF8);
+            return "Written " + fullPath;
         }
         catch (Exception ex)
         {
