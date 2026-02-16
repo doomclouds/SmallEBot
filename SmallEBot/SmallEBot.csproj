@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../SmallEBot.Core/SmallEBot.Core.csproj" />
+    <ProjectReference Include="../SmallEBot.Application/SmallEBot.Application.csproj" />
     <ProjectReference Include="../SmallEBot.Infrastructure/SmallEBot.Infrastructure.csproj" />
   </ItemGroup>
   <ItemGroup>
