@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using MudBlazor.Services;
+using SmallEBot.Application.Conversation;
+using SmallEBot.Application.Streaming;
 using SmallEBot.Components;
 using SmallEBot.Infrastructure.Data;
 using SmallEBot.Infrastructure.Repositories;
@@ -28,6 +30,8 @@ builder.Services.AddScoped<IAgentContextFactory, AgentContextFactory>();
 builder.Services.AddSingleton<IBuiltInToolFactory, BuiltInToolFactory>();
 builder.Services.AddScoped<IMcpToolFactory, McpToolFactory>();
 builder.Services.AddScoped<IAgentBuilder, AgentBuilder>();
+builder.Services.AddScoped<IAgentConversationService, AgentConversationService>();
+builder.Services.AddScoped<IAgentRunner, AgentRunnerAdapter>();
 builder.Services.AddScoped<ConversationService>();
 builder.Services.AddScoped<AgentService>();
 builder.Services.AddScoped<UserNameService>();

@@ -1,4 +1,7 @@
+@using SmallEBot.Application.Conversation
 @using SmallEBot.Core.Models
+@using SmallEBot.Services
+@inject IAgentConversationService ConversationPipeline
 @inject AgentService AgentSvc
 @inject UserNameService UserNameSvc
 @inject IJSRuntime JS
@@ -148,18 +151,23 @@
             return;
         }
 
-        var turnId = await AgentSvc.CreateTurnAndUserMessageAsync(ConversationId!.Value, userName, msg, UseThinkingMode);
-        // Run streaming in a background task so the circuit can process Stop clicks; otherwise Cancel() never runs until the next chunk.
-        _ = RunStreamingLoopAsync(turnId, msg);
+        var turnId = await ConversationPipeline.CreateTurnAndUserMessageAsync(ConversationId!.Value, userName, msg, UseThinkingMode, _sendCts!.Token);
+        _ = RunStreamingLoopAsync(turnId, msg, userName);
     }
 
-    private async Task RunStreamingLoopAsync(Guid turnId, string msg)
+    private async Task RunStreamingLoopAsync(Guid turnId, string msg, string userName)
     {
         var persisted = false;
+        var channel = System.Threading.Channels.Channel.CreateUnbounded<StreamUpdate>();
+        var sink = new ChannelStreamSink(channel.Writer);
+#pragma warning disable CS4014
+        var runTask = ConversationPipeline.StreamResponseAndCompleteAsync(ConversationId!.Value, turnId, msg, UseThinkingMode, sink, _sendCts!.Token);
+        runTask.ContinueWith(_ => channel.Writer.Complete());
+#pragma warning restore CS4014
+
         try
         {
-            await foreach (var update in AgentSvc.SendMessageStreamingAsync(ConversationId!.Value, msg, UseThinkingMode)
-                .WithCancellation(_sendCts!.Token))
+            await foreach (var update in channel.Reader.ReadAllAsync(_sendCts.Token))
             {
                 _sendCts.Token.ThrowIfCancellationRequested();
                 switch (update)
@@ -176,50 +184,35 @@
                 _scrollToBottomRequested = true;
                 await InvokeAsync(StateHasChanged);
             }
-            var segments = BuildSegmentsForPersist();
-            await AgentSvc.CompleteTurnWithAssistantAsync(ConversationId!.Value, turnId, segments);
+            await runTask;
             persisted = true;
         }
         catch (OperationCanceledException)
         {
-            var segments = BuildSegmentsForPersist();
-            if (segments.Count > 0)
+            try
             {
-                try
-                {
-                    await AgentSvc.CompleteTurnWithAssistantAsync(ConversationId!.Value, turnId, segments);
-                    persisted = true;
-                }
-                catch (Exception persistEx)
-                {
-                    Log.LogError(persistEx, "Failed to persist partial reply for turn {TurnId}", turnId);
-                }
+                await ConversationPipeline.CompleteTurnWithErrorAsync(ConversationId!.Value, turnId, "Stopped by user.", CancellationToken.None);
+                persisted = true;
             }
-            else
+            catch (Exception persistEx)
             {
-                try
-                {
-                    await AgentSvc.CompleteTurnWithErrorAsync(ConversationId!.Value, turnId, "Stopped by user.");
-                    persisted = true;
-                }
-                catch (Exception persistEx)
-                {
-                    Log.LogError(persistEx, "Failed to persist stop message for turn {TurnId}", turnId);
-                }
+                Log.LogError(persistEx, "Failed to persist stop message for turn {TurnId}", turnId);
             }
+            channel.Writer.Complete();
         }
         catch (Exception ex)
         {
             await InvokeAsync(() => Snackbar.Add($"Error: {ex.Message}", Severity.Error));
             try
             {
-                await AgentSvc.CompleteTurnWithErrorAsync(ConversationId!.Value, turnId, ex.Message);
+                await ConversationPipeline.CompleteTurnWithErrorAsync(ConversationId!.Value, turnId, ex.Message, CancellationToken.None);
                 persisted = true;
             }
             catch (Exception persistEx)
             {
                 Log.LogError(persistEx, "Failed to persist error message for turn {TurnId}", turnId);
             }
+            channel.Writer.Complete();
         }
         finally
         {
