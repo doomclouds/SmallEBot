@@ -22,6 +22,7 @@ builder.Services.AddScoped<ISkillsConfigService, SkillsConfigService>();
 builder.Services.AddScoped<IMcpToolsLoaderService, McpToolsLoaderService>();
 builder.Services.AddScoped<IAgentContextFactory, AgentContextFactory>();
 builder.Services.AddSingleton<IBuiltInToolFactory, BuiltInToolFactory>();
+builder.Services.AddScoped<IMcpToolFactory, McpToolFactory>();
 builder.Services.AddScoped<ConversationService>();
 builder.Services.AddScoped<AgentService>();
 builder.Services.AddScoped<UserNameService>();
