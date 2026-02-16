@@ -110,8 +110,6 @@
     /// <summary>Bubble count at start of Send(); used to detect when parent has refreshed with new turn so we clear streaming without a visible flash.</summary>
     private int _bubbleCountBeforeSend;
     private CancellationTokenSource? _sendCts;
-    private int _lastInputTokenCount;
-    private int _lastOutputTokenCount;
     private string _contextPercentText = "0%";
 
     private void StopSend()
@@ -173,12 +171,6 @@
                     case ThinkStreamUpdate:
                     case ToolCallStreamUpdate:
                         _streamingUpdates.Add(update);
-                        break;
-                    case UsageStreamUpdate u:
-                        _lastInputTokenCount = u.InputTokenCount;
-                        _lastOutputTokenCount = u.OutputTokenCount;
-                        var cap = AgentSvc.GetContextWindowTokens();
-                        _contextPercentText = cap > 0 ? $"{u.InputTokenCount * 100.0 / cap:F1}%" : "0%";
                         break;
                 }
                 _scrollToBottomRequested = true;

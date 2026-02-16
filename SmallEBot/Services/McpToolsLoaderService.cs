@@ -1,4 +1,3 @@
-using Microsoft.Extensions.AI;
 using ModelContextProtocol.Client;
 using SmallEBot.Models;
 
@@ -57,9 +56,8 @@ public class McpToolsLoaderService : IMcpToolsLoaderService
                 if (entry.Headers is { Count: > 0 })
                 {
                     var httpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
-                    foreach (var h in entry.Headers)
+                    foreach (var h in entry.Headers.Where(h => !string.IsNullOrEmpty(h.Key)))
                     {
-                        if (string.IsNullOrEmpty(h.Key)) continue;
                         httpClient.DefaultRequestHeaders.TryAddWithoutValidation(h.Key, h.Value ?? "");
                     }
                     transport = new HttpClientTransport(options, httpClient, ownsHttpClient: true);
@@ -86,8 +84,7 @@ public class McpToolsLoaderService : IMcpToolsLoaderService
                     var task = (Task)promptsMethod.Invoke(mcpClient, [ct])!;
                     await task;
                     var resultProp = task.GetType().GetProperty("Result");
-                    var result = resultProp?.GetValue(task) as IReadOnlyList<dynamic>;
-                    if (result != null)
+                    if (resultProp?.GetValue(task) is IReadOnlyList<dynamic> result)
                         prompts = result.Select(p => new McpPromptInfo((string)p.Name, (string?)p.Description)).ToList();
                 }
             }

@@ -14,7 +14,6 @@ public record McpEntryWithSource(string Id, McpServerEntry Entry, bool IsSystem,
 
 public interface IMcpConfigService
 {
-    string AgentsDirectoryPath { get; }
     Task<IReadOnlyList<McpEntryWithSource>> GetAllAsync(CancellationToken ct = default);
     Task<IReadOnlyDictionary<string, McpServerEntry>> GetUserMcpAsync(CancellationToken ct = default);
     Task SaveUserMcpAsync(IReadOnlyDictionary<string, McpServerEntry> userMcp, CancellationToken ct = default);
@@ -22,7 +21,7 @@ public interface IMcpConfigService
     Task SetDisabledSystemIdsAsync(IReadOnlyList<string> ids, CancellationToken ct = default);
 }
 
-public class McpConfigService : IMcpConfigService
+public class McpConfigService(ILogger<McpConfigService> log) : IMcpConfigService
 {
     private const string SysFileName = ".sys.mcp.json";
     private const string UserFileName = ".mcp.json";
@@ -34,31 +33,20 @@ public class McpConfigService : IMcpConfigService
     };
     private static readonly JsonSerializerOptions ReadOptions = new() { PropertyNameCaseInsensitive = true };
 
-    private readonly string _agentsPath;
-    private readonly ILogger<McpConfigService> _log;
-
-    public McpConfigService(ILogger<McpConfigService> log)
-    {
-        _agentsPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, ".agents");
-        _log = log;
-    }
-
-    public string AgentsDirectoryPath => _agentsPath;
+    private string AgentsDirectoryPath { get; } = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, ".agents");
 
     public async Task<IReadOnlyList<McpEntryWithSource>> GetAllAsync(CancellationToken ct = default)
     {
         var system = await LoadSystemJsonAsync(ct);
         var (userServers, disabledSystemIds) = await LoadUserMcpFileAsync(ct);
         var disabledSet = disabledSystemIds.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var list = new List<McpEntryWithSource>();
-        foreach (var kv in system)
-            list.Add(new McpEntryWithSource(kv.Key, kv.Value, IsSystem: true, IsEnabled: !disabledSet.Contains(kv.Key)));
-        foreach (var kv in userServers)
-        {
-            if (system.ContainsKey(kv.Key)) continue;
-            var isEnabled = kv.Value.Enabled ?? true;
-            list.Add(new McpEntryWithSource(kv.Key, kv.Value, IsSystem: false, IsEnabled: isEnabled));
-        }
+        var list = system.Select(kv =>
+                new McpEntryWithSource(kv.Key, kv.Value, IsSystem: true, IsEnabled: !disabledSet.Contains(kv.Key)))
+            .ToList();
+        list.AddRange(from kv in userServers
+            where !system.ContainsKey(kv.Key)
+            let isEnabled = kv.Value.Enabled ?? true
+            select new McpEntryWithSource(kv.Key, kv.Value, IsSystem: false, IsEnabled: isEnabled));
         return list;
     }
 
@@ -90,7 +78,7 @@ public class McpConfigService : IMcpConfigService
         var (servers, _) = await LoadUserMcpFileAsync(ct);
         var file = new UserMcpFile
         {
-            DisabledSystemIds = ids?.ToList() ?? [],
+            DisabledSystemIds = ids.ToList(),
             Servers = servers.ToDictionary(k => k.Key, v => v.Value)
         };
         await SaveUserMcpFileAsync(file, ct);
@@ -98,12 +86,13 @@ public class McpConfigService : IMcpConfigService
 
     private async Task<Dictionary<string, McpServerEntry>> LoadSystemJsonAsync(CancellationToken ct)
     {
-        return await LoadJsonAsync(Path.Combine(_agentsPath, SysFileName), ct);
+        return await LoadJsonAsync(Path.Combine(AgentsDirectoryPath, SysFileName), ct);
     }
 
-    private async Task<(IReadOnlyDictionary<string, McpServerEntry> Servers, IReadOnlyList<string> DisabledSystemIds)> LoadUserMcpFileAsync(CancellationToken ct)
+    private async Task<(IReadOnlyDictionary<string, McpServerEntry> Servers, IReadOnlyList<string> DisabledSystemIds)> 
+        LoadUserMcpFileAsync(CancellationToken ct)
     {
-        var path = Path.Combine(_agentsPath, UserFileName);
+        var path = Path.Combine(AgentsDirectoryPath, UserFileName);
         if (!File.Exists(path))
             return (new Dictionary<string, McpServerEntry>(), []);
 
@@ -123,15 +112,15 @@ public class McpConfigService : IMcpConfigService
         }
         catch (Exception ex)
         {
-            _log.LogWarning(ex, "Failed to load user MCP config from {Path}", path);
+            log.LogWarning(ex, "Failed to load user MCP config from {Path}", path);
             return (new Dictionary<string, McpServerEntry>(), []);
         }
     }
 
     private async Task SaveUserMcpFileAsync(UserMcpFile file, CancellationToken ct)
     {
-        Directory.CreateDirectory(_agentsPath);
-        var path = Path.Combine(_agentsPath, UserFileName);
+        Directory.CreateDirectory(AgentsDirectoryPath);
+        var path = Path.Combine(AgentsDirectoryPath, UserFileName);
         var json = JsonSerializer.Serialize(file, JsonOptions);
         await File.WriteAllTextAsync(path, json, ct);
     }
@@ -147,7 +136,7 @@ public class McpConfigService : IMcpConfigService
         }
         catch (Exception ex)
         {
-            _log.LogWarning(ex, "Failed to load MCP config from {Path}", path);
+            log.LogWarning(ex, "Failed to load MCP config from {Path}", path);
             return new Dictionary<string, McpServerEntry>();
         }
     }

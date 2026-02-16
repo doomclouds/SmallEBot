@@ -47,26 +47,25 @@ public class AgentService(
 
         var allEntries = await mcpConfig.GetAllAsync(ct);
 
-        foreach (var item in allEntries)
+        foreach (var (id, entry, _, isEnabled) in allEntries)
         {
-            if (!item.IsEnabled) continue;
+            if (!isEnabled) continue;
 
-            var entry = item.Entry;
             var isStdio = "stdio".Equals(entry.Type, StringComparison.OrdinalIgnoreCase)
-                || (string.IsNullOrEmpty(entry.Type) && !string.IsNullOrEmpty(entry.Command));
+                          || (string.IsNullOrEmpty(entry.Type) && !string.IsNullOrEmpty(entry.Command));
 
             if (isStdio)
             {
                 if (string.IsNullOrEmpty(entry.Command))
                 {
-                    log.LogWarning("MCP stdio server '{Name}' has no command, skipped.", item.Id);
+                    log.LogWarning("MCP stdio server '{Name}' has no command, skipped.", id);
                     continue;
                 }
                 try
                 {
                     var transport = new StdioClientTransport(new StdioClientTransportOptions
                     {
-                        Name = item.Id,
+                        Name = id,
                         Command = entry.Command,
                         Arguments = entry.Args ?? [],
                         EnvironmentVariables = entry.Env ?? new Dictionary<string, string?>()
@@ -75,11 +74,11 @@ public class AgentService(
                     _mcpClients.Add(mcpClient);
                     var mcpTools = await mcpClient.ListToolsAsync(cancellationToken: ct);
                     tools.AddRange(mcpTools);
-                    log.LogInformation("MCP stdio server '{Name}' ({Command}) loaded with {Count} tools.", item.Id, entry.Command, mcpTools.Count);
+                    log.LogInformation("MCP stdio server '{Name}' ({Command}) loaded with {Count} tools.", id, entry.Command, mcpTools.Count);
                 }
                 catch (Exception ex)
                 {
-                    log.LogWarning(ex, "Failed to load MCP stdio server '{Name}' (command: {Command}), skipping.", item.Id, entry.Command);
+                    log.LogWarning(ex, "Failed to load MCP stdio server '{Name}' (command: {Command}), skipping.", id, entry.Command);
                 }
                 continue;
             }
@@ -88,7 +87,7 @@ public class AgentService(
             {
                 if (string.IsNullOrEmpty(entry.Url))
                 {
-                    log.LogWarning("MCP http server '{Name}' has no url, skipped.", item.Id);
+                    log.LogWarning("MCP http server '{Name}' has no url, skipped.", id);
                     continue;
                 }
                 try
@@ -118,11 +117,11 @@ public class AgentService(
                     _mcpClients.Add(mcpClient);
                     var mcpTools = await mcpClient.ListToolsAsync(cancellationToken: ct);
                     tools.AddRange(mcpTools);
-                    log.LogInformation("MCP http server '{Name}' at {Url} loaded with {Count} tools.", item.Id, entry.Url, mcpTools.Count);
+                    log.LogInformation("MCP http server '{Name}' at {Url} loaded with {Count} tools.", id, entry.Url, mcpTools.Count);
                 }
                 catch (Exception ex)
                 {
-                    log.LogWarning(ex, "Failed to load MCP http server '{Name}' at {Url}, skipping.", item.Id, entry.Url);
+                    log.LogWarning(ex, "Failed to load MCP http server '{Name}' at {Url}, skipping.", id, entry.Url);
                 }
             }
         }
@@ -189,7 +188,7 @@ public class AgentService(
     private static string GetCurrentTime() => DateTime.UtcNow.ToString("O");
 
     [Description("Read a text file under the current run directory. Pass path relative to the app directory (e.g. .agents/sys.skills/weekly-report-generator/SKILL.md or .agents/skills/my-skill/script.py). Only allowed extensions: .md, .cs, .py, .txt, .json, .yml, .yaml.")]
-    private string ReadFile(string path)
+    private static string ReadFile(string path)
     {
         if (string.IsNullOrWhiteSpace(path)) return "Error: path is required.";
         var baseDir = Path.GetFullPath(AppDomain.CurrentDomain.BaseDirectory);
@@ -237,8 +236,7 @@ public class AgentService(
         var json = SerializeRequestJsonForTokenCount(systemPrompt, messages);
         var rawTokens = tokenizer.CountTokens(json);
         var withBuffer = (int)Math.Ceiling(rawTokens * 1.05);
-        var cap = _contextWindowTokens;
-        var ratio = cap <= 0 ? 0.0 : Math.Min(1.0, withBuffer / (double)cap);
+        var ratio = _contextWindowTokens <= 0 ? 0.0 : Math.Min(1.0, withBuffer / (double)_contextWindowTokens);
         return Math.Round(ratio, 3);
     }
 
@@ -248,7 +246,7 @@ public class AgentService(
         var payload = new RequestPayloadForTokenCount
         {
             System = systemPrompt,
-            Messages = messages.Select(m => new MessageItemForTokenCount { Role = m.Role, Content = m.Content ?? "" }).ToList()
+            Messages = messages.Select(m => new MessageItemForTokenCount { Role = m.Role, Content = m.Content }).ToList()
         };
         return JsonSerializer.Serialize(payload);
     }
@@ -259,7 +257,7 @@ public class AgentService(
         public string System { get; set; } = "";
 
         [JsonPropertyName("messages")]
-        public List<MessageItemForTokenCount> Messages { get; set; } = new List<MessageItemForTokenCount>();
+        public List<MessageItemForTokenCount> Messages { get; set; } = [];
     }
 
     private sealed class MessageItemForTokenCount
@@ -312,12 +310,6 @@ public class AgentService(
             else if (!string.IsNullOrEmpty(update.Text))
             {
                 yield return new TextStreamUpdate(update.Text);
-            }
-
-            var usage = update.GetType().GetProperty("Usage")?.GetValue(update) as Microsoft.Extensions.AI.UsageDetails;
-            if (usage != null)
-            {
-                yield return new UsageStreamUpdate((int)(usage.InputTokenCount ?? 0), (int)(usage.OutputTokenCount ?? 0));
             }
         }
     }

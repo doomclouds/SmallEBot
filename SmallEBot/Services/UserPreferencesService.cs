@@ -7,7 +7,7 @@ namespace SmallEBot.Services;
 /// Persists and loads theme, username, useThinkingMode, and showToolCalls in a single JSON file.
 /// Path: AppDomain.CurrentDomain.BaseDirectory (same as DB and MCP config).
 /// </summary>
-public class UserPreferencesService()
+public class UserPreferencesService
 {
     private const string FileName = "smallebot-settings.json";
     private const string LegacyUserNameFileName = "smallebot-username.txt";
@@ -42,8 +42,7 @@ public class UserPreferencesService()
                 }
             }
 
-            if (loaded == null)
-                loaded = new SmallEBotSettings();
+            loaded ??= new SmallEBotSettings();
 
             // Migrate from legacy smallebot-username.txt if new file had no username
             if (string.IsNullOrWhiteSpace(loaded.UserName) && File.Exists(_legacyUserNamePath))
@@ -79,7 +78,7 @@ public class UserPreferencesService()
         try
         {
             var current = _cached ?? await LoadInternalAsync(ct);
-            if (_cached == null) _cached = current;
+            _cached ??= current;
             current.Theme = string.IsNullOrEmpty(themeId) ? SmallEBotSettings.DefaultThemeId : themeId;
             await SaveInternalAsync(current, ct);
         }
@@ -96,7 +95,7 @@ public class UserPreferencesService()
         try
         {
             var current = _cached ?? await LoadInternalAsync(ct);
-            if (_cached == null) _cached = current;
+            _cached ??= current;
             current.UseThinkingMode = value;
             await SaveInternalAsync(current, ct);
         }
@@ -113,7 +112,7 @@ public class UserPreferencesService()
         try
         {
             var current = _cached ?? await LoadInternalAsync(ct);
-            if (_cached == null) _cached = current;
+            _cached ??= current;
             current.ShowToolCalls = value;
             await SaveInternalAsync(current, ct);
         }
@@ -137,7 +136,7 @@ public class UserPreferencesService()
         try
         {
             var current = _cached ?? await LoadInternalAsync(ct);
-            if (_cached == null) _cached = current;
+            _cached ??= current;
             current.UserName = userName?.Trim() ?? "";
             await SaveInternalAsync(current, ct);
         }

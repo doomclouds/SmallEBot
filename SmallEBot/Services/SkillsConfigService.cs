@@ -4,33 +4,22 @@ namespace SmallEBot.Services;
 
 public interface ISkillsConfigService
 {
-    string AgentsDirectoryPath { get; }
     Task<IReadOnlyList<SkillMetadata>> GetAllAsync(CancellationToken ct = default);
     Task<IReadOnlyList<SkillMetadata>> GetMetadataForAgentAsync(CancellationToken ct = default);
     Task AddUserSkillAsync(string id, string name, string description, string? body = null, CancellationToken ct = default);
     Task DeleteUserSkillAsync(string id, CancellationToken ct = default);
-    Task ImportUserSkillFromFolderAsync(string sourceFolderPath, string? id = null, CancellationToken ct = default);
     Task ImportUserSkillFromFileContentsAsync(string? id, IReadOnlyDictionary<string, string> fileContents, CancellationToken ct = default);
     /// <summary>Returns the raw content of SKILL.md for the given skill id, or null if not found.</summary>
     Task<string?> GetSkillContentAsync(string id, CancellationToken ct = default);
 }
 
-public class SkillsConfigService : ISkillsConfigService
+public class SkillsConfigService(ILogger<SkillsConfigService> log) : ISkillsConfigService
 {
     private const string SysSkillsDir = "sys.skills";
     private const string UserSkillsDir = "skills";
     private const string SkillFileName = "SKILL.md";
 
-    private readonly string _agentsPath;
-    private readonly ILogger<SkillsConfigService> _log;
-
-    public SkillsConfigService(ILogger<SkillsConfigService> log)
-    {
-        _agentsPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, ".agents");
-        _log = log;
-    }
-
-    public string AgentsDirectoryPath => _agentsPath;
+    private string AgentsDirectoryPath { get; } = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, ".agents");
 
     public Task<IReadOnlyList<SkillMetadata>> GetAllAsync(CancellationToken ct = default) =>
         GetMetadataInternalAsync(includeSystem: true, includeUser: true, ct);
@@ -43,12 +32,12 @@ public class SkillsConfigService : ISkillsConfigService
         var list = new List<SkillMetadata>();
         if (includeSystem)
         {
-            var sysPath = Path.Combine(_agentsPath, SysSkillsDir);
+            var sysPath = Path.Combine(AgentsDirectoryPath, SysSkillsDir);
             await AddSkillsFromDirectoryAsync(sysPath, isSystem: true, list, ct);
         }
         if (includeUser)
         {
-            var userPath = Path.Combine(_agentsPath, UserSkillsDir);
+            var userPath = Path.Combine(AgentsDirectoryPath, UserSkillsDir);
             await AddSkillsFromDirectoryAsync(userPath, isSystem: false, list, ct);
         }
         return list;
@@ -73,7 +62,7 @@ public class SkillsConfigService : ISkillsConfigService
             }
             catch (Exception ex)
             {
-                _log.LogDebug(ex, "Skip skill dir {Dir}: no valid frontmatter", dir);
+                log.LogDebug(ex, "Skip skill dir {Dir}: no valid frontmatter", dir);
             }
         }
     }
@@ -81,24 +70,26 @@ public class SkillsConfigService : ISkillsConfigService
     public async Task AddUserSkillAsync(string id, string name, string description, string? body = null, CancellationToken ct = default)
     {
         var safeId = SanitizeSkillId(id);
-        var userPath = Path.Combine(_agentsPath, UserSkillsDir);
+        var userPath = Path.Combine(AgentsDirectoryPath, UserSkillsDir);
         Directory.CreateDirectory(userPath);
         var skillDir = Path.Combine(userPath, safeId);
         if (Directory.Exists(skillDir))
             throw new InvalidOperationException($"Skill id already exists: {safeId}");
         Directory.CreateDirectory(skillDir);
         var bodyContent = string.IsNullOrWhiteSpace(body) ? "\n# " + name + "\n" : "\n" + body.Trim() + "\n";
-        var content = $@"---
-name: {EscapeFrontmatterValue(name)}
-description: {EscapeFrontmatterValue(description)}
----
-{bodyContent}";
+        var content = $"""
+                       ---
+                       name: {EscapeFrontmatterValue(name)}
+                       description: {EscapeFrontmatterValue(description)}
+                       ---
+                       {bodyContent}
+                       """;
         await File.WriteAllTextAsync(Path.Combine(skillDir, SkillFileName), content, ct);
     }
 
     public async Task DeleteUserSkillAsync(string id, CancellationToken ct = default)
     {
-        var userPath = Path.Combine(_agentsPath, UserSkillsDir);
+        var userPath = Path.Combine(AgentsDirectoryPath, UserSkillsDir);
         var skillDir = Path.GetFullPath(Path.Combine(userPath, id));
         var userRoot = Path.GetFullPath(userPath);
         if (!skillDir.StartsWith(userRoot, StringComparison.OrdinalIgnoreCase) || skillDir.Length <= userRoot.Length)
@@ -115,7 +106,7 @@ description: {EscapeFrontmatterValue(description)}
             throw new DirectoryNotFoundException($"Source folder not found: {src}");
         var skillId = id ?? Path.GetFileName(src.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
         var safeId = SanitizeSkillId(skillId);
-        var userPath = Path.Combine(_agentsPath, UserSkillsDir);
+        var userPath = Path.Combine(AgentsDirectoryPath, UserSkillsDir);
         Directory.CreateDirectory(userPath);
         var destDir = Path.Combine(userPath, safeId);
         if (Directory.Exists(destDir))
@@ -139,20 +130,19 @@ description: {EscapeFrontmatterValue(description)}
         {
             var path = kv.Key.Replace('\\', Path.DirectorySeparatorChar).Trim();
             if (string.IsNullOrEmpty(path)) continue;
-            normalized[path] = kv.Value ?? "";
+            normalized[path] = kv.Value;
         }
         if (!normalized.ContainsKey(SkillFileName))
             throw new InvalidOperationException("Source folder must contain SKILL.md.");
         var safeId = SanitizeSkillId(id ?? "imported-skill");
-        var userPath = Path.Combine(_agentsPath, UserSkillsDir);
+        var userPath = Path.Combine(AgentsDirectoryPath, UserSkillsDir);
         Directory.CreateDirectory(userPath);
         var destDir = Path.Combine(userPath, safeId);
         if (Directory.Exists(destDir))
             Directory.Delete(destDir, recursive: true);
         Directory.CreateDirectory(destDir);
-        foreach (var kv in normalized)
+        foreach (var (relativePath, value) in normalized)
         {
-            var relativePath = kv.Key;
             var fullPath = Path.GetFullPath(Path.Combine(destDir, relativePath));
             var destRoot = Path.GetFullPath(destDir);
             if (!fullPath.StartsWith(destRoot, StringComparison.OrdinalIgnoreCase))
@@ -160,17 +150,17 @@ description: {EscapeFrontmatterValue(description)}
             var dir = Path.GetDirectoryName(fullPath);
             if (!string.IsNullOrEmpty(dir))
                 Directory.CreateDirectory(dir);
-            await File.WriteAllTextAsync(fullPath, kv.Value, ct);
+            await File.WriteAllTextAsync(fullPath, value, ct);
         }
     }
 
     public async Task<string?> GetSkillContentAsync(string id, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(id)) return null;
-        var sysPath = Path.Combine(_agentsPath, SysSkillsDir, id.Trim(), SkillFileName);
+        var sysPath = Path.Combine(AgentsDirectoryPath, SysSkillsDir, id.Trim(), SkillFileName);
         if (File.Exists(sysPath))
             return await File.ReadAllTextAsync(sysPath, ct);
-        var userPath = Path.Combine(_agentsPath, UserSkillsDir, id.Trim(), SkillFileName);
+        var userPath = Path.Combine(AgentsDirectoryPath, UserSkillsDir, id.Trim(), SkillFileName);
         if (File.Exists(userPath))
             return await File.ReadAllTextAsync(userPath, ct);
         return null;

@@ -120,6 +120,6 @@ public class CharEstimateTokenizer : ITokenizer
 {
     public List<int> Encode(string text) => throw new NotSupportedException("CharEstimateTokenizer does not support Encode.");
     public string Decode(List<int> tokens) => throw new NotSupportedException("CharEstimateTokenizer does not support Decode.");
-    public int CountTokens(string text) => (int)Math.Ceiling((text?.Length ?? 0) / 4.0);
+    public int CountTokens(string text) => (int)Math.Ceiling(text.Length / 4.0);
 }
 
