@@ -32,8 +32,13 @@ public sealed class AgentBuilder(
     {
         var instructions = await contextFactory.BuildSystemPromptAsync(ct);
 
-        if (useThinking && _agentWithThinking != null) return _agentWithThinking;
-        if (!useThinking && _agent != null) return _agent;
+        switch (useThinking)
+        {
+            case true when _agentWithThinking != null:
+                return _agentWithThinking;
+            case false when _agent != null:
+                return _agent;
+        }
 
         if (_allTools == null)
         {

@@ -69,7 +69,7 @@ public class DeepSeekTokenizer : ITokenizer, IDisposable
     {
         if (string.IsNullOrEmpty(text))
         {
-            return new List<int>();
+            return [];
         }
         
         // Tokenizers.DotNet Encode returns uint[], need to convert to List<int>

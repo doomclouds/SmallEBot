@@ -32,7 +32,7 @@ public sealed class AgentContextFactory(ISkillsConfigService skillsConfig) : IAg
     {
         if (skills.Count == 0) return "";
         var sb = new System.Text.StringBuilder();
-        sb.AppendLine("You have access to the following skills. Each has an id and a short description. To read a skill's content, use the ReadFile tool with a path relative to the run directory (e.g. .agents/sys.skills/<id>/SKILL.md or .agents/skills/<id>/...). ReadFile can read any file under the run directory with allowed extensions (.md, .cs, .py, .txt, .json, .yml, .yaml).");
+        sb.AppendLine("You have access to the following skills. Each has an id and a short description. To read a skill's SKILL.md, use the ReadSkill tool with the skill id (e.g. ReadSkill(\"weekly-report-generator\")); it looks in both system and user skill directories. To read other files inside a skill or elsewhere, use ReadFile with a path relative to the run directory (e.g. .agents/sys.skills/<id>/references/foo.md). ReadFile allows extensions: .md, .cs, .py, .txt, .json, .yml, .yaml.");
         sb.AppendLine();
         foreach (var s in skills)
             sb.AppendLine($"- {s.Id}: {s.Name} — {s.Description}");

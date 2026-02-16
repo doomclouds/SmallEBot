@@ -2,9 +2,9 @@
 
 > **Reference:** Design `docs/plans/2026-02-15-agent-refactor-design.md`.
 
-**Goal:** Split the monolith `AgentService` into: context factory (system prompt + skills), built-in tool factory, MCP tool factory, agent assembly, and chat module. UI and config dialogs keep calling the chat module (can remain type name `AgentService`); assembly composes context + tools and caches agent.
+**Goal:** Split the monolith `AgentService` into: context factory (system prompt + skills), built-in tool factory, MCP tool factory, agent builder, and chat module. UI and config dialogs keep calling the chat module (can remain type name `AgentService`); builder composes context + tools and caches agent.
 
-**Order:** Add factories and assembly first; then refactor `AgentService` into the chat module that uses assembly; finally wire DI. Each task ends with build and optional commit.
+**Order:** Add factories and builder first; then refactor `AgentService` into the chat module that uses builder; finally wire DI. Each task ends with build and optional commit.
 
 **Tech:** .NET 10, existing Anthropic/MCP/Skills stack. No new NuGet. `IMcpToolsLoaderService` stays for config UI; new `IMcpToolFactory` for agent tool loading (returns AITool[] + clients to hold).
 
@@ -74,21 +74,21 @@
 
 ---
 
-## Task 4: Agent assembly
+## Task 4: Agent Builder
 
 **Files:**
-- Create: `SmallEBot/Services/AgentAssembly.cs` (interface + implementation)
+- Create: `SmallEBot/Services/AgentBuilder.cs` (interface + implementation)
 
 **Steps:**
 
-1. Add `IAgentAssembly` with:
+1. Add `IAgentBuilder` with:
    - `Task<AIAgent> GetOrCreateAgentAsync(bool useThinking, CancellationToken ct)`
    - `Task InvalidateAsync()`
    - `int GetContextWindowTokens()`
    - `string? GetCachedSystemPromptForTokenCount()`
 
-2. Implement `AgentAssembly`:
-   - Inject `IAgentContextFactory`, `IBuiltInToolFactory`, `IMcpToolFactory`, `IConfiguration`, `ILogger<AgentAssembly>`.
+2. Implement `AgentBuilder`:
+   - Inject `IAgentContextFactory`, `IBuiltInToolFactory`, `IMcpToolFactory`, `IConfiguration`, `ILogger<AgentBuilder>`.
    - Fields: `AIAgent? _agent`, `AIAgent? _agentWithThinking`, `List<IAsyncDisposable>? _mcpClients`, `int _contextWindowTokens` from config (e.g. `DeepSeek:ContextWindowTokens`, 128000).
    - `GetOrCreateAgentAsync(useThinking, ct)`:
      - Get system prompt: `await _contextFactory.BuildSystemPromptAsync(ct)` (this populates context factory cache).
@@ -100,9 +100,9 @@
    - `GetContextWindowTokens()`: return _contextWindowTokens.
    - `GetCachedSystemPromptForTokenCount()`: return _contextFactory.GetCachedSystemPrompt() (so Chat module can use for estimation).
 
-3. Register in `Program.cs`: `builder.Services.AddScoped<IAgentAssembly, AgentAssembly>()`.
+3. Register in `Program.cs`: `builder.Services.AddScoped<IAgentBuilder, AgentBuilder>()`.
 
-4. Build and verify. Optional: commit `feat(agent): add AgentAssembly composing context and tools`.
+4. Build and verify. Optional: commit `feat(agent): add AgentBuilder composing context and tools`.
 
 ---
 
@@ -116,23 +116,23 @@
 
 1. (Optional) Define `IChatAgentService` with the public surface used by UI: `CreateTurnAndUserMessageAsync`, `SendMessageStreamingAsync`, `CompleteTurnWithAssistantAsync`, `CompleteTurnWithErrorAsync`, `GetEstimatedContextUsageAsync`, `GetContextWindowTokens`, `InvalidateAgentAsync`. If you prefer minimal change, keep callers on `AgentService` and do not add the interface until later.
 
-2. Change `AgentService` constructor to depend on: `AppDbContext db`, `ConversationService convSvc`, `IAgentAssembly assembly`, `ITokenizer tokenizer`, `IConfiguration config`, `ILogger<AgentService> log`. Remove `IMcpConfigService`, `ISkillsConfigService` (no longer used here).
+2. Change `AgentService` constructor to depend on: `AppDbContext db`, `ConversationService convSvc`, `IAgentBuilder agentBuilder`, `ITokenizer tokenizer`, `IConfiguration config`, `ILogger<AgentService> log`. Remove `IMcpConfigService`, `ISkillsConfigService` (no longer used here).
 
 3. Remove from AgentService: `EnsureToolsAsync`, `BuildSkillsBlock`, `AgentInstructions` constant, `GetCurrentTime`, `ReadFile`, `ReadFileAllowedExtensions`, all MCP and agent-building logic. Remove fields: `_agent`, `_agentWithThinking`, `_mcpClients`, `_cachedInstructionsForTokenCount`.
 
 4. Implement by delegation:
-   - `InvalidateAgentAsync()` → `await _assembly.InvalidateAsync()`.
-   - `GetContextWindowTokens()` → `return _assembly.GetContextWindowTokens()`.
-   - `GetOrCreateAgentAsync` no longer exists; internally use `await _assembly.GetOrCreateAgentAsync(useThinking, ct)` wherever an agent is needed (see below).
-   - `SendMessageStreamingAsync`: get agent via `await _assembly.GetOrCreateAgentAsync(useThinking, ct)`; load history with `ChatMessageStoreAdapter`, build framework messages, run `agent.RunStreamingAsync(...)`, map content to `StreamUpdate` (same mapping as today). No direct tool or context building.
+   - `InvalidateAgentAsync()` → `await _agentBuilder.InvalidateAsync()`.
+   - `GetContextWindowTokens()` → `return _agentBuilder.GetContextWindowTokens()`.
+   - `GetOrCreateAgentAsync` no longer exists; internally use `await _agentBuilder.GetOrCreateAgentAsync(useThinking, ct)` wherever an agent is needed (see below).
+   - `SendMessageStreamingAsync`: get agent via `await _agentBuilder.GetOrCreateAgentAsync(useThinking, ct)`; load history with `ChatMessageStoreAdapter`, build framework messages, run `agent.RunStreamingAsync(...)`, map content to `StreamUpdate` (same mapping as today). No direct tool or context building.
    - `CreateTurnAndUserMessageAsync`, `CompleteTurnWithAssistantAsync`, `CompleteTurnWithErrorAsync`: keep current DB logic unchanged (they do not touch agent/tools).
-   - `GetEstimatedContextUsageAsync`: get system prompt from `_assembly.GetCachedSystemPromptForTokenCount()` (or base instructions if null); load messages with `ChatMessageStoreAdapter`; serialize to JSON (same `SerializeRequestJsonForTokenCount` + DTOs); tokenizer.CountTokens; divide by `_assembly.GetContextWindowTokens()`; return ratio. Keep `SerializeRequestJsonForTokenCount` and the two DTOs in AgentService (or move to a small static helper class).
-   - `GenerateTitleAsync`: get agent with `await _assembly.GetOrCreateAgentAsync(false, ct)`, then same prompt and RunAsync as today.
-   - `DisposeAsync`: no longer dispose DbContext (if it was; check current). Call `await _assembly.InvalidateAsync()` or nothing if assembly is not IDisposable; if AgentService holds no disposable beyond assembly, just suppress finalizer. Assembly owns MCP client disposal in InvalidateAsync.
+   - `GetEstimatedContextUsageAsync`: get system prompt from `_agentBuilder.GetCachedSystemPromptForTokenCount()` (or base instructions if null); load messages with `ChatMessageStoreAdapter`; serialize to JSON (same `SerializeRequestJsonForTokenCount` + DTOs); tokenizer.CountTokens; divide by `_agentBuilder.GetContextWindowTokens()`; return ratio. Keep `SerializeRequestJsonForTokenCount` and the two DTOs in AgentService (or move to a small static helper class).
+   - `GenerateTitleAsync`: get agent with `await _agentBuilder.GetOrCreateAgentAsync(false, ct)`, then same prompt and RunAsync as today.
+   - `DisposeAsync`: no longer dispose DbContext (if it was; check current). Call `await _agentBuilder.InvalidateAsync()` or nothing if builder is not IDisposable; if AgentService holds no disposable beyond builder, just suppress finalizer. Builder owns MCP client disposal in InvalidateAsync.
 
 5. Ensure `AgentService` no longer implements `IAsyncDisposable` if it has nothing to dispose; otherwise keep and dispose only what it owns. Check Program.cs: AgentService is scoped; DbContext is scoped—usually you do not dispose DbContext in a scoped service. Leave as-is if current code does not dispose db.
 
-6. Build and verify. Run app: send message, open Skills/MCP config, invalidate, send again. Optional: commit `refactor(agent): AgentService delegates to AgentAssembly and factories`.
+6. Build and verify. Run app: send message, open Skills/MCP config, invalidate, send again. Optional: commit `refactor(agent): AgentService delegates to AgentBuilder and factories`.
 
 ---
 
@@ -144,7 +144,7 @@
 
 **Steps:**
 
-1. In `Program.cs`, confirm registration order: `IAgentContextFactory`, `IBuiltInToolFactory`, `IMcpToolFactory`, `IAgentAssembly`, then `AgentService`. All scoped except BuiltInToolFactory (singleton).
+1. In `Program.cs`, confirm registration order: `IAgentContextFactory`, `IBuiltInToolFactory`, `IMcpToolFactory`, `IAgentBuilder`, then `AgentService`. All scoped except BuiltInToolFactory (singleton).
 
 2. Confirm no caller uses `AgentService` for anything other than the chat-module API (CreateTurn, SendMessageStreaming, CompleteTurn, GetEstimatedContextUsage, GetContextWindowTokens, InvalidateAgentAsync). If any code referenced internal helpers, remove or replace.
 
@@ -156,7 +156,7 @@
 
 ## Checkpoints
 
-- After Task 4: Assembly can be unit-tested or exercised in isolation (e.g. minimal console or test that builds agent and runs one message).
+- After Task 4: Builder can be unit-tested or exercised in isolation (e.g. minimal console or test that builds agent and runs one message).
 - After Task 5: Existing UI and config flows work without change; only backend structure changed.
 - After Task 6: No regressions; refactor complete.
 

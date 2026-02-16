@@ -3,7 +3,7 @@ using Microsoft.Extensions.AI;
 
 namespace SmallEBot.Services;
 
-/// <summary>Creates built-in AITools (GetCurrentTime, ReadFile) for the agent.</summary>
+/// <summary>Creates built-in AITools (GetCurrentTime, ReadFile, ReadSkill) for the agent.</summary>
 public interface IBuiltInToolFactory
 {
     AITool[] CreateTools();
@@ -19,7 +19,8 @@ public sealed class BuiltInToolFactory : IBuiltInToolFactory
     public AITool[] CreateTools() =>
     [
         AIFunctionFactory.Create(GetCurrentTime),
-        AIFunctionFactory.Create(ReadFile)
+        AIFunctionFactory.Create(ReadFile),
+        AIFunctionFactory.Create(ReadSkill)
     ];
 
     [Description("Get the current UTC date and time in ISO 8601 format.")]
@@ -46,5 +47,31 @@ public sealed class BuiltInToolFactory : IBuiltInToolFactory
         {
             return "Error: " + ex.Message;
         }
+    }
+
+    [Description("Read a skill's SKILL.md by skill name (id). Looks under system skills (.agents/sys.skills/<name>/SKILL.md) then user skills (.agents/skills/<name>/SKILL.md). Pass only the skill id, e.g. 'weekly-report-generator' or 'my-skill'.")]
+    private static string ReadSkill(string skillName)
+    {
+        if (string.IsNullOrWhiteSpace(skillName))
+            return "Error: skill name is required.";
+        var id = skillName.Trim();
+        if (id.IndexOfAny(['/', '\\']) >= 0 || id.Contains("..", StringComparison.Ordinal))
+            return "Error: skill name must not contain path separators or '..'.";
+        var baseDir = Path.GetFullPath(AppDomain.CurrentDomain.BaseDirectory);
+        var sysPath = Path.GetFullPath(Path.Combine(baseDir, ".agents", "sys.skills", id, "SKILL.md"));
+        var userPath = Path.GetFullPath(Path.Combine(baseDir, ".agents", "skills", id, "SKILL.md"));
+        if (!sysPath.StartsWith(baseDir, StringComparison.OrdinalIgnoreCase) || !userPath.StartsWith(baseDir, StringComparison.OrdinalIgnoreCase))
+            return "Error: invalid skill path.";
+        if (File.Exists(sysPath))
+        {
+            try { return File.ReadAllText(sysPath); }
+            catch (Exception ex) { return "Error: " + ex.Message; }
+        }
+        if (File.Exists(userPath))
+        {
+            try { return File.ReadAllText(userPath); }
+            catch (Exception ex) { return "Error: " + ex.Message; }
+        }
+        return "Error: skill not found. Check the skill name (id) under .agents/sys.skills/ or .agents/skills/.";
     }
 }
