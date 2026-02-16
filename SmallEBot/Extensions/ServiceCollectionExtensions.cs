@@ -9,7 +9,6 @@ using SmallEBot.Services.Conversation;
 using SmallEBot.Services.Mcp;
 using SmallEBot.Services.Presentation;
 using SmallEBot.Services.Skills;
-using SmallEBot.Services.Streaming;
 using SmallEBot.Services.User;
 
 namespace SmallEBot.Extensions;
@@ -19,13 +18,9 @@ public static class ServiceCollectionExtensions
     /// <summary>Registers all SmallEBot Host services: DbContext, repositories, Application pipeline, MCP, Skills, Agent, and UI services.</summary>
     public static IServiceCollection AddSmallEBotHostServices(this IServiceCollection services, IConfiguration configuration)
     {
-        var connectionString = configuration.GetConnectionString("DefaultConnection");
-        if (string.IsNullOrEmpty(connectionString))
-        {
-            var baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            var dbPath = Path.Combine(baseDir, "smallebot.db");
-            connectionString = $"Data Source={dbPath}";
-        }
+        var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+        var dbPath = Path.Combine(baseDir, "smallebot.db");
+        var connectionString = $"Data Source={dbPath}";
 
         services.AddDbContext<SmallEBotDbContext>(options =>
         {

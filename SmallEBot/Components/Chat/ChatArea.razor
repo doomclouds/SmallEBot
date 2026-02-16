@@ -1,6 +1,5 @@
 @using SmallEBot.Application.Conversation
 @using SmallEBot.Core.Models
-@using SmallEBot.Services
 @inject IAgentConversationService ConversationPipeline
 @inject AgentCacheService AgentCache
 @inject UserNameService UserNameSvc
@@ -152,18 +151,17 @@
         }
 
         var turnId = await ConversationPipeline.CreateTurnAndUserMessageAsync(ConversationId!.Value, userName, msg, UseThinkingMode, _sendCts!.Token);
-        _ = RunStreamingLoopAsync(turnId, msg, userName);
+        _ = RunStreamingLoopAsync(turnId, msg);
     }
 
-    private async Task RunStreamingLoopAsync(Guid turnId, string msg, string userName)
+    private async Task RunStreamingLoopAsync(Guid turnId, string msg)
     {
         var persisted = false;
         var channel = System.Threading.Channels.Channel.CreateUnbounded<StreamUpdate>();
         var sink = new ChannelStreamSink(channel.Writer);
-#pragma warning disable CS4014
-        var runTask = ConversationPipeline.StreamResponseAndCompleteAsync(ConversationId!.Value, turnId, msg, UseThinkingMode, sink, _sendCts!.Token);
-        runTask.ContinueWith(_ => channel.Writer.Complete());
-#pragma warning restore CS4014
+        var runTask = ConversationPipeline
+            .StreamResponseAndCompleteAsync(ConversationId!.Value, turnId, msg, UseThinkingMode, sink, _sendCts!.Token)
+            .ContinueWith(_ => channel.Writer.Complete());
 
         try
         {
@@ -181,7 +179,6 @@
                         _streamingUpdates.Add(update);
                         break;
                 }
-                _scrollToBottomRequested = true;
                 await InvokeAsync(StateHasChanged);
             }
             await runTask;
@@ -276,7 +273,7 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (_scrollToBottomRequested || _streaming)
+        if (_scrollToBottomRequested)
         {
             _scrollToBottomRequested = false;
             try
