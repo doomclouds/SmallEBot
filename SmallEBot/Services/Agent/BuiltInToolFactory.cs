@@ -1,16 +1,20 @@
 using System.ComponentModel;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
 using Microsoft.Extensions.AI;
+using SmallEBot.Services.Terminal;
 
 namespace SmallEBot.Services.Agent;
 
-/// <summary>Creates built-in AITools (GetCurrentTime, ReadFile, ReadSkill) for the agent.</summary>
+/// <summary>Creates built-in AITools (GetCurrentTime, ReadFile, ReadSkill, ExecuteCommand) for the agent.</summary>
 public interface IBuiltInToolFactory
 {
     AITool[] CreateTools();
 }
 
-public sealed class BuiltInToolFactory : IBuiltInToolFactory
+public sealed class BuiltInToolFactory(ITerminalConfigService terminalConfig) : IBuiltInToolFactory
 {
+    private const int CommandTimeoutMs = 60_000;
     private static readonly HashSet<string> AllowedExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
         ".md", ".cs", ".py", ".txt", ".json", ".yml", ".yaml"
@@ -20,7 +24,8 @@ public sealed class BuiltInToolFactory : IBuiltInToolFactory
     [
         AIFunctionFactory.Create(GetCurrentTime),
         AIFunctionFactory.Create(ReadFile),
-        AIFunctionFactory.Create(ReadSkill)
+        AIFunctionFactory.Create(ReadSkill),
+        AIFunctionFactory.Create(ExecuteCommand)
     ];
 
     [Description("Get the current UTC date and time in ISO 8601 format.")]
@@ -73,5 +78,62 @@ public sealed class BuiltInToolFactory : IBuiltInToolFactory
             catch (Exception ex) { return "Error: " + ex.Message; }
         }
         return "Error: skill not found. Check the skill name (id) under .agents/sys.skills/ or .agents/skills/.";
+    }
+
+    [Description("Run a shell command on the host. Pass the command line (e.g. dotnet build or git status). Optional workingDirectory is relative to the app run directory. Blocks for up to 60 seconds. Not allowed if the command matches the terminal blacklist.")]
+    private string ExecuteCommand(string command, string? workingDirectory = null)
+    {
+        if (string.IsNullOrWhiteSpace(command))
+            return "Error: command is required.";
+        var normalized = command.Trim();
+        var blacklist = terminalConfig.GetCommandBlacklist();
+        if (blacklist.Any(b => normalized.Contains(b, StringComparison.OrdinalIgnoreCase)))
+            return "Error: Command is not allowed by terminal blacklist.";
+        var baseDir = Path.GetFullPath(AppDomain.CurrentDomain.BaseDirectory);
+        var workDir = baseDir;
+        if (!string.IsNullOrWhiteSpace(workingDirectory))
+        {
+            var combined = Path.GetFullPath(Path.Combine(baseDir, workingDirectory.Trim().Replace('\\', Path.DirectorySeparatorChar)));
+            if (!combined.StartsWith(baseDir, StringComparison.OrdinalIgnoreCase))
+                return "Error: Working directory must be under the run directory.";
+            if (!Directory.Exists(combined))
+                return "Error: Working directory does not exist.";
+            workDir = combined;
+        }
+        try
+        {
+            using var process = new Process();
+            process.StartInfo.UseShellExecute = false;
+            process.StartInfo.RedirectStandardOutput = true;
+            process.StartInfo.RedirectStandardError = true;
+            process.StartInfo.CreateNoWindow = true;
+            process.StartInfo.WorkingDirectory = workDir;
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                process.StartInfo.FileName = "cmd.exe";
+                process.StartInfo.Arguments = $"/c \"{normalized.Replace("\"", "\"\"")}\"";
+            }
+            else
+            {
+                process.StartInfo.FileName = "/bin/sh";
+                process.StartInfo.Arguments = $"-c \"{normalized.Replace("\\", "\\\\").Replace("\"", "\\\"")}\"";
+            }
+            process.Start();
+            var stdoutTask = process.StandardOutput.ReadToEndAsync();
+            var stderrTask = process.StandardError.ReadToEndAsync();
+            var exited = process.WaitForExit(CommandTimeoutMs);
+            var stdout = stdoutTask.GetAwaiter().GetResult();
+            var stderr = stderrTask.GetAwaiter().GetResult();
+            if (!exited)
+            {
+                try { process.Kill(); } catch { /* ignore */ }
+                return "Error: Command timed out after 60 seconds.";
+            }
+            return $"ExitCode: {process.ExitCode}\nStdout:\n{stdout}\nStderr:\n{stderr}";
+        }
+        catch (Exception ex)
+        {
+            return "Error: " + ex.Message;
+        }
     }
 }
