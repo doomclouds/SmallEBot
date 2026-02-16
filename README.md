@@ -1,6 +1,6 @@
 # SmallEBot
 
-A personal chat assistant built with ASP.NET Core Blazor Server. It supports multiple conversations, streaming replies, and optional “thinking” mode via the **Anthropic-compatible** API (e.g. DeepSeek at `api.deepseek.com/anthropic` or native Anthropic).
+A personal chat assistant built with ASP.NET Core Blazor Server, designed to run **on your own machine** (local deployment). The app and the agent run on the same computer you use; there is no separate “server” — the server is your PC. It supports multiple conversations, streaming replies, and optional “thinking” mode via the **Anthropic-compatible** API (e.g. DeepSeek at `api.deepseek.com/anthropic` or native Anthropic).
 
 ## Features
 
@@ -9,6 +9,7 @@ A personal chat assistant built with ASP.NET Core Blazor Server. It supports mul
 - **Thinking mode**: Toggle extended reasoning (e.g. DeepSeek Reasoner) via Anthropic thinking support.
 - **Themes**: Several UI themes (e.g. editorial-dark, paper-light, terminal) with persistence.
 - **No login**: First visit asks for a username; data is scoped by that name (session + local preferences file).
+- **Terminal**: Run shell commands via the agent (ExecuteCommand tool). Command blacklist is configurable in Terminal config (App bar); default blocks common dangerous commands.
 
 ## Tech stack
 
