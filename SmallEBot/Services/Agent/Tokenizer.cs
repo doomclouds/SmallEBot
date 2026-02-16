@@ -1,6 +1,6 @@
 using Tokenizers.DotNet;
 
-namespace SmallEBot.Services;
+namespace SmallEBot.Services.Agent;
 
 public interface ITokenizer
 {

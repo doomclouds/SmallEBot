@@ -1,7 +1,7 @@
 @using SmallEBot.Models
 @inject IMcpConfigService McpConfig
 @inject IMcpToolsLoaderService McpToolsLoader
-@inject AgentService AgentService
+@inject AgentCacheService AgentCache
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
@@ -187,7 +187,7 @@
         try
         {
             await McpConfig.SaveUserMcpAsync(dict);
-            await AgentService.InvalidateAgentAsync();
+            await AgentCache.InvalidateAgentAsync();
             Snackbar.Add(isEdit ? "已保存" : "已添加", Severity.Success);
             await LoadListAsync();
         }
@@ -240,7 +240,7 @@
         try
         {
             await McpConfig.SaveUserMcpAsync(dict);
-            await AgentService.InvalidateAgentAsync();
+            await AgentCache.InvalidateAgentAsync();
             Snackbar.Add("已删除", Severity.Success);
             await LoadListAsync();
         }
@@ -293,7 +293,7 @@
                     await McpConfig.SaveUserMcpAsync(dict);
                 }
             }
-            await AgentService.InvalidateAgentAsync();
+            await AgentCache.InvalidateAgentAsync();
         }
         catch
         {

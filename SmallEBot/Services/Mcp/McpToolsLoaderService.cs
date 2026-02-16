@@ -1,7 +1,7 @@
 using ModelContextProtocol.Client;
 using SmallEBot.Models;
 
-namespace SmallEBot.Services;
+namespace SmallEBot.Services.Mcp;
 
 /// <summary>Result of loading tools (and optionally prompts) for one MCP server.</summary>
 public sealed record McpToolsLoadResult(

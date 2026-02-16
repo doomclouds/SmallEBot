@@ -1,7 +1,7 @@
 using System.Text.Json;
 using SmallEBot.Models;
 
-namespace SmallEBot.Services;
+namespace SmallEBot.Services.User;
 
 /// <summary>
 /// Persists and loads theme, username, useThinkingMode, and showToolCalls in a single JSON file.

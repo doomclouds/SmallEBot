@@ -1,6 +1,6 @@
 using SmallEBot.Core.Models;
 
-namespace SmallEBot.Services;
+namespace SmallEBot.Services.Presentation;
 
 /// <summary>Segments a turn's timeline into reasoning blocks and reply segments per design §4.</summary>
 public static class ReasoningSegmenter

@@ -2,7 +2,7 @@ using System.Threading.Channels;
 using SmallEBot.Application.Streaming;
 using SmallEBot.Core.Models;
 
-namespace SmallEBot.Services;
+namespace SmallEBot.Services.Streaming;
 
 /// <summary>IStreamSink implementation that writes each StreamUpdate to a ChannelWriter (e.g. for Blazor to read and display).</summary>
 public sealed class ChannelStreamSink(ChannelWriter<StreamUpdate> writer) : IStreamSink

@@ -1,22 +1,22 @@
 using SmallEBot.Application.Conversation;
 using SmallEBot.Core;
-using SmallEBot.Core.Entities;
 using SmallEBot.Core.Models;
+using ConversationEntity = SmallEBot.Core.Entities.Conversation;
 
-namespace SmallEBot.Services;
+namespace SmallEBot.Services.Conversation;
 
 public class ConversationService(IAgentConversationService pipeline)
 {
-    public async Task<Conversation> CreateAsync(string userName, CancellationToken ct = default) =>
+    public async Task<ConversationEntity> CreateAsync(string userName, CancellationToken ct = default) =>
         await pipeline.CreateConversationAsync(userName, ct);
 
-    public async Task<List<Conversation>> GetListAsync(string userName, CancellationToken ct = default) =>
+    public async Task<List<ConversationEntity>> GetListAsync(string userName, CancellationToken ct = default) =>
         await pipeline.GetConversationsAsync(userName, ct);
 
-    public async Task<Conversation?> GetByIdAsync(Guid id, string userName, CancellationToken ct = default) =>
+    public async Task<ConversationEntity?> GetByIdAsync(Guid id, string userName, CancellationToken ct = default) =>
         await pipeline.GetConversationAsync(id, userName, ct);
 
-    public static List<ChatBubble> GetChatBubbles(Conversation conv) =>
+    public static List<ChatBubble> GetChatBubbles(ConversationEntity conv) =>
         ConversationBubbleHelper.GetChatBubbles(conv);
 
     public async Task<bool> DeleteAsync(Guid id, string userName, CancellationToken ct = default) =>

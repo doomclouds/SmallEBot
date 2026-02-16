@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage;
 
-namespace SmallEBot.Services;
+namespace SmallEBot.Services.User;
 
 public class UserNameService(ProtectedSessionStorage storage, UserPreferencesService preferences)
 {

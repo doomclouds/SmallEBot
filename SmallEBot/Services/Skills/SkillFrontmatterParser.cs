@@ -1,4 +1,4 @@
-namespace SmallEBot.Services;
+namespace SmallEBot.Services.Skills;
 
 /// <summary>Parses name and description from SKILL.md YAML frontmatter. Returns null if missing or invalid.</summary>
 public static class SkillFrontmatterParser

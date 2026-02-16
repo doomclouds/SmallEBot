@@ -2,7 +2,7 @@
 @using SmallEBot.Core.Models
 @using SmallEBot.Services
 @inject IAgentConversationService ConversationPipeline
-@inject AgentService AgentSvc
+@inject AgentCacheService AgentCache
 @inject UserNameService UserNameSvc
 @inject IJSRuntime JS
 @inject ISnackbar Snackbar
@@ -258,7 +258,7 @@
             _contextRefreshRequested = false;
             try
             {
-                var pct = await AgentSvc.GetEstimatedContextUsageAsync(ConversationId.Value);
+                var pct = await AgentCache.GetEstimatedContextUsageAsync(ConversationId.Value);
                 _contextPercentText = $"{pct:P1}";
             }
             catch

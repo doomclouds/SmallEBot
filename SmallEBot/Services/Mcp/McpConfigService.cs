@@ -1,7 +1,7 @@
 using System.Text.Json;
 using SmallEBot.Models;
 
-namespace SmallEBot.Services;
+namespace SmallEBot.Services.Mcp;
 
 /// <summary>User MCP config file: servers plus disabled system MCP IDs (single file, same path as .mcp.json).</summary>
 internal sealed class UserMcpFile

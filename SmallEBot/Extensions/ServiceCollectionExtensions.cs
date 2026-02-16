@@ -4,7 +4,13 @@ using SmallEBot.Application.Streaming;
 using SmallEBot.Infrastructure.Data;
 using SmallEBot.Infrastructure.Repositories;
 using SmallEBot.Core.Repositories;
-using SmallEBot.Services;
+using SmallEBot.Services.Agent;
+using SmallEBot.Services.Conversation;
+using SmallEBot.Services.Mcp;
+using SmallEBot.Services.Presentation;
+using SmallEBot.Services.Skills;
+using SmallEBot.Services.Streaming;
+using SmallEBot.Services.User;
 
 namespace SmallEBot.Extensions;
 
@@ -39,7 +45,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAgentConversationService, AgentConversationService>();
         services.AddScoped<IAgentRunner, AgentRunnerAdapter>();
         services.AddScoped<ConversationService>();
-        services.AddScoped<AgentService>();
+        services.AddScoped<AgentCacheService>();
         services.AddScoped<UserNameService>();
         services.AddSingleton<MarkdownService>();
         services.AddSingleton<ITokenizer>(sp =>

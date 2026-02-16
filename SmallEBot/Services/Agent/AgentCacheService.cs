@@ -1,9 +1,10 @@
 using System.Text.Json.Serialization;
 using SmallEBot.Core.Repositories;
 
-namespace SmallEBot.Services;
+namespace SmallEBot.Services.Agent;
 
-public class AgentService(
+/// <summary>Host service for agent cache invalidation and context usage estimation (UI).</summary>
+public class AgentCacheService(
     IConversationRepository conversationRepository,
     IAgentBuilder agentBuilder,
     ITokenizer tokenizer) : IAsyncDisposable

@@ -1,6 +1,6 @@
 @using SmallEBot.Models
 @inject ISkillsConfigService SkillsConfig
-@inject AgentService AgentService
+@inject AgentCacheService AgentCache
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
@@ -84,7 +84,7 @@
         var dialog = await DialogService.ShowAsync<ImportSkillDialog>("导入 Skill", new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
         var result = await dialog.Result;
         if (result?.Canceled != false) return;
-        await AgentService.InvalidateAgentAsync();
+        await AgentCache.InvalidateAgentAsync();
         Snackbar.Add("已导入", Severity.Success);
         await LoadListAsync();
     }
@@ -94,7 +94,7 @@
         try
         {
             await SkillsConfig.AddUserSkillAsync(id, name, desc, body);
-            await AgentService.InvalidateAgentAsync();
+            await AgentCache.InvalidateAgentAsync();
             Snackbar.Add("已添加", Severity.Success);
             await LoadListAsync();
         }
@@ -130,7 +130,7 @@
         try
         {
             await SkillsConfig.DeleteUserSkillAsync(id);
-            await AgentService.InvalidateAgentAsync();
+            await AgentCache.InvalidateAgentAsync();
             Snackbar.Add("已删除", Severity.Success);
             await LoadListAsync();
         }

@@ -1,7 +1,8 @@
 using Microsoft.Extensions.AI;
 using ModelContextProtocol.Client;
+using SmallEBot.Services.Mcp;
 
-namespace SmallEBot.Services;
+namespace SmallEBot.Services.Agent;
 
 /// <summary>Loads MCP tools and clients for the agent. Caller owns disposal of returned clients (e.g. on Invalidate).</summary>
 public interface IMcpToolFactory

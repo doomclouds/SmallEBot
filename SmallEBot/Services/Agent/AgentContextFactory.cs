@@ -1,6 +1,7 @@
 using SmallEBot.Models;
+using SmallEBot.Services.Skills;
 
-namespace SmallEBot.Services;
+namespace SmallEBot.Services.Agent;
 
 /// <summary>Builds the agent system prompt (base instructions + skills block) for the Agent Builder.</summary>
 public interface IAgentContextFactory

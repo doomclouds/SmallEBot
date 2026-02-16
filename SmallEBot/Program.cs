@@ -3,7 +3,6 @@ using MudBlazor.Services;
 using SmallEBot.Components;
 using SmallEBot.Extensions;
 using SmallEBot.Infrastructure.Data;
-using SmallEBot.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 

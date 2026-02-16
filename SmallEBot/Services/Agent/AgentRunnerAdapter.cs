@@ -6,7 +6,7 @@ using SmallEBot.Core.Models;
 using SmallEBot.Core.Repositories;
 using ChatMessage = Microsoft.Extensions.AI.ChatMessage;
 
-namespace SmallEBot.Services;
+namespace SmallEBot.Services.Agent;
 
 /// <summary>Host implementation of IAgentRunner: loads history from repository, uses IAgentBuilder to run the agent and map updates to StreamUpdate.</summary>
 public sealed class AgentRunnerAdapter(IConversationRepository conversationRepository, IAgentBuilder agentBuilder) : IAgentRunner

@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using Microsoft.Extensions.AI;
 
-namespace SmallEBot.Services;
+namespace SmallEBot.Services.Agent;
 
 /// <summary>Creates built-in AITools (GetCurrentTime, ReadFile, ReadSkill) for the agent.</summary>
 public interface IBuiltInToolFactory

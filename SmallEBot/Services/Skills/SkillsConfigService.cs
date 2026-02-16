@@ -1,6 +1,6 @@
 using SmallEBot.Models;
 
-namespace SmallEBot.Services;
+namespace SmallEBot.Services.Skills;
 
 public interface ISkillsConfigService
 {

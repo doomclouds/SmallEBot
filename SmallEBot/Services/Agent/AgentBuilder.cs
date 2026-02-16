@@ -3,7 +3,7 @@ using Anthropic.Core;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 
-namespace SmallEBot.Services;
+namespace SmallEBot.Services.Agent;
 
 /// <summary>Builds and caches AIAgent from context factory and tool factories. Owns MCP client disposal on Invalidate.</summary>
 public interface IAgentBuilder
