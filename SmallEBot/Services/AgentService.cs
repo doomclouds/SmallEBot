@@ -1,13 +1,9 @@
-using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Anthropic;
-using Anthropic.Core;
 using Microsoft.Agents.AI;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
-using ModelContextProtocol.Client;
 using SmallEBot.Data;
 using SmallEBot.Data.Entities;
 using SmallEBot.Models;
@@ -18,225 +14,29 @@ namespace SmallEBot.Services;
 public class AgentService(
     AppDbContext db,
     ConversationService convSvc,
-    IConfiguration config,
-    ITokenizer tokenizer,
-    IMcpConfigService mcpConfig,
-    ISkillsConfigService skillsConfig,
-    ILogger<AgentService> log) : IAsyncDisposable
+    IAgentBuilder agentBuilder,
+    ITokenizer tokenizer) : IAsyncDisposable
 {
-    private readonly int _contextWindowTokens = config.GetValue("DeepSeek:ContextWindowTokens", 128000);
-    private AIAgent? _agent;
-    private AIAgent? _agentWithThinking;
-    private List<IAsyncDisposable>? _mcpClients;
-    /// <summary>Cached instructions (including skills block) used for context token count. Cleared by InvalidateAgentAsync.</summary>
-    private string? _cachedInstructionsForTokenCount;
-
-    private static readonly HashSet<string> ReadFileAllowedExtensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".md", ".cs", ".py", ".txt", ".json", ".yml", ".yaml"
-    };
-
-    private async Task<AITool[]> EnsureToolsAsync(CancellationToken ct)
-    {
-        var tools = new List<AITool>
-        {
-            AIFunctionFactory.Create(GetCurrentTime),
-            AIFunctionFactory.Create(ReadFile)
-        };
-        _mcpClients = [];
-
-        var allEntries = await mcpConfig.GetAllAsync(ct);
-
-        foreach (var (id, entry, _, isEnabled) in allEntries)
-        {
-            if (!isEnabled) continue;
-
-            var isStdio = "stdio".Equals(entry.Type, StringComparison.OrdinalIgnoreCase)
-                          || (string.IsNullOrEmpty(entry.Type) && !string.IsNullOrEmpty(entry.Command));
-
-            if (isStdio)
-            {
-                if (string.IsNullOrEmpty(entry.Command))
-                {
-                    log.LogWarning("MCP stdio server '{Name}' has no command, skipped.", id);
-                    continue;
-                }
-                try
-                {
-                    var transport = new StdioClientTransport(new StdioClientTransportOptions
-                    {
-                        Name = id,
-                        Command = entry.Command,
-                        Arguments = entry.Args ?? [],
-                        EnvironmentVariables = entry.Env ?? new Dictionary<string, string?>()
-                    });
-                    var mcpClient = await McpClient.CreateAsync(transport, null, null, ct);
-                    _mcpClients.Add(mcpClient);
-                    var mcpTools = await mcpClient.ListToolsAsync(cancellationToken: ct);
-                    tools.AddRange(mcpTools);
-                    log.LogInformation("MCP stdio server '{Name}' ({Command}) loaded with {Count} tools.", id, entry.Command, mcpTools.Count);
-                }
-                catch (Exception ex)
-                {
-                    log.LogWarning(ex, "Failed to load MCP stdio server '{Name}' (command: {Command}), skipping.", id, entry.Command);
-                }
-                continue;
-            }
-
-            if ("http".Equals(entry.Type, StringComparison.OrdinalIgnoreCase))
-            {
-                if (string.IsNullOrEmpty(entry.Url))
-                {
-                    log.LogWarning("MCP http server '{Name}' has no url, skipped.", id);
-                    continue;
-                }
-                try
-                {
-                    var options = new HttpClientTransportOptions
-                    {
-                        Endpoint = new Uri(entry.Url),
-                        TransportMode = HttpTransportMode.AutoDetect,
-                        ConnectionTimeout = TimeSpan.FromSeconds(30)
-                    };
-                    HttpClientTransport transport;
-                    if (entry.Headers is { Count: > 0 })
-                    {
-                        var httpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
-                        foreach (var h in entry.Headers)
-                        {
-                            if (string.IsNullOrEmpty(h.Key)) continue;
-                            httpClient.DefaultRequestHeaders.TryAddWithoutValidation(h.Key, h.Value ?? "");
-                        }
-                        transport = new HttpClientTransport(options, httpClient, ownsHttpClient: true);
-                    }
-                    else
-                    {
-                        transport = new HttpClientTransport(options);
-                    }
-                    var mcpClient = await McpClient.CreateAsync(transport, null, null, ct);
-                    _mcpClients.Add(mcpClient);
-                    var mcpTools = await mcpClient.ListToolsAsync(cancellationToken: ct);
-                    tools.AddRange(mcpTools);
-                    log.LogInformation("MCP http server '{Name}' at {Url} loaded with {Count} tools.", id, entry.Url, mcpTools.Count);
-                }
-                catch (Exception ex)
-                {
-                    log.LogWarning(ex, "Failed to load MCP http server '{Name}' at {Url}, skipping.", id, entry.Url);
-                }
-            }
-        }
-
-        return tools.ToArray();
-    }
-
-    private const string AgentInstructions = "You are SmallEBot, a helpful personal assistant. Be concise and friendly. When the user asks for the current time or date, use the GetCurrentTime tool. Use any other available MCP tools when they help answer the user.";
-
-    private static string BuildSkillsBlock(IReadOnlyList<SkillMetadata> skills)
-    {
-        if (skills.Count == 0) return "";
-        var sb = new System.Text.StringBuilder();
-        sb.AppendLine("You have access to the following skills. Each has an id and a short description. To read a skill's content, use the ReadFile tool with a path relative to the run directory (e.g. .agents/sys.skills/<id>/SKILL.md or .agents/skills/<id>/...). ReadFile can read any file under the run directory with allowed extensions (.md, .cs, .py, .txt, .json, .yml, .yaml).");
-        sb.AppendLine();
-        foreach (var s in skills)
-            sb.AppendLine($"- {s.Id}: {s.Name} — {s.Description}");
-        return sb.ToString();
-    }
-
-    private async Task<AIAgent> EnsureAgentAsync(bool useThinking, CancellationToken ct)
-    {
-        var apiKey = Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY")
-            ?? Environment.GetEnvironmentVariable("DeepseekKey");
-        if (string.IsNullOrEmpty(apiKey))
-        {
-            log.LogWarning("ANTHROPIC_API_KEY or DeepseekKey environment variable is not set.");
-        }
-
-        var baseUrl = config["Anthropic:BaseUrl"] ?? config["DeepSeek:AnthropicBaseUrl"] ?? "https://api.deepseek.com/anthropic";
-        var model = config["Anthropic:Model"] ?? config["DeepSeek:Model"] ?? "deepseek-chat";
-        var thinkingModel = config["Anthropic:ThinkingModel"] ?? config["DeepSeek:ThinkingModel"] ?? "deepseek-reasoner";
-        var tools = await EnsureToolsAsync(ct);
-        var skillList = await skillsConfig.GetMetadataForAgentAsync(ct);
-        var skillsBlock = BuildSkillsBlock(skillList);
-        var instructions = string.IsNullOrEmpty(skillsBlock) ? AgentInstructions : AgentInstructions + "\n\n" + skillsBlock;
-        _cachedInstructionsForTokenCount = instructions;
-
-        if (useThinking)
-        {
-            if (_agentWithThinking != null) return _agentWithThinking;
-            var clientOptions = new ClientOptions { ApiKey = apiKey ?? "", BaseUrl = baseUrl };
-            var anthropicClient = new AnthropicClient(clientOptions);
-            _agentWithThinking = anthropicClient.AsAIAgent(
-                model: thinkingModel,
-                name: "SmallEBot",
-                instructions: instructions,
-                tools: tools);
-            return _agentWithThinking;
-        }
-
-        if (_agent != null) return _agent;
-        var opts = new ClientOptions { ApiKey = apiKey ?? "", BaseUrl = baseUrl };
-        var client = new AnthropicClient(opts);
-        _agent = client.AsAIAgent(
-            model: model,
-            name: "SmallEBot",
-            instructions: instructions,
-            tools: tools);
-        return _agent;
-    }
-
-    [Description("Get the current UTC date and time in ISO 8601 format.")]
-    private static string GetCurrentTime() => DateTime.UtcNow.ToString("O");
-
-    [Description("Read a text file under the current run directory. Pass path relative to the app directory (e.g. .agents/sys.skills/weekly-report-generator/SKILL.md or .agents/skills/my-skill/script.py). Only allowed extensions: .md, .cs, .py, .txt, .json, .yml, .yaml.")]
-    private static string ReadFile(string path)
-    {
-        if (string.IsNullOrWhiteSpace(path)) return "Error: path is required.";
-        var baseDir = Path.GetFullPath(AppDomain.CurrentDomain.BaseDirectory);
-        var fullPath = Path.GetFullPath(Path.Combine(baseDir, path.Trim().Replace('\\', Path.DirectorySeparatorChar)));
-        if (!fullPath.StartsWith(baseDir, StringComparison.OrdinalIgnoreCase))
-            return "Error: path must be under the current run directory.";
-        var ext = Path.GetExtension(fullPath);
-        if (string.IsNullOrEmpty(ext) || !ReadFileAllowedExtensions.Contains(ext))
-            return "Error: file type not allowed. Allowed: " + string.Join(", ", ReadFileAllowedExtensions);
-        if (!File.Exists(fullPath))
-            return "Error: file not found.";
-        try
-        {
-            return File.ReadAllText(fullPath);
-        }
-        catch (Exception ex)
-        {
-            return "Error: " + ex.Message;
-        }
-    }
+    /// <summary>Fallback system prompt when builder has not built yet (for token estimation).</summary>
+    private const string FallbackSystemPromptForTokenCount = "You are SmallEBot, a helpful personal assistant. Be concise and friendly. When the user asks for the current time or date, use the GetCurrentTime tool. Use any other available MCP tools when they help answer the user.";
 
     /// <summary>Invalidates cached agent and MCP clients so the next request rebuilds with current MCP config (e.g. after enable/disable toggle).</summary>
-    public async Task InvalidateAgentAsync()
-    {
-        if (_mcpClients != null)
-        {
-            foreach (var c in _mcpClients)
-                await c.DisposeAsync();
-            _mcpClients = null;
-        }
-        _agent = null;
-        _agentWithThinking = null;
-        _cachedInstructionsForTokenCount = null;
-    }
+    public async Task InvalidateAgentAsync() => await agentBuilder.InvalidateAsync();
 
     /// <summary>Context window size in tokens (e.g. 128000 for DeepSeek). Used for context % display.</summary>
-    public int GetContextWindowTokens() => _contextWindowTokens;
+    public int GetContextWindowTokens() => agentBuilder.GetContextWindowTokens();
 
     /// <summary>Estimated context usage (0.0–1.0) from tokenized request body (system + messages as JSON). Inflated by 5%; result rounded to 0.1%.</summary>
     public async Task<double> GetEstimatedContextUsageAsync(Guid conversationId, CancellationToken ct = default)
     {
         var store = new ChatMessageStoreAdapter(db, conversationId);
         var messages = await store.LoadMessagesAsync(ct);
-        var systemPrompt = _cachedInstructionsForTokenCount ?? AgentInstructions;
+        var systemPrompt = agentBuilder.GetCachedSystemPromptForTokenCount() ?? FallbackSystemPromptForTokenCount;
         var json = SerializeRequestJsonForTokenCount(systemPrompt, messages);
         var rawTokens = tokenizer.CountTokens(json);
         var withBuffer = (int)Math.Ceiling(rawTokens * 1.05);
-        var ratio = _contextWindowTokens <= 0 ? 0.0 : Math.Min(1.0, withBuffer / (double)_contextWindowTokens);
+        var contextWindow = agentBuilder.GetContextWindowTokens();
+        var ratio = contextWindow <= 0 ? 0.0 : Math.Min(1.0, withBuffer / (double)contextWindow);
         return Math.Round(ratio, 3);
     }
 
@@ -275,7 +75,7 @@ public class AgentService(
         bool useThinking = false,
         [EnumeratorCancellation] CancellationToken ct = default)
     {
-        var agent = await EnsureAgentAsync(useThinking, ct);
+        var agent = await agentBuilder.GetOrCreateAgentAsync(useThinking, ct);
 
         var store = new ChatMessageStoreAdapter(db, conversationId);
         var history = await store.LoadMessagesAsync(ct);
@@ -483,7 +283,7 @@ public class AgentService(
 
     private async Task<string> GenerateTitleAsync(string firstMessage, CancellationToken ct = default)
     {
-        var agent = await EnsureAgentAsync(useThinking: false, ct);
+        var agent = await agentBuilder.GetOrCreateAgentAsync(useThinking: false, ct);
         var prompt = $"Generate a very short title (under 20 chars, no quotes) for a conversation that starts with: {firstMessage}";
         try
         {
@@ -497,17 +297,10 @@ public class AgentService(
             return firstMessage.Length > 20 ? firstMessage[..20] + "…" : firstMessage;
         }
     }
-    
+
     public async ValueTask DisposeAsync()
     {
-        await db.DisposeAsync();
-        if (_mcpClients != null)
-        {
-            foreach (var client in _mcpClients)
-            {
-                await client.DisposeAsync();
-            }
-        }
+        await agentBuilder.InvalidateAsync();
         GC.SuppressFinalize(this);
     }
 }
