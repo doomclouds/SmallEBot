@@ -9,6 +9,7 @@ using SmallEBot.Services.Conversation;
 using SmallEBot.Services.Mcp;
 using SmallEBot.Services.Presentation;
 using SmallEBot.Services.Skills;
+using SmallEBot.Services.Terminal;
 using SmallEBot.Services.User;
 
 namespace SmallEBot.Extensions;
@@ -32,6 +33,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<UserPreferencesService>();
         services.AddScoped<IMcpConfigService, McpConfigService>();
         services.AddScoped<ISkillsConfigService, SkillsConfigService>();
+        services.AddSingleton<ITerminalConfigService, TerminalConfigService>();
         services.AddScoped<IMcpToolsLoaderService, McpToolsLoaderService>();
         services.AddScoped<IAgentContextFactory, AgentContextFactory>();
         services.AddSingleton<IBuiltInToolFactory, BuiltInToolFactory>();
