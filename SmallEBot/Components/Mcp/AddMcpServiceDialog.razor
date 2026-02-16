@@ -3,68 +3,68 @@
 
 <MudDialog>
     <TitleContent>
-        <MudText Typo="Typo.h6">@(IsEdit ? "编辑 MCP 服务" : "添加 MCP 服务")</MudText>
+        <MudText Typo="Typo.h6">@(IsEdit ? "Edit MCP service" : "Add MCP service")</MudText>
     </TitleContent>
     <DialogContent>
         <div class="d-flex flex-column gap-3">
-            <MudTextField @bind-Value="_name" Label="名称" Variant="Variant.Outlined" Placeholder="输入服务名称" Required="true" RequiredError="请输入服务名称" />
+            <MudTextField @bind-Value="_name" Label="Name" Variant="Variant.Outlined" Placeholder="Enter service name" Required="true" RequiredError="Please enter service name" />
 
             <div>
-                <MudText Typo="Typo.subtitle2" Class="mb-2">类型</MudText>
+                <MudText Typo="Typo.subtitle2" Class="mb-2">Type</MudText>
                 <div class="d-flex gap-2 flex-wrap">
                     <MudButton Variant="@(IsStdio ? Variant.Filled : Variant.Outlined)" Color="Color.Primary" OnClick="@(() => SetType(StdioType))">STDIO</MudButton>
-                    <MudButton Variant="@(IsStdio ? Variant.Outlined : Variant.Filled)" Color="Color.Primary" OnClick="@(() => SetType(HttpType))">SSE 或 Streamable HTTP</MudButton>
+                    <MudButton Variant="@(IsStdio ? Variant.Outlined : Variant.Filled)" Color="Color.Primary" OnClick="@(() => SetType(HttpType))">SSE or Streamable HTTP</MudButton>
                 </div>
             </div>
 
             <div @key="_type">
             @if (IsStdio)
             {
-                <MudTextField @bind-Value="_command" Label="命令" Variant="Variant.Outlined" Placeholder="输入需要运行的命令" Required="true" RequiredError="请输入命令" />
-                <MudTextField @bind-Value="_argsString" Label="参数" Variant="Variant.Outlined" Placeholder="输入命令执行参数 (空格隔开)" />
+                <MudTextField @bind-Value="_command" Label="Command" Variant="Variant.Outlined" Placeholder="Enter command to run" Required="true" RequiredError="Please enter command" />
+                <MudTextField @bind-Value="_argsString" Label="Args" Variant="Variant.Outlined" Placeholder="Enter args (space-separated)" />
 
                 <div>
-                    <MudText Typo="Typo.subtitle2" Class="mb-2">环境变量 (env)</MudText>
+                    <MudText Typo="Typo.subtitle2" Class="mb-2">Environment variables (env)</MudText>
                     <MudTable Items="@_envRows" Dense="true" Breakpoint="Breakpoint.Sm" Hover="true">
                         <HeaderContent>
-                            <MudTh>环境变量 Key</MudTh>
-                            <MudTh>环境变量 Value</MudTh>
-                            <MudTh Style="width: 80px;">操作</MudTh>
+                            <MudTh>Env key</MudTh>
+                            <MudTh>Env value</MudTh>
+                            <MudTh Style="width: 80px;">Action</MudTh>
                         </HeaderContent>
                         <RowTemplate>
-                            <MudTd DataLabel="环境变量 Key"><MudTextField @bind-Value="context.Key" Placeholder="输入环境变量 Key" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudTd>
-                            <MudTd DataLabel="环境变量 Value"><MudTextField @bind-Value="context.Value" Placeholder="输入环境变量 Value" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudTd>
-                            <MudTd DataLabel="操作">
-                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => RemoveEnvRow(context))" title="删除" />
+                            <MudTd DataLabel="Env key"><MudTextField @bind-Value="context.Key" Placeholder="Enter env key" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudTd>
+                            <MudTd DataLabel="Env value"><MudTextField @bind-Value="context.Value" Placeholder="Enter env value" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudTd>
+                            <MudTd DataLabel="Action">
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => RemoveEnvRow(context))" title="Delete" />
                             </MudTd>
                         </RowTemplate>
                     </MudTable>
-                    <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Add" OnClick="@AddEnvRow" Class="mt-1">添加环境变量</MudButton>
+                    <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Add" OnClick="@AddEnvRow" Class="mt-1">Add env var</MudButton>
                 </div>
             }
             else
             {
-                <MudTextField @bind-Value="_url" Label="服务地址" Variant="Variant.Outlined" Placeholder="输入 SSE endpoint 或 Streamable HTTP 的 URL" Required="true" RequiredError="请输入服务地址" />
+                <MudTextField @bind-Value="_url" Label="Service URL" Variant="Variant.Outlined" Placeholder="Enter SSE endpoint or Streamable HTTP URL" Required="true" RequiredError="Please enter service URL" />
 
                 <MudExpansionPanels Class="mt-2">
-                    <MudExpansionPanel Text="高级设置" expanded="false">
+                    <MudExpansionPanel Text="Advanced" expanded="false">
                         <div>
-                            <MudText Typo="Typo.body2" Class="mb-2">请求头 (headers)</MudText>
+                            <MudText Typo="Typo.body2" Class="mb-2">Request headers (headers)</MudText>
                             <MudTable Items="@_headerRows" Dense="true" Breakpoint="Breakpoint.Sm" Hover="true">
                                 <HeaderContent>
-                                    <MudTh>请求头 Key</MudTh>
-                                    <MudTh>请求头 Value</MudTh>
-                                    <MudTh Style="width: 80px;">操作</MudTh>
+                                    <MudTh>Header key</MudTh>
+                                    <MudTh>Header value</MudTh>
+                                    <MudTh Style="width: 80px;">Action</MudTh>
                                 </HeaderContent>
                                 <RowTemplate>
-                                    <MudTd DataLabel="请求头 Key"><MudTextField @bind-Value="context.Key" Placeholder="输入请求头 Key" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudTd>
-                                    <MudTd DataLabel="请求头 Value"><MudTextField @bind-Value="context.Value" Placeholder="输入请求头 Value" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudTd>
-                                    <MudTd DataLabel="操作">
-                                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => RemoveHeaderRow(context))" title="删除" />
+                                    <MudTd DataLabel="Header key"><MudTextField @bind-Value="context.Key" Placeholder="Enter header key" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudTd>
+                                    <MudTd DataLabel="Header value"><MudTextField @bind-Value="context.Value" Placeholder="Enter header value" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudTd>
+                                    <MudTd DataLabel="Action">
+                                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => RemoveHeaderRow(context))" title="Delete" />
                                     </MudTd>
                                 </RowTemplate>
                             </MudTable>
-                            <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Add" OnClick="@AddHeaderRow" Class="mt-1">添加请求头</MudButton>
+                            <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Add" OnClick="@AddHeaderRow" Class="mt-1">Add header</MudButton>
                         </div>
                     </MudExpansionPanel>
                 </MudExpansionPanels>
@@ -73,8 +73,8 @@
         </div>
     </DialogContent>
     <DialogActions>
-        <MudButton Variant="Variant.Text" OnClick="@Cancel">取消</MudButton>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@Submit">@(IsEdit ? "保存" : "立即添加")</MudButton>
+        <MudButton Variant="Variant.Text" OnClick="@Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@Submit">@(IsEdit ? "Save" : "Add")</MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -141,7 +141,7 @@
         var id = _name.Trim();
         if (string.IsNullOrEmpty(id))
         {
-            Snackbar.Add("请输入服务名称", Severity.Warning);
+            Snackbar.Add("Please enter service name", Severity.Warning);
             return;
         }
         if (IsStdio)
@@ -149,7 +149,7 @@
             var cmd = _command.Trim();
             if (string.IsNullOrEmpty(cmd))
             {
-                Snackbar.Add("请输入命令", Severity.Warning);
+                Snackbar.Add("Please enter command", Severity.Warning);
                 return;
             }
         }
@@ -158,7 +158,7 @@
             var u = _url.Trim();
             if (string.IsNullOrEmpty(u))
             {
-                Snackbar.Add("请输入服务地址", Severity.Warning);
+                Snackbar.Add("Please enter service URL", Severity.Warning);
                 return;
             }
         }

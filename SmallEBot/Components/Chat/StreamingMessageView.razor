@@ -9,7 +9,7 @@
                 if (item is { IsReasoningBlock: true, Steps: { Count: > 0 } steps })
                 {
                     var toolCount = steps.Count(x => !x.IsThink);
-                    var panelTitle = toolCount > 0 ? $"💭 推理过程 (含 {toolCount} 次工具调用)" : "💭 推理过程";
+                    var panelTitle = toolCount > 0 ? $"💭 Reasoning ({toolCount} tool calls)" : "💭 Reasoning";
                     <MudExpansionPanels Class="mt-2" Elevation="0">
                         <MudExpansionPanel expanded="false" Text="@panelTitle">
                             <div class="d-flex flex-column gap-2">

@@ -5,7 +5,7 @@
     if (step.IsThink)
     {
         <div class="smallebot-reasoning-step">
-            <MudText Typo="Typo.caption" Class="mb-1 smallebot-reasoning-label">思考</MudText>
+            <MudText Typo="Typo.caption" Class="mb-1 smallebot-reasoning-label">Thinking</MudText>
             @if (!string.IsNullOrEmpty(step.Text))
             {
                 <MarkdownContentView Content="@step.Text" CssClass="smallebot-reasoning-body" />

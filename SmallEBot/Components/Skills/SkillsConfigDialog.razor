@@ -6,7 +6,7 @@
 
 <MudDialog>
     <TitleContent>
-        <MudText Typo="Typo.h6">Skills 配置</MudText>
+        <MudText Typo="Typo.h6">Skills config</MudText>
     </TitleContent>
     <DialogContent>
         @if (_loading)
@@ -15,22 +15,22 @@
         }
         else
         {
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="@StartAdd" Class="mb-3">新增 Skill</MudButton>
-            <MudButton Variant="Variant.Outlined" Class="mb-3 ms-2" StartIcon="@Icons.Material.Filled.Upload" OnClick="@StartImport">导入</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="@StartAdd" Class="mb-3">Add Skill</MudButton>
+            <MudButton Variant="Variant.Outlined" Class="mb-3 ms-2" StartIcon="@Icons.Material.Filled.Upload" OnClick="@StartImport">Import</MudButton>
             <MudTable Items="@_rows" Hover="true" Breakpoint="Breakpoint.Sm" Dense="true">
                 <HeaderContent>
-                    <MudTh>名称 (id)</MudTh>
-                    <MudTh>来源</MudTh>
-                    <MudTh Style="width: 100px;">操作</MudTh>
+                    <MudTh>Name (id)</MudTh>
+                    <MudTh>Source</MudTh>
+                    <MudTh Style="width: 100px;">Action</MudTh>
                 </HeaderContent>
                 <RowTemplate>
-                    <MudTd DataLabel="名称">@context.Name (@context.Id)</MudTd>
-                    <MudTd DataLabel="来源">@(context.IsSystem ? "系统" : "用户")</MudTd>
-                    <MudTd DataLabel="操作">
-                        <MudIconButton Icon="@Icons.Material.Filled.Visibility" Size="Size.Small" OnClick="@(() => ViewContent(context))" title="查看内容" />
+                    <MudTd DataLabel="Name">@context.Name (@context.Id)</MudTd>
+                    <MudTd DataLabel="Source">@(context.IsSystem ? "System" : "User")</MudTd>
+                    <MudTd DataLabel="Action">
+                        <MudIconButton Icon="@Icons.Material.Filled.Visibility" Size="Size.Small" OnClick="@(() => ViewContent(context))" title="View content" />
                         @if (!context.IsSystem)
                         {
-                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => ConfirmDelete(context.Id))" title="删除" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => ConfirmDelete(context.Id))" title="Delete" />
                         }
                     </MudTd>
                 </RowTemplate>
@@ -38,7 +38,7 @@
         }
     </DialogContent>
     <DialogActions>
-        <MudButton Variant="Variant.Text" OnClick="@Close">关闭</MudButton>
+        <MudButton Variant="Variant.Text" OnClick="@Close">Close</MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -63,7 +63,7 @@
         }
         catch
         {
-            Snackbar.Add("加载 Skills 失败", Severity.Warning);
+            Snackbar.Add("Failed to load Skills", Severity.Warning);
         }
         finally
         {
@@ -73,7 +73,7 @@
 
     private async Task StartAdd()
     {
-        var dialog = await DialogService.ShowAsync<AddSkillDialog>("新增 Skill", new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var dialog = await DialogService.ShowAsync<AddSkillDialog>("Add Skill", new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
         var result = await dialog.Result;
         if (result?.Canceled != false || result.Data is not (string id, string name, string desc, string bodyPart)) return;
         await SaveAddAsync(id, name, desc, string.IsNullOrWhiteSpace(bodyPart) ? null : bodyPart);
@@ -81,11 +81,11 @@
 
     private async Task StartImport()
     {
-        var dialog = await DialogService.ShowAsync<ImportSkillDialog>("导入 Skill", new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var dialog = await DialogService.ShowAsync<ImportSkillDialog>("Import Skill", new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
         var result = await dialog.Result;
         if (result?.Canceled != false) return;
         await AgentCache.InvalidateAgentAsync();
-        Snackbar.Add("已导入", Severity.Success);
+        Snackbar.Add("Imported", Severity.Success);
         await LoadListAsync();
     }
 
@@ -95,12 +95,12 @@
         {
             await SkillsConfig.AddUserSkillAsync(id, name, desc, body);
             await AgentCache.InvalidateAgentAsync();
-            Snackbar.Add("已添加", Severity.Success);
+            Snackbar.Add("Added", Severity.Success);
             await LoadListAsync();
         }
         catch (Exception ex)
         {
-            Snackbar.Add("添加失败: " + ex.Message, Severity.Error);
+            Snackbar.Add("Add failed: " + ex.Message, Severity.Error);
         }
     }
 
@@ -112,13 +112,13 @@
             [nameof(ViewSkillContentDialog.Name)] = skill.Name
         };
         var options = new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true };
-        await DialogService.ShowAsync<ViewSkillContentDialog>("技能内容", parameters, options);
+        await DialogService.ShowAsync<ViewSkillContentDialog>("Skill content", parameters, options);
     }
 
     private async Task ConfirmDelete(string id)
     {
         var parameters = new DialogParameters { [nameof(DeleteSkillConfirmDialog.Id)] = id };
-        var dialog = await DialogService.ShowAsync<DeleteSkillConfirmDialog>("删除 Skill", parameters);
+        var dialog = await DialogService.ShowAsync<DeleteSkillConfirmDialog>("Delete Skill", parameters);
         var result = await dialog.Result;
         if (result?.Canceled == true) return;
         if (result?.Data is true)
@@ -131,12 +131,12 @@
         {
             await SkillsConfig.DeleteUserSkillAsync(id);
             await AgentCache.InvalidateAgentAsync();
-            Snackbar.Add("已删除", Severity.Success);
+            Snackbar.Add("Deleted", Severity.Success);
             await LoadListAsync();
         }
         catch (Exception ex)
         {
-            Snackbar.Add("删除失败: " + ex.Message, Severity.Error);
+            Snackbar.Add("Delete failed: " + ex.Message, Severity.Error);
         }
     }
 

@@ -3,19 +3,19 @@
 @inject IJSRuntime JS
 
 <MudDialog>
-    <TitleContent><MudText Typo="Typo.h6">导入 Skill</MudText></TitleContent>
+    <TitleContent><MudText Typo="Typo.h6">Import Skill</MudText></TitleContent>
     <DialogContent>
-        <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.FolderOpen" OnClick="@PickFolder" Class="mb-2">选择文件夹</MudButton>
+        <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.FolderOpen" OnClick="@PickFolder" Class="mb-2">Select folder</MudButton>
         @if (!string.IsNullOrEmpty(_pickedFolderName))
         {
-            <MudText Typo="Typo.body2" Class="mb-2">已选: @_pickedFolderName</MudText>
+            <MudText Typo="Typo.body2" Class="mb-2">Selected: @_pickedFolderName</MudText>
         }
-        <MudTextField @bind-Value="_id" Label="Skill Id (可选，默认取文件夹名)" Variant="Variant.Outlined" Class="mb-2" />
-        <MudText Typo="Typo.caption">所选文件夹内必须包含 SKILL.md 且含有效 frontmatter。</MudText>
+        <MudTextField @bind-Value="_id" Label="Skill Id (optional, defaults to folder name)" Variant="Variant.Outlined" Class="mb-2" />
+        <MudText Typo="Typo.caption">The selected folder must contain SKILL.md with valid frontmatter.</MudText>
     </DialogContent>
     <DialogActions>
-        <MudButton Variant="Variant.Text" OnClick="@Cancel">取消</MudButton>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@Import" Disabled="@(_pickedFiles == null)">导入</MudButton>
+        <MudButton Variant="Variant.Text" OnClick="@Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@Import" Disabled="@(_pickedFiles == null)">Import</MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -45,7 +45,7 @@
         }
         catch (Exception ex)
         {
-            Snackbar.Add("选择文件夹失败: " + ex.Message, Severity.Error);
+            Snackbar.Add("Failed to pick folder: " + ex.Message, Severity.Error);
         }
     }
 
@@ -53,7 +53,7 @@
     {
         if (_pickedFiles == null || _pickedFiles.Count == 0)
         {
-            Snackbar.Add("请先选择文件夹", Severity.Warning);
+            Snackbar.Add("Please select a folder first.", Severity.Warning);
             return;
         }
         try
@@ -65,7 +65,7 @@
         }
         catch (Exception ex)
         {
-            Snackbar.Add("导入失败: " + ex.Message, Severity.Error);
+            Snackbar.Add("Import failed: " + ex.Message, Severity.Error);
         }
     }
 }

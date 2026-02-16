@@ -2,7 +2,7 @@
 
 <MudDialog>
     <TitleContent>
-        <MudText Typo="Typo.h6">技能内容 — @Name (@Id)</MudText>
+        <MudText Typo="Typo.h6">Skill content — @Name (@Id)</MudText>
     </TitleContent>
     <DialogContent>
         @if (_loading)
@@ -11,7 +11,7 @@
         }
         else if (_content == null)
         {
-            <MudAlert Severity="Severity.Warning">未找到该技能内容。</MudAlert>
+            <MudAlert Severity="Severity.Warning">Skill content not found.</MudAlert>
         }
         else
         {
@@ -21,7 +21,7 @@
         }
     </DialogContent>
     <DialogActions>
-        <MudButton Variant="Variant.Text" OnClick="@Close">关闭</MudButton>
+        <MudButton Variant="Variant.Text" OnClick="@Close">Close</MudButton>
     </DialogActions>
 </MudDialog>
 

@@ -63,7 +63,7 @@ public sealed class AgentRunnerAdapter(IConversationRepository conversationRepos
             var result = await agent.RunAsync(prompt, null, null, cancellationToken);
             var t = result.Text.Trim();
             if (t.Length > 20) t = t[..20];
-            return string.IsNullOrEmpty(t) ? "新对话" : t;
+            return string.IsNullOrEmpty(t) ? "New conversation" : t;
         }
         catch
         {

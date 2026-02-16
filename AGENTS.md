@@ -2,6 +2,15 @@
 
 This file provides guidance to Cursor when working with code in this repository.
 
+## English-only UI and logs
+
+**All user-facing text and system output must be in English only.** This includes:
+- UI labels, tooltips, buttons, dialog titles, Snackbar messages, and any text rendered in the Blazor app
+- Log messages, exception messages shown to users, and any other system output visible in the app or logs
+- Default values for entities (e.g. conversation title), error messages, and validation messages
+
+Do not add or leave Chinese (or other non-English) text in the host app (SmallEBot), Application, Infrastructure, or Core. Code comments and git commit messages remain in English per project rules.
+
 ## Commands
 
 - **Build** (from repo root): `dotnet build` or `dotnet build SmallEBot/SmallEBot.csproj` (solution: `SmallEBot.slnx`)

@@ -18,7 +18,7 @@
                 <MudListItem T="Conversation" Value="@conversation">
                     <div class="d-flex justify-space-between align-center" style="width:100%">
                         <div>
-                            <MudText Typo="Typo.body1">@(string.IsNullOrEmpty(conversation.Title) ? "新对话" : conversation.Title)</MudText>
+                            <MudText Typo="Typo.body1">@(string.IsNullOrEmpty(conversation.Title) ? "New conversation" : conversation.Title)</MudText>
                             <MudText Typo="Typo.caption">@conversation.UpdatedAt.ToString("g")</MudText>
                         </div>
                         <div @onclick="() => { }" @onclick:stopPropagation="true">

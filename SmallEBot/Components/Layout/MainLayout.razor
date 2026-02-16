@@ -15,7 +15,7 @@
     <MudAppBar Elevation="0" Class="smallebot-appbar">
         <MudText Typo="Typo.h6" Class="smallebot-logo">SmallEBot</MudText>
         <MudSpacer />
-        <MudTooltip Text="主题">
+        <MudTooltip Text="Theme">
             <MudMenu Icon="@Icons.Material.Filled.Palette"
                      AnchorOrigin="Origin.BottomRight"
                      TransformOrigin="Origin.TopRight"
@@ -29,22 +29,22 @@
                 }
             </MudMenu>
         </MudTooltip>
-        <MudTooltip Text="@(_showToolCalls ? "隐藏工具调用" : "显示工具调用")">
+        <MudTooltip Text="@(_showToolCalls ? "Hide tool calls" : "Show tool calls")">
             <MudIconButton Icon="@Icons.Material.Filled.Build"
                            Color="@(_showToolCalls ? Color.Primary : Color.Default)"
                            OnClick="@ToggleShowToolCalls" />
         </MudTooltip>
-        <MudTooltip Text="@(_useThinkingMode ? "关闭思考模式" : "开启思考模式")">
+        <MudTooltip Text="@(_useThinkingMode ? "Disable thinking mode" : "Enable thinking mode")">
             <MudIconButton Icon="@Icons.Material.Filled.Psychology"
                            Color="@(_useThinkingMode ? Color.Primary : Color.Default)"
                            OnClick="@ToggleUseThinkingMode" />
         </MudTooltip>
-        <MudTooltip Text="MCP 配置">
+        <MudTooltip Text="MCP config">
             <MudIconButton Icon="@Icons.Material.Filled.Extension"
                            Color="Color.Default"
                            OnClick="@OpenMcpConfig" />
         </MudTooltip>
-        <MudTooltip Text="Skills 配置">
+        <MudTooltip Text="Skills config">
             <MudIconButton Icon="@Icons.Material.Filled.School"
                            Color="Color.Default"
                            OnClick="@OpenSkillsConfig" />
@@ -115,11 +115,11 @@
 
     private static string GetThemeLabel(string id) => id switch
     {
-        "editorial-dark" => "编辑深色",
-        "paper-light" => "纸感浅色",
-        "terminal" => "终端",
-        "dusk" => "暮色",
-        "mono" => "单色",
+        "editorial-dark" => "Editorial dark",
+        "paper-light" => "Paper light",
+        "terminal" => "Terminal",
+        "dusk" => "Dusk",
+        "mono" => "Mono",
         _ => id
     };
 

@@ -8,7 +8,7 @@ public class Conversation
     [MaxLength(20)]
     public string UserName { get; set; } = string.Empty;
     [MaxLength(20)]
-    public string Title { get; set; } = "新对话";
+    public string Title { get; set; } = "New conversation";
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 

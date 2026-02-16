@@ -8,7 +8,7 @@ namespace SmallEBot.Application.Conversation;
 public sealed class AgentConversationService(IConversationRepository repository, IAgentRunner agentRunner) : IAgentConversationService
 {
     public Task<ConversationEntity> CreateConversationAsync(string userName, CancellationToken cancellationToken = default) =>
-        repository.CreateAsync(userName, "新对话", cancellationToken);
+        repository.CreateAsync(userName, "New conversation", cancellationToken);
 
     public Task<List<ConversationEntity>> GetConversationsAsync(string userName, CancellationToken cancellationToken = default) =>
         repository.GetListAsync(userName, cancellationToken);

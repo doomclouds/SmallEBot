@@ -7,7 +7,7 @@
 
 <MudDialog>
     <TitleContent>
-        <MudText Typo="Typo.h6">MCP 配置</MudText>
+        <MudText Typo="Typo.h6">MCP config</MudText>
     </TitleContent>
     <DialogContent>
         @if (_loading)
@@ -16,33 +16,33 @@
         }
         else
         {
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="@StartAdd" Class="mb-3">新增 MCP</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="@StartAdd" Class="mb-3">Add MCP</MudButton>
             <MudTable Items="@_rows" Hover="true" Breakpoint="Breakpoint.Sm" Dense="true">
                 <HeaderContent>
                     <MudTh Style="width: 48px;"></MudTh>
-                    <MudTh>名称</MudTh>
-                    <MudTh>类型</MudTh>
-                    <MudTh>信息</MudTh>
-                    <MudTh>来源</MudTh>
-                    <MudTh>启用</MudTh>
-                    <MudTh Style="width: 120px;">操作</MudTh>
+                    <MudTh>Name</MudTh>
+                    <MudTh>Type</MudTh>
+                    <MudTh>Info</MudTh>
+                    <MudTh>Source</MudTh>
+                    <MudTh>Enabled</MudTh>
+                    <MudTh Style="width: 120px;">Action</MudTh>
                 </HeaderContent>
                 <RowTemplate>
                     <MudTd>
-                        <MudIconButton Icon="@(_expandedId == context.Id ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)" Size="Size.Small" OnClick="@(() => ToggleExpand(context))" title="@(_expandedId == context.Id ? "收起" : "展开")" />
+                        <MudIconButton Icon="@(_expandedId == context.Id ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)" Size="Size.Small" OnClick="@(() => ToggleExpand(context))" title="@(_expandedId == context.Id ? "Collapse" : "Expand")" />
                     </MudTd>
-                    <MudTd DataLabel="名称">@context.Id</MudTd>
-                    <MudTd DataLabel="类型">@GetTypeLabel(context.Entry)</MudTd>
-                    <MudTd DataLabel="信息">@GetInfoLabel(context.Entry)</MudTd>
-                    <MudTd DataLabel="来源">@(context.IsSystem ? "系统" : "用户")</MudTd>
-                    <MudTd DataLabel="启用">
+                    <MudTd DataLabel="Name">@context.Id</MudTd>
+                    <MudTd DataLabel="Type">@GetTypeLabel(context.Entry)</MudTd>
+                    <MudTd DataLabel="Info">@GetInfoLabel(context.Entry)</MudTd>
+                    <MudTd DataLabel="Source">@(context.IsSystem ? "System" : "User")</MudTd>
+                    <MudTd DataLabel="Enabled">
                         <MudSwitch T="bool" value="@context.IsEnabled" ValueChanged="@GetToggleCallback(context.Id)" Color="Color.Primary" />
                     </MudTd>
-                    <MudTd DataLabel="操作">
+                    <MudTd DataLabel="Action">
                         @if (!context.IsSystem)
                         {
-                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(async () => await StartEdit(context.Id))" title="编辑" />
-                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(async () => await ConfirmAndDeleteMcp(context.Id))" title="删除" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(async () => await StartEdit(context.Id))" title="Edit" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(async () => await ConfirmAndDeleteMcp(context.Id))" title="Delete" />
                         }
                     </MudTd>
                 </RowTemplate>
@@ -54,20 +54,20 @@
                                 @if (_loadingToolsIds.Contains(context.Id))
                                 {
                                     <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="mb-2" />
-                                    <MudText Typo="Typo.body2">加载中…</MudText>
+                                    <MudText Typo="Typo.body2">Loading…</MudText>
                                 }
                                 else if (_toolsCache.TryGetValue(context.Id, out var result))
                                 {
                                     @if (result.Error != null)
                                     {
-                                        <MudText Typo="Typo.body2" Color="Color.Error">加载失败: @result.Error</MudText>
+                                        <MudText Typo="Typo.body2" Color="Color.Error">Load failed: @result.Error</MudText>
                                     }
                                     else
                                     {
-                                        <MudText Typo="Typo.subtitle2" Class="mb-2">工具</MudText>
+                                        <MudText Typo="Typo.subtitle2" Class="mb-2">Tools</MudText>
                                         @if (result.Tools.Count == 0)
                                         {
-                                            <MudText Typo="Typo.body2" Class="mb-3">无</MudText>
+                                            <MudText Typo="Typo.body2" Class="mb-3">None</MudText>
                                         }
                                         else
                                         {
@@ -78,7 +78,7 @@
                                                 }
                                             </ul>
                                         }
-                                        <MudText Typo="Typo.subtitle2" Class="mb-2">提示词</MudText>
+                                        <MudText Typo="Typo.subtitle2" Class="mb-2">Prompts</MudText>
                                         @if (result.Prompts == null || result.Prompts.Count == 0)
                                         {
                                             <MudText Typo="Typo.body2">—</MudText>
@@ -102,7 +102,7 @@
         }
     </DialogContent>
     <DialogActions>
-        <MudButton Variant="Variant.Text" OnClick="@Close">关闭</MudButton>
+        <MudButton Variant="Variant.Text" OnClick="@Close">Close</MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -132,7 +132,7 @@
         }
         catch
         {
-            Snackbar.Add("加载 MCP 配置失败", Severity.Warning);
+            Snackbar.Add("Failed to load MCP config", Severity.Warning);
         }
         finally
         {
@@ -142,7 +142,7 @@
 
     private async Task StartAdd()
     {
-        var dialog = await DialogService.ShowAsync<AddMcpServiceDialog>("添加 MCP 服务", new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var dialog = await DialogService.ShowAsync<AddMcpServiceDialog>("Add MCP service", new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
         var result = await dialog.Result;
         if (result?.Canceled != false) return;
         if (result.Data is not (string id, McpServerEntry entry))
@@ -159,7 +159,7 @@
             [nameof(AddMcpServiceDialog.EditId)] = id,
             [nameof(AddMcpServiceDialog.EditEntry)] = row.Entry
         };
-        var dialog = await DialogService.ShowAsync<AddMcpServiceDialog>("编辑 MCP 服务", parameters, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var dialog = await DialogService.ShowAsync<AddMcpServiceDialog>("Edit MCP service", parameters, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
         var result = await dialog.Result;
         if (result?.Canceled != false) return;
         if (result.Data is not (string newId, McpServerEntry entry))
@@ -172,12 +172,12 @@
         var trimmedId = id.Trim();
         if (string.IsNullOrEmpty(trimmedId))
         {
-            Snackbar.Add("请输入名称", Severity.Warning);
+            Snackbar.Add("Please enter a name", Severity.Warning);
             return;
         }
         if (_systemIds.Contains(trimmedId) && (!isEdit || trimmedId != oldId))
         {
-            Snackbar.Add("该名称已被系统 MCP 使用，请使用其他名称", Severity.Warning);
+            Snackbar.Add("This name is already used by a system MCP. Please use another name.", Severity.Warning);
             return;
         }
         var user = await McpConfig.GetUserMcpAsync();
@@ -188,12 +188,12 @@
         {
             await McpConfig.SaveUserMcpAsync(dict);
             await AgentCache.InvalidateAgentAsync();
-            Snackbar.Add(isEdit ? "已保存" : "已添加", Severity.Success);
+            Snackbar.Add(isEdit ? "Saved" : "Added", Severity.Success);
             await LoadListAsync();
         }
         catch
         {
-            Snackbar.Add("保存失败", Severity.Error);
+            Snackbar.Add("Save failed", Severity.Error);
         }
     }
 
@@ -225,7 +225,7 @@
     private async Task ConfirmAndDeleteMcp(string id)
     {
         var parameters = new DialogParameters { [nameof(DeleteMcpConfirmDialog.Name)] = id };
-        var dialog = await DialogService.ShowAsync<DeleteMcpConfirmDialog>("删除 MCP", parameters);
+        var dialog = await DialogService.ShowAsync<DeleteMcpConfirmDialog>("Delete MCP", parameters);
         var result = await dialog.Result;
         if (result?.Canceled == true) return;
         if (result?.Data is true)
@@ -241,12 +241,12 @@
         {
             await McpConfig.SaveUserMcpAsync(dict);
             await AgentCache.InvalidateAgentAsync();
-            Snackbar.Add("已删除", Severity.Success);
+            Snackbar.Add("Deleted", Severity.Success);
             await LoadListAsync();
         }
         catch (Exception)
         {
-            Snackbar.Add("删除失败", Severity.Error);
+            Snackbar.Add("Delete failed", Severity.Error);
         }
     }
 
@@ -297,7 +297,7 @@
         }
         catch
         {
-            Snackbar.Add("保存启用状态失败", Severity.Warning);
+            Snackbar.Add("Failed to save enable state", Severity.Warning);
         }
     }
 
