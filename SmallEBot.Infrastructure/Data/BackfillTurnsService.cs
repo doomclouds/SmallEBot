@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using SmallEBot.Core.Entities;
-using SmallEBot.Infrastructure.Data;
 
 namespace SmallEBot.Infrastructure.Data;
 

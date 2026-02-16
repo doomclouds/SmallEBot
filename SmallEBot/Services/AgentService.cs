@@ -2,7 +2,6 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.AI;
-using SmallEBot.Core.Entities;
 using SmallEBot.Core.Models;
 using SmallEBot.Core.Repositories;
 using ChatMessage = Microsoft.Extensions.AI.ChatMessage;
