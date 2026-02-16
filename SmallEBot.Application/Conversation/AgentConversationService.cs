@@ -1,0 +1,68 @@
+using SmallEBot.Application.Streaming;
+using SmallEBot.Core.Models;
+using SmallEBot.Core.Repositories;
+using ConversationEntity = SmallEBot.Core.Entities.Conversation;
+
+namespace SmallEBot.Application.Conversation;
+
+public sealed class AgentConversationService(IConversationRepository repository, IAgentRunner agentRunner) : IAgentConversationService
+{
+    public Task<ConversationEntity> CreateConversationAsync(string userName, CancellationToken cancellationToken = default) =>
+        repository.CreateAsync(userName, "新对话", cancellationToken);
+
+    public Task<List<ConversationEntity>> GetConversationsAsync(string userName, CancellationToken cancellationToken = default) =>
+        repository.GetListAsync(userName, cancellationToken);
+
+    public Task<ConversationEntity?> GetConversationAsync(Guid id, string userName, CancellationToken cancellationToken = default) =>
+        repository.GetByIdAsync(id, userName, cancellationToken);
+
+    public Task<bool> DeleteConversationAsync(Guid id, string userName, CancellationToken cancellationToken = default) =>
+        repository.DeleteAsync(id, userName, cancellationToken);
+
+    public Task<int> GetMessageCountAsync(Guid conversationId, CancellationToken cancellationToken = default) =>
+        repository.GetMessageCountAsync(conversationId, cancellationToken);
+
+    public async Task<Guid> CreateTurnAndUserMessageAsync(
+        Guid conversationId,
+        string userName,
+        string userMessage,
+        bool useThinking,
+        CancellationToken cancellationToken = default)
+    {
+        var count = await repository.GetMessageCountAsync(conversationId, cancellationToken);
+        var newTitle = count == 0 ? await agentRunner.GenerateTitleAsync(userMessage, cancellationToken) : null;
+        return await repository.AddTurnAndUserMessageAsync(conversationId, userName, userMessage, useThinking, newTitle, cancellationToken);
+    }
+
+    public async Task StreamResponseAndCompleteAsync(
+        Guid conversationId,
+        Guid turnId,
+        string userMessage,
+        bool useThinking,
+        IStreamSink sink,
+        CancellationToken cancellationToken = default)
+    {
+        var updates = new List<StreamUpdate>();
+        await foreach (var update in agentRunner.RunStreamingAsync(conversationId, userMessage, useThinking, cancellationToken))
+        {
+            updates.Add(update);
+            await sink.OnNextAsync(update, cancellationToken);
+        }
+        var segments = StreamUpdateToSegments.ToSegments(updates, useThinking);
+        await repository.CompleteTurnWithAssistantAsync(conversationId, turnId, segments, cancellationToken);
+    }
+
+    public Task CompleteTurnWithAssistantAsync(
+        Guid conversationId,
+        Guid turnId,
+        IReadOnlyList<AssistantSegment> segments,
+        CancellationToken cancellationToken = default) =>
+        repository.CompleteTurnWithAssistantAsync(conversationId, turnId, segments, cancellationToken);
+
+    public Task CompleteTurnWithErrorAsync(
+        Guid conversationId,
+        Guid turnId,
+        string errorMessage,
+        CancellationToken cancellationToken = default) =>
+        repository.CompleteTurnWithErrorAsync(conversationId, turnId, errorMessage, cancellationToken);
+}
