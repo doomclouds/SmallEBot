@@ -1,18 +1,16 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
-using SmallEBot.Data;
-using SmallEBot.Data.Entities;
-using SmallEBot.Models;
+using SmallEBot.Core.Entities;
+using SmallEBot.Core.Models;
+using SmallEBot.Core.Repositories;
 using ChatMessage = Microsoft.Extensions.AI.ChatMessage;
 
 namespace SmallEBot.Services;
 
 public class AgentService(
-    AppDbContext db,
-    ConversationService convSvc,
+    IConversationRepository conversationRepository,
     IAgentBuilder agentBuilder,
     ITokenizer tokenizer) : IAsyncDisposable
 {
@@ -25,8 +23,7 @@ public class AgentService(
     /// <summary>Estimated context usage (0.0–1.0) from tokenized request body (system + messages as JSON). Inflated by 5%; result rounded to 0.1%.</summary>
     public async Task<double> GetEstimatedContextUsageAsync(Guid conversationId, CancellationToken ct = default)
     {
-        var store = new ChatMessageStoreAdapter(db, conversationId);
-        var messages = await store.LoadMessagesAsync(ct);
+        var messages = await conversationRepository.GetMessagesForConversationAsync(conversationId, ct);
         var systemPrompt = agentBuilder.GetCachedSystemPromptForTokenCount() ?? FallbackSystemPromptForTokenCount;
         var json = SerializeRequestJsonForTokenCount(systemPrompt, messages);
         var rawTokens = tokenizer.CountTokens(json);
@@ -44,8 +41,7 @@ public class AgentService(
     {
         var agent = await agentBuilder.GetOrCreateAgentAsync(useThinking, ct);
 
-        var store = new ChatMessageStoreAdapter(db, conversationId);
-        var history = await store.LoadMessagesAsync(ct);
+        var history = await conversationRepository.GetMessagesForConversationAsync(conversationId, ct);
         var frameworkMessages = history
             .Select(m => new ChatMessage(ToChatRole(m.Role), m.Content))
             .ToList();
@@ -89,43 +85,9 @@ public class AgentService(
         bool useThinking,
         CancellationToken ct = default)
     {
-        var conv = await db.Conversations
-            .FirstOrDefaultAsync(x => x.Id == conversationId && x.UserName == userName, ct);
-        if (conv == null)
-            throw new InvalidOperationException("Conversation not found.");
-
-        var msgCountBefore = await convSvc.GetMessageCountAsync(conversationId, ct);
-        var baseTime = DateTime.UtcNow;
-
-        var turn = new ConversationTurn
-        {
-            Id = Guid.NewGuid(),
-            ConversationId = conversationId,
-            IsThinkingMode = useThinking,
-            CreatedAt = baseTime
-        };
-        db.ConversationTurns.Add(turn);
-        baseTime = baseTime.AddMilliseconds(1);
-
-        db.ChatMessages.Add(new Data.Entities.ChatMessage
-        {
-            Id = Guid.NewGuid(),
-            ConversationId = conversationId,
-            TurnId = turn.Id,
-            Role = "user",
-            Content = userMessage,
-            CreatedAt = baseTime
-        });
-
-        conv.UpdatedAt = DateTime.UtcNow;
-        if (msgCountBefore == 0)
-        {
-            var title = await GenerateTitleAsync(userMessage, ct);
-            conv.Title = title;
-        }
-
-        await db.SaveChangesAsync(ct);
-        return turn.Id;
+        var msgCountBefore = await conversationRepository.GetMessageCountAsync(conversationId, ct);
+        var newTitle = msgCountBefore == 0 ? await GenerateTitleAsync(userMessage, ct) : null;
+        return await conversationRepository.AddTurnAndUserMessageAsync(conversationId, userName, userMessage, useThinking, newTitle, ct);
     }
 
     /// <summary>Persist assistant segments for an existing turn.</summary>
@@ -133,91 +95,19 @@ public class AgentService(
         Guid conversationId,
         Guid turnId,
         IReadOnlyList<AssistantSegment> assistantSegments,
-        CancellationToken ct = default)
-    {
-        var conv = await db.Conversations
-            .FirstOrDefaultAsync(x => x.Id == conversationId, ct);
-        if (conv == null) return;
-
-        var baseTime = DateTime.UtcNow;
-        var toolOrder = 0;
-        var thinkOrder = 0;
-
-        foreach (var seg in assistantSegments)
-        {
-            if (seg.IsText && !string.IsNullOrEmpty(seg.Text))
-            {
-                db.ChatMessages.Add(new Data.Entities.ChatMessage
-                {
-                    Id = Guid.NewGuid(),
-                    ConversationId = conversationId,
-                    TurnId = turnId,
-                    Role = "assistant",
-                    Content = seg.Text,
-                    CreatedAt = baseTime
-                });
-            }
-            else if (seg.IsThink && !string.IsNullOrEmpty(seg.Text))
-            {
-                db.ThinkBlocks.Add(new ThinkBlock
-                {
-                    Id = Guid.NewGuid(),
-                    ConversationId = conversationId,
-                    TurnId = turnId,
-                    Content = seg.Text,
-                    SortOrder = thinkOrder++,
-                    CreatedAt = baseTime
-                });
-            }
-            else if (seg is { IsText: false, IsThink: false })
-            {
-                db.ToolCalls.Add(new ToolCall
-                {
-                    Id = Guid.NewGuid(),
-                    ConversationId = conversationId,
-                    TurnId = turnId,
-                    ToolName = seg.ToolName ?? "",
-                    Arguments = seg.Arguments,
-                    Result = seg.Result,
-                    SortOrder = toolOrder++,
-                    CreatedAt = baseTime
-                });
-            }
-            baseTime = baseTime.AddMilliseconds(1);
-        }
-
-        conv.UpdatedAt = DateTime.UtcNow;
-        await db.SaveChangesAsync(ct);
-    }
+        CancellationToken ct = default) =>
+        await conversationRepository.CompleteTurnWithAssistantAsync(conversationId, turnId, assistantSegments, ct);
 
     /// <summary>Persist an error message as the assistant reply for the turn.</summary>
     public async Task CompleteTurnWithErrorAsync(
         Guid conversationId,
         Guid turnId,
         string errorMessage,
-        CancellationToken ct = default)
-    {
-        var conv = await db.Conversations
-            .FirstOrDefaultAsync(x => x.Id == conversationId, ct);
-        if (conv == null) return;
-
-        var content = "Error: " + (string.IsNullOrEmpty(errorMessage) ? "Unknown error" : errorMessage);
-        db.ChatMessages.Add(new Data.Entities.ChatMessage
-        {
-            Id = Guid.NewGuid(),
-            ConversationId = conversationId,
-            TurnId = turnId,
-            Role = "assistant",
-            Content = content,
-            CreatedAt = DateTime.UtcNow
-        });
-
-        conv.UpdatedAt = DateTime.UtcNow;
-        await db.SaveChangesAsync(ct);
-    }
+        CancellationToken ct = default) =>
+        await conversationRepository.CompleteTurnWithErrorAsync(conversationId, turnId, errorMessage, ct);
 
     /// <summary>Serializes system + messages as request JSON (same shape as HTTP body) for accurate token count.</summary>
-    private static string SerializeRequestJsonForTokenCount(string systemPrompt, List<Data.Entities.ChatMessage> messages)
+    private static string SerializeRequestJsonForTokenCount(string systemPrompt, List<Core.Entities.ChatMessage> messages)
     {
         var payload = new RequestPayloadForTokenCount
         {
@@ -226,7 +116,7 @@ public class AgentService(
         };
         return JsonSerializer.Serialize(payload);
     }
-    
+
     private static string? ToJsonString(object? value)
     {
         if (value == null) return null;
@@ -281,7 +171,7 @@ public class AgentService(
         await agentBuilder.InvalidateAsync();
         GC.SuppressFinalize(this);
     }
-    
+
     private sealed class RequestPayloadForTokenCount
     {
         [JsonPropertyName("system")]
@@ -300,4 +190,3 @@ public class AgentService(
         public string Content { get; set; } = "";
     }
 }
-

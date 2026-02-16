@@ -1,4 +1,4 @@
-using SmallEBot.Models;
+using SmallEBot.Core.Models;
 using SmallEBot.Services;
 
 namespace SmallEBot.Components.Chat;
