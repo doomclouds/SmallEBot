@@ -8,6 +8,9 @@
         <MudText Typo="Typo.h6">Terminal config</MudText>
     </TitleContent>
     <DialogContent>
+        <MudText Typo="Typo.subtitle2" Class="mb-2">Command timeout (seconds)</MudText>
+        <MudText Typo="Typo.body2" Class="mb-2">Maximum time to wait for a shell command before cancelling (5–600).</MudText>
+        <MudNumericField T="int" @bind-Value="_timeoutSeconds" Min="5" Max="600" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3" Style="max-width: 120px;" />
         <MudText Typo="Typo.subtitle2" Class="mb-2">Command blacklist</MudText>
         <MudText Typo="Typo.body2" Class="mb-3">Commands that contain any of these entries (case-insensitive) will be blocked when the agent runs shell commands.</MudText>
         @if (_loading)
@@ -47,7 +50,7 @@
                                 <MudText Typo="Typo.body2" Style="word-break: break-all;">@item</MudText>
                                 <MudIconButton Icon="@Icons.Material.Filled.Delete"
                                                Size="Size.Small"
-                                               OnClick="@(() => RemoveEntry(item))"
+                                               OnClick="@(() => ConfirmRemoveEntry(item))"
                                                title="Remove" />
                             </MudStack>
                         </MudListItem>
@@ -69,6 +72,7 @@
     private bool _loading = true;
     private List<string> _entries = [];
     private string _newEntry = "";
+    private int _timeoutSeconds = 60;
 
     protected override async Task OnInitializedAsync()
     {
@@ -76,6 +80,7 @@
         {
             var list = await TerminalConfig.GetCommandBlacklistAsync();
             _entries = list.ToList();
+            _timeoutSeconds = await TerminalConfig.GetCommandTimeoutSecondsAsync();
         }
         catch
         {
@@ -107,16 +112,20 @@
             AddEntry();
     }
 
-    private void RemoveEntry(string entry)
+    private async Task ConfirmRemoveEntry(string entry)
     {
-        _entries.Remove(entry);
+        var parameters = new DialogParameters { [nameof(DeleteBlacklistEntryConfirmDialog.Entry)] = entry };
+        var dialog = await DialogService.ShowAsync<DeleteBlacklistEntryConfirmDialog>("Remove blacklist entry", parameters);
+        var result = await dialog.Result;
+        if (result?.Canceled == false && result.Data is true)
+            _entries.Remove(entry);
     }
 
     private async Task Save()
     {
         try
         {
-            await TerminalConfig.SaveCommandBlacklistAsync(_entries);
+            await TerminalConfig.SaveAsync(_entries, _timeoutSeconds);
             Snackbar.Add("Saved", Severity.Success);
             MudDialog.Close(DialogResult.Ok(true));
         }

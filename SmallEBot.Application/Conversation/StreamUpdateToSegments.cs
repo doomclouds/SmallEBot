@@ -23,7 +23,7 @@ public static class StreamUpdateToSegments
                 case ToolCallStreamUpdate tool when useThinking:
                     FlushThink(ref thinkBuffer, segments);
                     FlushText(ref textBuffer, segments);
-                    segments.Add(new AssistantSegment(false, false, null, tool.ToolName, tool.Arguments, tool.Result));
+                    ApplyToolUpdate(tool, segments);
                     break;
                 case TextStreamUpdate text:
                     FlushThink(ref thinkBuffer, segments);
@@ -31,13 +31,30 @@ public static class StreamUpdateToSegments
                     break;
                 case ToolCallStreamUpdate tool when !useThinking:
                     FlushText(ref textBuffer, segments);
-                    segments.Add(new AssistantSegment(false, false, null, tool.ToolName, tool.Arguments, tool.Result));
+                    ApplyToolUpdate(tool, segments);
                     break;
             }
         }
         FlushThink(ref thinkBuffer, segments);
         FlushText(ref textBuffer, segments);
         return segments;
+    }
+
+    /// <summary>Result-only update: merge into the last tool segment. Otherwise add a new tool segment.</summary>
+    private static void ApplyToolUpdate(ToolCallStreamUpdate tool, List<AssistantSegment> segments)
+    {
+        if (tool is { Result: not null, Arguments: null })
+        {
+            var lastIdx = segments.Count - 1;
+            if (lastIdx >= 0 && segments[lastIdx] is { IsText: false, IsThink: false } last)
+            {
+                segments[lastIdx] = last with { Result = tool.Result };
+                return;
+            }
+        }
+        if (string.IsNullOrEmpty(tool.ToolName) && tool.Arguments == null)
+            return;
+        segments.Add(new AssistantSegment(false, false, null, tool.ToolName, tool.Arguments, tool.Result));
     }
 
     private static void FlushThink(ref string? buffer, List<AssistantSegment> segments)

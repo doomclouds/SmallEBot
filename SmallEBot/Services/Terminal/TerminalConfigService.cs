@@ -77,10 +77,53 @@ public sealed class TerminalConfigService : ITerminalConfigService
         }
     }
 
-    public async Task SaveCommandBlacklistAsync(IReadOnlyList<string> commandBlacklist, CancellationToken ct = default)
+    private const int DefaultTimeoutSeconds = 60;
+    private const int MinTimeoutSeconds = 5;
+    private const int MaxTimeoutSeconds = 600;
+
+    public int GetCommandTimeoutSeconds()
+    {
+        if (!File.Exists(_filePath))
+            return DefaultTimeoutSeconds;
+        try
+        {
+            var json = File.ReadAllText(_filePath);
+            var data = JsonSerializer.Deserialize<TerminalConfigFile>(json, ReadOptions);
+            var raw = data?.CommandTimeoutSeconds ?? 0;
+            return raw >= MinTimeoutSeconds ? Math.Clamp(raw, MinTimeoutSeconds, MaxTimeoutSeconds) : DefaultTimeoutSeconds;
+        }
+        catch
+        {
+            return DefaultTimeoutSeconds;
+        }
+    }
+
+    public async Task<int> GetCommandTimeoutSecondsAsync(CancellationToken ct = default)
+    {
+        if (!File.Exists(_filePath))
+            return DefaultTimeoutSeconds;
+        try
+        {
+            var json = await File.ReadAllTextAsync(_filePath, ct);
+            var data = JsonSerializer.Deserialize<TerminalConfigFile>(json, ReadOptions);
+            var raw = data?.CommandTimeoutSeconds ?? 0;
+            return raw >= MinTimeoutSeconds ? Math.Clamp(raw, MinTimeoutSeconds, MaxTimeoutSeconds) : DefaultTimeoutSeconds;
+        }
+        catch
+        {
+            return DefaultTimeoutSeconds;
+        }
+    }
+
+    public async Task SaveAsync(IReadOnlyList<string> commandBlacklist, int commandTimeoutSeconds, CancellationToken ct = default)
     {
         Directory.CreateDirectory(_agentsPath);
-        var data = new TerminalConfigFile { CommandBlacklist = commandBlacklist.ToList() };
+        var timeout = Math.Clamp(commandTimeoutSeconds, MinTimeoutSeconds, MaxTimeoutSeconds);
+        var data = new TerminalConfigFile
+        {
+            CommandBlacklist = commandBlacklist.ToList(),
+            CommandTimeoutSeconds = timeout
+        };
         var json = JsonSerializer.Serialize(data, WriteOptions);
         await File.WriteAllTextAsync(_filePath, json, ct);
     }
@@ -88,5 +131,6 @@ public sealed class TerminalConfigService : ITerminalConfigService
     private sealed class TerminalConfigFile
     {
         public List<string> CommandBlacklist { get; set; } = [];
+        public int CommandTimeoutSeconds { get; set; } = DefaultTimeoutSeconds;
     }
 }

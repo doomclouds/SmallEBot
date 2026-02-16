@@ -14,7 +14,6 @@ public interface IBuiltInToolFactory
 
 public sealed class BuiltInToolFactory(ITerminalConfigService terminalConfig) : IBuiltInToolFactory
 {
-    private const int CommandTimeoutMs = 60_000;
     private static readonly HashSet<string> AllowedExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
         ".md", ".cs", ".py", ".txt", ".json", ".yml", ".yaml"
@@ -80,7 +79,7 @@ public sealed class BuiltInToolFactory(ITerminalConfigService terminalConfig) : 
         return "Error: skill not found. Check the skill name (id) under .agents/sys.skills/ or .agents/skills/.";
     }
 
-    [Description("Run a shell command on the host. Pass the command line (e.g. dotnet build or git status). Optional workingDirectory is relative to the app run directory. Blocks for up to 60 seconds. Not allowed if the command matches the terminal blacklist.")]
+    [Description("Run a shell command on the host. Pass the command line (e.g. dotnet build or git status). Optional workingDirectory is relative to the app run directory. Blocks until the command exits or the configured timeout (see Terminal config). Not allowed if the command matches the terminal blacklist.")]
     private string ExecuteCommand(string command, string? workingDirectory = null)
     {
         if (string.IsNullOrWhiteSpace(command))
@@ -119,15 +118,16 @@ public sealed class BuiltInToolFactory(ITerminalConfigService terminalConfig) : 
                 process.StartInfo.Arguments = $"-c \"{normalized.Replace("\\", "\\\\").Replace("\"", "\\\"")}\"";
             }
             process.Start();
+            var timeoutMs = Math.Clamp(terminalConfig.GetCommandTimeoutSeconds(), 5, 600) * 1000;
             var stdoutTask = process.StandardOutput.ReadToEndAsync();
             var stderrTask = process.StandardError.ReadToEndAsync();
-            var exited = process.WaitForExit(CommandTimeoutMs);
+            var exited = process.WaitForExit(timeoutMs);
             var stdout = stdoutTask.GetAwaiter().GetResult();
             var stderr = stderrTask.GetAwaiter().GetResult();
             if (!exited)
             {
                 try { process.Kill(); } catch { /* ignore */ }
-                return "Error: Command timed out after 60 seconds.";
+                return $"Error: Command timed out after {terminalConfig.GetCommandTimeoutSeconds()} seconds.";
             }
             return $"ExitCode: {process.ExitCode}\nStdout:\n{stdout}\nStderr:\n{stderr}";
         }

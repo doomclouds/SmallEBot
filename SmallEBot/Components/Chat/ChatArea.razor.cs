@@ -110,30 +110,26 @@ public partial class ChatArea
             }
             if (update is ToolCallStreamUpdate tc)
             {
+                // Result-only update: merge into the last tool (reply or reasoning), so we never show a separate block for the result.
+                if (tc.Result != null && tc.Arguments == null)
+                {
+                    var lastReplyTool = replyItems.LastOrDefault(x => x.IsReplyTool);
+                    if (lastReplyTool != null)
+                        lastReplyTool.ToolResult = tc.Result;
+                    else
+                    {
+                        var lastReasoningTool = reasoningSteps.LastOrDefault(x => !x.IsThink);
+                        lastReasoningTool?.ToolResult = tc.Result;
+                    }
+                    continue;
+                }
+                // New tool call (name/args): add to reasoning or reply depending on whether we've seen text.
+                if (string.IsNullOrEmpty(tc.ToolName) && tc.Arguments == null)
+                    continue;
                 if (seenText)
-                {
-                    if (tc is { Result: not null, Arguments: null })
-                    {
-                        var lastTool = replyItems.LastOrDefault(x => x.IsReplyTool);
-                        lastTool?.ToolResult = tc.Result;
-                    }
-                    else if (!string.IsNullOrEmpty(tc.ToolName) || tc.Arguments != null)
-                    {
-                        replyItems.Add(new StreamDisplayItem { IsReplyTool = true, ToolName = tc.ToolName, ToolArguments = tc.Arguments, ToolResult = tc.Result });
-                    }
-                }
+                    replyItems.Add(new StreamDisplayItem { IsReplyTool = true, ToolName = tc.ToolName, ToolArguments = tc.Arguments, ToolResult = tc.Result });
                 else
-                {
-                    if (tc is { Result: not null, Arguments: null })
-                    {
-                        var lastTool = reasoningSteps.LastOrDefault(x => !x.IsThink);
-                        lastTool?.ToolResult = tc.Result;
-                    }
-                    else if (!string.IsNullOrEmpty(tc.ToolName) || tc.Arguments != null)
-                    {
-                        reasoningSteps.Add(new ReasoningStep { IsThink = false, ToolName = tc.ToolName, ToolArguments = tc.Arguments, ToolResult = tc.Result });
-                    }
-                }
+                    reasoningSteps.Add(new ReasoningStep { IsThink = false, ToolName = tc.ToolName, ToolArguments = tc.Arguments, ToolResult = tc.Result });
             }
         }
 
