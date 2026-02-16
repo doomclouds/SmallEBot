@@ -8,6 +8,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../SmallEBot.Core/SmallEBot.Core.csproj" />
+    <ProjectReference Include="../SmallEBot.Infrastructure/SmallEBot.Infrastructure.csproj" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="Microsoft.Agents.AI.Anthropic" Version="1.0.0-preview.260212.1" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.3">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

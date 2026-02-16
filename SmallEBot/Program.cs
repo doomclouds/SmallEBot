@@ -1,7 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using MudBlazor.Services;
 using SmallEBot.Components;
-using SmallEBot.Data;
+using SmallEBot.Infrastructure.Data;
+using SmallEBot.Infrastructure.Repositories;
+using SmallEBot.Core.Repositories;
 using SmallEBot.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -11,11 +13,13 @@ var baseDir = AppDomain.CurrentDomain.BaseDirectory;
 var dbPath = Path.Combine(baseDir, "smallebot.db");
 var connectionString = $"Data Source={dbPath}";
 
-builder.Services.AddDbContext<AppDbContext>(options =>
+builder.Services.AddDbContext<SmallEBotDbContext>(options =>
 {
     options.UseSqlite(connectionString);
     options.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.NonTransactionalMigrationOperationWarning));
 });
+builder.Services.AddScoped<IConversationRepository, ConversationRepository>();
+builder.Services.AddScoped<BackfillTurnsService>();
 builder.Services.AddScoped<UserPreferencesService>();
 builder.Services.AddScoped<IMcpConfigService, McpConfigService>();
 builder.Services.AddScoped<ISkillsConfigService, SkillsConfigService>();
@@ -52,10 +56,10 @@ var app = builder.Build();
 // Apply pending EF Core migrations and backfill TurnId for existing data
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var db = scope.ServiceProvider.GetRequiredService<SmallEBotDbContext>();
     db.Database.Migrate();
-    var convSvc = scope.ServiceProvider.GetRequiredService<ConversationService>();
-    await convSvc.BackfillTurnsAsync();
+    var backfill = scope.ServiceProvider.GetRequiredService<BackfillTurnsService>();
+    await backfill.RunAsync();
 }
 
 // Configure the HTTP request pipeline.
