@@ -47,7 +47,10 @@ Main options live in `SmallEBot/appsettings.json` under `SmallEBot` and `Anthrop
 
 ## Project layout
 
-- `SmallEBot/` — Single Blazor Server app: `Program.cs`, `Components/`, `Services/`, `Data/`, `Models/`.
-- `docs/plans/` — Design and implementation notes (e.g. phase 1 design, ChatArea refactor).
+- **SmallEBot.Core** — Domain entities, repository interfaces, shared models (no EF or UI).
+- **SmallEBot.Application** — Conversation pipeline, `IAgentRunner` / `IStreamSink`; host-agnostic.
+- **SmallEBot.Infrastructure** — EF Core, SQLite, migrations, repository implementation.
+- **SmallEBot/** — Blazor Server host: `Program.cs`, `Components/`, `Services/` (by domain), DI in `Extensions/`.
+- **docs/plans/** — Design and implementation notes.
 
-For build, migrations, and architecture details, see [AGENTS.md](AGENTS.md).
+For build, EF migrations, and architecture details, see [AGENTS.md](AGENTS.md).
