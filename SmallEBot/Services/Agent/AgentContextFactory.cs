@@ -15,7 +15,7 @@ public interface IAgentContextFactory
 
 public sealed class AgentContextFactory(ISkillsConfigService skillsConfig) : IAgentContextFactory
 {
-    private const string BaseInstructions = "You are SmallEBot, a helpful personal assistant. Be concise and friendly. When the user asks for the current time or date, use the GetCurrentTime tool. Use any other available MCP tools when they help answer the user. You can run shell commands on the host with the ExecuteCommand tool (command and optional working directory); avoid commands that are disallowed by the user's terminal blacklist.";
+    private const string BaseInstructions = "You are SmallEBot, a helpful personal assistant. Be concise and friendly. When the user asks for the current time or date, use the GetCurrentTime tool. Use any other available MCP tools when they help answer the user. You can run shell commands on the host with the ExecuteCommand tool (command and optional working directory); avoid commands that are disallowed by the user's terminal blacklist. For running Python scripts or snippets, use the RunPython tool (inline code or path to a .py file under the run directory).";
     private string? _cachedSystemPrompt;
 
     public async Task<string> BuildSystemPromptAsync(CancellationToken ct = default)
