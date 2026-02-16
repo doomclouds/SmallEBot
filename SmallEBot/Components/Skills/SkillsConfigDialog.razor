@@ -1,3 +1,4 @@
+@using SmallEBot.Models
 @inject ISkillsConfigService SkillsConfig
 @inject AgentService AgentService
 @inject IDialogService DialogService
@@ -14,8 +15,8 @@
         }
         else
         {
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="StartAdd" Class="mb-3">新增 Skill</MudButton>
-            <MudButton Variant="Variant.Outlined" Class="mb-3 ms-2" StartIcon="@Icons.Material.Filled.Upload" OnClick="StartImport">导入</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="@StartAdd" Class="mb-3">新增 Skill</MudButton>
+            <MudButton Variant="Variant.Outlined" Class="mb-3 ms-2" StartIcon="@Icons.Material.Filled.Upload" OnClick="@StartImport">导入</MudButton>
             <MudTable Items="@_rows" Hover="true" Breakpoint="Breakpoint.Sm" Dense="true">
                 <HeaderContent>
                     <MudTh>名称 (id)</MudTh>
@@ -37,7 +38,7 @@
         }
     </DialogContent>
     <DialogActions>
-        <MudButton Variant="Variant.Text" OnClick="Close">关闭</MudButton>
+        <MudButton Variant="Variant.Text" OnClick="@Close">关闭</MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -45,7 +46,7 @@
     [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
 
     private bool _loading = true;
-    private List<SmallEBot.Models.SkillMetadata> _rows = [];
+    private List<SkillMetadata> _rows = [];
 
     protected override async Task OnInitializedAsync()
     {
@@ -74,7 +75,7 @@
     {
         var dialog = await DialogService.ShowAsync<AddSkillDialog>("新增 Skill", new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
         var result = await dialog.Result;
-        if (result?.Canceled != false || result?.Data is not (string id, string name, string desc, string bodyPart)) return;
+        if (result?.Canceled != false || result.Data is not (string id, string name, string desc, string bodyPart)) return;
         await SaveAddAsync(id, name, desc, string.IsNullOrWhiteSpace(bodyPart) ? null : bodyPart);
     }
 
@@ -103,7 +104,7 @@
         }
     }
 
-    private async Task ViewContent(SmallEBot.Models.SkillMetadata skill)
+    private async Task ViewContent(SkillMetadata skill)
     {
         var parameters = new DialogParameters
         {

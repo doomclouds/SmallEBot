@@ -1,3 +1,4 @@
+@using SmallEBot.Models
 @inject IMcpConfigService McpConfig
 @inject IMcpToolsLoaderService McpToolsLoader
 @inject AgentService AgentService
@@ -15,7 +16,7 @@
         }
         else
         {
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="StartAdd" Class="mb-3">新增 MCP</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="@StartAdd" Class="mb-3">新增 MCP</MudButton>
             <MudTable Items="@_rows" Hover="true" Breakpoint="Breakpoint.Sm" Dense="true">
                 <HeaderContent>
                     <MudTh Style="width: 48px;"></MudTh>
@@ -101,7 +102,7 @@
         }
     </DialogContent>
     <DialogActions>
-        <MudButton Variant="Variant.Text" OnClick="Close">关闭</MudButton>
+        <MudButton Variant="Variant.Text" OnClick="@Close">关闭</MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -141,10 +142,10 @@
 
     private async Task StartAdd()
     {
-        var dialog = await DialogService.ShowAsync<SmallEBot.Components.Mcp.AddMcpServiceDialog>("添加 MCP 服务", new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var dialog = await DialogService.ShowAsync<AddMcpServiceDialog>("添加 MCP 服务", new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
         var result = await dialog.Result;
         if (result?.Canceled != false) return;
-        if (result.Data is not (string id, SmallEBot.Models.McpServerEntry entry))
+        if (result.Data is not (string id, McpServerEntry entry))
             return;
         await SaveFromAddDialog(id, entry, isEdit: false);
     }
@@ -158,15 +159,15 @@
             [nameof(AddMcpServiceDialog.EditId)] = id,
             [nameof(AddMcpServiceDialog.EditEntry)] = row.Entry
         };
-        var dialog = await DialogService.ShowAsync<SmallEBot.Components.Mcp.AddMcpServiceDialog>("编辑 MCP 服务", parameters, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var dialog = await DialogService.ShowAsync<AddMcpServiceDialog>("编辑 MCP 服务", parameters, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
         var result = await dialog.Result;
         if (result?.Canceled != false) return;
-        if (result.Data is not (string newId, SmallEBot.Models.McpServerEntry entry))
+        if (result.Data is not (string newId, McpServerEntry entry))
             return;
         await SaveFromAddDialog(newId, entry, isEdit: true, oldId: id);
     }
 
-    private async Task SaveFromAddDialog(string id, SmallEBot.Models.McpServerEntry entry, bool isEdit, string? oldId = null)
+    private async Task SaveFromAddDialog(string id, McpServerEntry entry, bool isEdit, string? oldId = null)
     {
         var trimmedId = id.Trim();
         if (string.IsNullOrEmpty(trimmedId))
@@ -174,13 +175,13 @@
             Snackbar.Add("请输入名称", Severity.Warning);
             return;
         }
-        if (_systemIds.Contains(trimmedId) && (isEdit ? trimmedId != oldId : true))
+        if (_systemIds.Contains(trimmedId) && (!isEdit || trimmedId != oldId))
         {
             Snackbar.Add("该名称已被系统 MCP 使用，请使用其他名称", Severity.Warning);
             return;
         }
         var user = await McpConfig.GetUserMcpAsync();
-        var dict = new Dictionary<string, SmallEBot.Models.McpServerEntry>(user);
+        var dict = new Dictionary<string, McpServerEntry>(user);
         if (isEdit && !string.IsNullOrEmpty(oldId)) dict.Remove(oldId);
         dict[trimmedId] = entry;
         try
@@ -234,7 +235,7 @@
     private async Task DeleteUserMcp(string id)
     {
         var user = await McpConfig.GetUserMcpAsync();
-        var dict = new Dictionary<string, SmallEBot.Models.McpServerEntry>(user);
+        var dict = new Dictionary<string, McpServerEntry>(user);
         dict.Remove(id);
         try
         {
@@ -249,14 +250,14 @@
         }
     }
 
-    private static string GetTypeLabel(SmallEBot.Models.McpServerEntry entry)
+    private static string GetTypeLabel(McpServerEntry entry)
     {
         if ("http".Equals(entry.Type, StringComparison.OrdinalIgnoreCase)) return "HTTP";
         if ("stdio".Equals(entry.Type, StringComparison.OrdinalIgnoreCase) || !string.IsNullOrEmpty(entry.Command)) return "Stdio";
         return entry.Type ?? "—";
     }
 
-    private static string GetInfoLabel(SmallEBot.Models.McpServerEntry entry)
+    private static string GetInfoLabel(McpServerEntry entry)
     {
         if (!string.IsNullOrEmpty(entry.Url)) return entry.Url;
         if (!string.IsNullOrEmpty(entry.Command)) return entry.Command;
@@ -269,7 +270,7 @@
     private async Task OnToggleEnabled(string id, bool enabled)
     {
         var row = _rows.FirstOrDefault(r => r.Id == id);
-        if (row != null) row.IsEnabled = enabled;
+        row?.IsEnabled = enabled;
         try
         {
             if (row?.IsSystem == true)
@@ -285,7 +286,7 @@
             else
             {
                 var user = await McpConfig.GetUserMcpAsync();
-                var dict = new Dictionary<string, SmallEBot.Models.McpServerEntry>(user);
+                var dict = new Dictionary<string, McpServerEntry>(user);
                 if (dict.TryGetValue(id, out var entry))
                 {
                     entry.Enabled = enabled;
@@ -302,18 +303,11 @@
 
     private void Close() => MudDialog.Close();
 
-    private sealed class McpRowViewModel
+    private sealed class McpRowViewModel(string id, McpServerEntry entry, bool isSystem, bool isEnabled)
     {
-        public string Id { get; }
-        public SmallEBot.Models.McpServerEntry Entry { get; }
-        public bool IsSystem { get; }
-        public bool IsEnabled { get; set; }
-        public McpRowViewModel(string id, SmallEBot.Models.McpServerEntry entry, bool isSystem, bool isEnabled)
-        {
-            Id = id;
-            Entry = entry;
-            IsSystem = isSystem;
-            IsEnabled = isEnabled;
-        }
+        public string Id { get; } = id;
+        public McpServerEntry Entry { get; } = entry;
+        public bool IsSystem { get; } = isSystem;
+        public bool IsEnabled { get; set; } = isEnabled;
     }
 }

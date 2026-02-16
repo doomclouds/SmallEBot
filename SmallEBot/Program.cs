@@ -55,7 +55,7 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.Migrate();
     var convSvc = scope.ServiceProvider.GetRequiredService<ConversationService>();
-    convSvc.BackfillTurnsAsync().GetAwaiter().GetResult();
+    await convSvc.BackfillTurnsAsync();
 }
 
 // Configure the HTTP request pipeline.

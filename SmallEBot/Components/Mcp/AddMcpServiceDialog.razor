@@ -1,9 +1,9 @@
-@inject IMcpConfigService McpConfig
+@using SmallEBot.Models
 @inject ISnackbar Snackbar
 
 <MudDialog>
     <TitleContent>
-        <MudText Typo="Typo.h6">@(_isEdit ? "编辑 MCP 服务" : "添加 MCP 服务")</MudText>
+        <MudText Typo="Typo.h6">@(IsEdit ? "编辑 MCP 服务" : "添加 MCP 服务")</MudText>
     </TitleContent>
     <DialogContent>
         <div class="d-flex flex-column gap-3">
@@ -12,13 +12,13 @@
             <div>
                 <MudText Typo="Typo.subtitle2" Class="mb-2">类型</MudText>
                 <div class="d-flex gap-2 flex-wrap">
-                    <MudButton Variant="@(_isStdio ? Variant.Filled : Variant.Outlined)" Color="Color.Primary" OnClick="@(() => SetType(StdioType))">STDIO</MudButton>
-                    <MudButton Variant="@(_isStdio ? Variant.Outlined : Variant.Filled)" Color="Color.Primary" OnClick="@(() => SetType(HttpType))">SSE 或 Streamable HTTP</MudButton>
+                    <MudButton Variant="@(IsStdio ? Variant.Filled : Variant.Outlined)" Color="Color.Primary" OnClick="@(() => SetType(StdioType))">STDIO</MudButton>
+                    <MudButton Variant="@(IsStdio ? Variant.Outlined : Variant.Filled)" Color="Color.Primary" OnClick="@(() => SetType(HttpType))">SSE 或 Streamable HTTP</MudButton>
                 </div>
             </div>
 
             <div @key="_type">
-            @if (_isStdio)
+            @if (IsStdio)
             {
                 <MudTextField @bind-Value="_command" Label="命令" Variant="Variant.Outlined" Placeholder="输入需要运行的命令" Required="true" RequiredError="请输入命令" />
                 <MudTextField @bind-Value="_argsString" Label="参数" Variant="Variant.Outlined" Placeholder="输入命令执行参数 (空格隔开)" />
@@ -39,7 +39,7 @@
                             </MudTd>
                         </RowTemplate>
                     </MudTable>
-                    <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Add" OnClick="AddEnvRow" Class="mt-1">添加环境变量</MudButton>
+                    <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Add" OnClick="@AddEnvRow" Class="mt-1">添加环境变量</MudButton>
                 </div>
             }
             else
@@ -64,7 +64,7 @@
                                     </MudTd>
                                 </RowTemplate>
                             </MudTable>
-                            <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Add" OnClick="AddHeaderRow" Class="mt-1">添加请求头</MudButton>
+                            <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Add" OnClick="@AddHeaderRow" Class="mt-1">添加请求头</MudButton>
                         </div>
                     </MudExpansionPanel>
                 </MudExpansionPanels>
@@ -73,8 +73,8 @@
         </div>
     </DialogContent>
     <DialogActions>
-        <MudButton Variant="Variant.Text" OnClick="Cancel">取消</MudButton>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Submit">@(_isEdit ? "保存" : "立即添加")</MudButton>
+        <MudButton Variant="Variant.Text" OnClick="@Cancel">取消</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@Submit">@(IsEdit ? "保存" : "立即添加")</MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -84,10 +84,10 @@
 
     [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
     [Parameter] public string? EditId { get; set; }
-    [Parameter] public SmallEBot.Models.McpServerEntry? EditEntry { get; set; }
+    [Parameter] public McpServerEntry? EditEntry { get; set; }
 
-    private bool _isEdit => !string.IsNullOrEmpty(EditId);
-    private bool _isStdio => StdioType.Equals(_type, StringComparison.OrdinalIgnoreCase);
+    private bool IsEdit => !string.IsNullOrEmpty(EditId);
+    private bool IsStdio => StdioType.Equals(_type, StringComparison.OrdinalIgnoreCase);
 
     private string _name = "";
     private string _type = StdioType;
@@ -99,7 +99,7 @@
 
     protected override void OnInitialized()
     {
-        if (_isEdit && EditEntry != null)
+        if (IsEdit && EditEntry != null)
         {
             _name = EditId ?? "";
             _type = "http".Equals(EditEntry.Type, StringComparison.OrdinalIgnoreCase) ? HttpType : StdioType;
@@ -110,13 +110,13 @@
             if (EditEntry.Env != null)
             {
                 foreach (var kv in EditEntry.Env)
-                    _envRows.Add(new KeyValueRow { Key = kv.Key ?? "", Value = kv.Value ?? "" });
+                    _envRows.Add(new KeyValueRow { Key = kv.Key, Value = kv.Value ?? "" });
             }
             _headerRows.Clear();
             if (EditEntry.Headers != null)
             {
                 foreach (var kv in EditEntry.Headers)
-                    _headerRows.Add(new KeyValueRow { Key = kv.Key ?? "", Value = kv.Value ?? "" });
+                    _headerRows.Add(new KeyValueRow { Key = kv.Key, Value = kv.Value ?? "" });
             }
         }
         if (_envRows.Count == 0) _envRows.Add(new KeyValueRow());
@@ -138,15 +138,15 @@
 
     private async Task Submit()
     {
-        var id = _name?.Trim() ?? "";
+        var id = _name.Trim();
         if (string.IsNullOrEmpty(id))
         {
             Snackbar.Add("请输入服务名称", Severity.Warning);
             return;
         }
-        if (_isStdio)
+        if (IsStdio)
         {
-            var cmd = _command?.Trim() ?? "";
+            var cmd = _command.Trim();
             if (string.IsNullOrEmpty(cmd))
             {
                 Snackbar.Add("请输入命令", Severity.Warning);
@@ -155,7 +155,7 @@
         }
         else
         {
-            var u = _url?.Trim() ?? "";
+            var u = _url.Trim();
             if (string.IsNullOrEmpty(u))
             {
                 Snackbar.Add("请输入服务地址", Severity.Warning);
@@ -163,25 +163,25 @@
             }
         }
 
-        var entry = new SmallEBot.Models.McpServerEntry();
-        if (_isStdio)
+        var entry = new McpServerEntry();
+        if (IsStdio)
         {
             entry.Type = StdioType;
-            entry.Command = _command?.Trim();
+            entry.Command = _command.Trim();
             entry.Args = string.IsNullOrWhiteSpace(_argsString)
                 ? []
                 : _argsString.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             entry.Env = _envRows
                 .Where(r => !string.IsNullOrWhiteSpace(r.Key))
-                .ToDictionary(r => r.Key.Trim(), r => (string?)r.Value?.Trim());
+                .ToDictionary(r => r.Key.Trim(), r => r.Value?.Trim());
         }
         else
         {
             entry.Type = HttpType;
-            entry.Url = _url?.Trim();
+            entry.Url = _url.Trim();
             var headers = _headerRows
                 .Where(r => !string.IsNullOrWhiteSpace(r.Key))
-                .ToDictionary(r => r.Key.Trim(), r => (string?)r.Value?.Trim());
+                .ToDictionary(r => r.Key.Trim(), r => r.Value?.Trim());
             if (headers.Count > 0) entry.Headers = headers;
         }
 
@@ -192,6 +192,6 @@
     private sealed class KeyValueRow
     {
         public string Key { get; set; } = "";
-        public string Value { get; set; } = "";
+        public string? Value { get; set; } = "";
     }
 }

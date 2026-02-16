@@ -5,7 +5,7 @@
 <MudDialog>
     <TitleContent><MudText Typo="Typo.h6">导入 Skill</MudText></TitleContent>
     <DialogContent>
-        <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.FolderOpen" OnClick="PickFolder" Class="mb-2">选择文件夹</MudButton>
+        <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.FolderOpen" OnClick="@PickFolder" Class="mb-2">选择文件夹</MudButton>
         @if (!string.IsNullOrEmpty(_pickedFolderName))
         {
             <MudText Typo="Typo.body2" Class="mb-2">已选: @_pickedFolderName</MudText>
@@ -14,8 +14,8 @@
         <MudText Typo="Typo.caption">所选文件夹内必须包含 SKILL.md 且含有效 frontmatter。</MudText>
     </DialogContent>
     <DialogActions>
-        <MudButton Variant="Variant.Text" OnClick="Cancel">取消</MudButton>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Import" Disabled="@(_pickedFiles == null)">导入</MudButton>
+        <MudButton Variant="Variant.Text" OnClick="@Cancel">取消</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@Import" Disabled="@(_pickedFiles == null)">导入</MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -32,7 +32,7 @@
         try
         {
             var result = await JS.InvokeAsync<System.Text.Json.JsonElement>("SmallEBotPickSkillFolder");
-            if (result.ValueKind == System.Text.Json.JsonValueKind.Null || result.ValueKind == System.Text.Json.JsonValueKind.Undefined)
+            if (result.ValueKind is System.Text.Json.JsonValueKind.Null or System.Text.Json.JsonValueKind.Undefined)
                 return;
             _pickedFolderName = result.GetProperty("folderName").GetString() ?? "";
             var filesEl = result.GetProperty("files");
