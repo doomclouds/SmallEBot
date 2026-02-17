@@ -55,8 +55,7 @@ For DeepSeek via Anthropic API:
 
 - **Base URL:** Config `Anthropic:BaseUrl` or `DeepSeek:AnthropicBaseUrl` (default `https://api.deepseek.com/anthropic`), or env `ANTHROPIC_BASE_URL`.
 - **API key:** Config `Anthropic:ApiKey` or `DeepSeek:ApiKey` (e.g. user secrets), or environment `ANTHROPIC_API_KEY` or `DeepseekKey`. Do not commit secrets.
-- **`DeepSeek:Model`** — model for non-thinking mode, default `deepseek-chat`
-- **`DeepSeek:ThinkingModel`** — model for thinking mode, default `deepseek-reasoner` (native reasoning)
+- **`Anthropic:Model`** / **`DeepSeek:Model`** — single model for the agent (e.g. `deepseek-reasoner`); thinking on/off is per request via options.
 
 ---
 

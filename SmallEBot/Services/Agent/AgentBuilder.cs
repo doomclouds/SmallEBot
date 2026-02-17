@@ -52,7 +52,7 @@ public sealed class AgentBuilder(
             log.LogWarning("API key not set. Set Anthropic:ApiKey or DeepSeek:ApiKey in config, or ANTHROPIC_API_KEY or DeepseekKey environment variable.");
 
         var baseUrl = config["Anthropic:BaseUrl"] ?? config["DeepSeek:AnthropicBaseUrl"] ?? "https://api.deepseek.com/anthropic";
-        var model = config["Anthropic:ThinkingModel"] ?? config["DeepSeek:ThinkingModel"] ?? "deepseek-reasoner";
+        var model = config["Anthropic:Model"] ?? config["DeepSeek:Model"] ?? "deepseek-reasoner";
 
         var clientOptions = new ClientOptions { ApiKey = apiKey ?? "", BaseUrl = baseUrl };
         var anthropicClient = new AnthropicClient(clientOptions);
