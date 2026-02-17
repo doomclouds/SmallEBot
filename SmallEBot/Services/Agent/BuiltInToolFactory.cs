@@ -29,8 +29,8 @@ public sealed class BuiltInToolFactory(ITerminalConfigService terminalConfig, IC
         AIFunctionFactory.Create(RunPython)
     ];
 
-    [Description("Get the current UTC date and time in ISO 8601 format.")]
-    private static string GetCurrentTime() => DateTime.UtcNow.ToString("O");
+    [Description("Get the current local date and time (machine timezone) in ISO 8601 format.")]
+    private static string GetCurrentTime() => DateTimeOffset.Now.ToString("O");
 
     [Description("Read a text file under the current run directory. Pass path relative to the app directory (e.g. .agents/sys.skills/weekly-report-generator/SKILL.md or .agents/skills/my-skill/script.py). Only allowed extensions: .md, .cs, .py, .txt, .json, .yml, .yaml.")]
     private static string ReadFile(string path)
