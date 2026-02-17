@@ -38,6 +38,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ITerminalConfigService, TerminalConfigService>();
         services.AddSingleton<ICommandRunner, CommandRunner>();
         services.AddSingleton<IVirtualFileSystem, VirtualFileSystem>();
+        services.AddScoped<IWorkspaceService, WorkspaceService>();
         services.AddSingleton<IPythonSandbox, ProcessPythonSandbox>();
         services.AddScoped<IMcpToolsLoaderService, McpToolsLoaderService>();
         services.AddScoped<IAgentContextFactory, AgentContextFactory>();
