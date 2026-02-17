@@ -24,7 +24,7 @@ This file provides guidance to Cursor when working with code in this repository.
 - Migrations auto-apply on startup (`Program.cs` calls `db.Database.Migrate()`)
 - No test project; no lint script (use IDE)
 
-**PowerShell:** Use `;` to chain commands, not `&&`. Quote paths with spaces.
+**PowerShell:** Use `;` to chain commands, not `&&`. Quote paths with spaces (see `.cursor/rules/powershell-multi-command.mdc`).
 
 ## Architecture
 
@@ -48,6 +48,9 @@ SmallEBot (Host)        → Core, Application, Infrastructure — Blazor UI, Sig
 | Agent builder | `SmallEBot/Services/Agent/AgentBuilder.cs` |
 | System prompt | `SmallEBot/Services/Agent/AgentContextFactory.cs` |
 | Built-in tools | `SmallEBot/Services/Agent/BuiltInToolFactory.cs` |
+| Workspace (VFS + UI) | `SmallEBot/Services/Workspace/` (IVirtualFileSystem, IWorkspaceService); drawer in `Components/Workspace/` |
+
+Host services are grouped by folder/namespace: **Agent**, **Workspace**, **Mcp**, **Skills**, **Terminal**, **Sandbox**, **Conversation**, **User**, **Presentation**. UI: `Components/` (Razor + MudBlazor); layout and App bar in `Components/Layout/MainLayout.razor`.
 
 ### Request flow
 
@@ -74,6 +77,8 @@ ReadFile, WriteFile, ListFiles, ExecuteCommand (working directory), and RunPytho
 | `WriteFile(path, content)` | Write file in workspace |
 | `ListFiles(path?)` | List files/dirs in workspace |
 | `ReadSkill(skillName)` | Load SKILL.md from sys.skills or skills (not workspace) |
+| `ReadSkillFile(skillId, relativePath)` | Read a file inside a skill folder; returns JSON `{ "path", "content" }` |
+| `ListSkillFiles(skillId, path?)` | List files/dirs inside a skill folder |
 | `ExecuteCommand(command)` | Run shell command; working dir defaults to workspace root |
 | `RunPython(code?, scriptPath?)` | Execute Python; paths and cwd relative to workspace root |
 

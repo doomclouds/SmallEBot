@@ -61,6 +61,8 @@ The agent has access to these built-in tools. File paths and working directories
 | `WriteFile(path, content)` | Write a file in the workspace |
 | `ListFiles(path?)` | List files and subdirectories in the workspace |
 | `ReadSkill(skillName)` | Load a skill's `SKILL.md` file (from skills folders, not workspace) |
+| `ReadSkillFile(skillId, relativePath)` | Read a file inside a skill (e.g. references/guide.md, script.py) |
+| `ListSkillFiles(skillId, path?)` | List files and folders inside a skill |
 | `ExecuteCommand(command)` | Run a shell command (cwd defaults to workspace) |
 | `RunPython(code?, scriptPath?)` | Execute Python code or a `.py` script in the workspace |
 
