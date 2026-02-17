@@ -1,6 +1,7 @@
 @inherits LayoutComponentBase
 @using SmallEBot.Components.Mcp
 @using SmallEBot.Components.Terminal
+@using SmallEBot.Components.Workspace
 @implements IDisposable
 @inject UserNameService UserNameSvc
 @inject UserPreferencesService Preferences
@@ -55,14 +56,29 @@
                            Color="Color.Default"
                            OnClick="@OpenTerminalConfig" />
         </MudTooltip>
+        <MudTooltip Text="Workspace">
+            <MudIconButton Icon="@Icons.Material.Filled.Folder"
+                           Color="@(_workspaceDrawerOpen ? Color.Primary : Color.Default)"
+                           OnClick="@ToggleWorkspaceDrawer" />
+        </MudTooltip>
         <MudText Typo="Typo.body2" Class="smallebot-username">@UserNameSvc.CurrentDisplayName</MudText>
     </MudAppBar>
     <MudMainContent Class="smallebot-main">
-        <CascadingValue Value="_showToolCalls" Name="ShowToolCalls">
-            <CascadingValue Value="_useThinkingMode" Name="UseThinkingMode">
-                @Body
-            </CascadingValue>
-        </CascadingValue>
+        <div class="smallebot-main-with-drawer">
+            <div class="smallebot-main-body">
+                <CascadingValue Value="_showToolCalls" Name="ShowToolCalls">
+                    <CascadingValue Value="_useThinkingMode" Name="UseThinkingMode">
+                        @Body
+                    </CascadingValue>
+                </CascadingValue>
+            </div>
+            @if (_workspaceDrawerOpen)
+            {
+                <div class="smallebot-workspace-drawer-panel">
+                    <WorkspaceDrawer Open="_workspaceDrawerOpen" OnClose="CloseWorkspaceDrawer" />
+                </div>
+            }
+        </div>
     </MudMainContent>
 </MudLayout>
 
@@ -70,6 +86,7 @@
     private string _currentThemeId = ThemeConstants.DefaultThemeId;
     private bool _showToolCalls = true;
     private bool _useThinkingMode;
+    private bool _workspaceDrawerOpen;
     private string? _userName;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -153,6 +170,10 @@
 
     private void OpenTerminalConfig() =>
         DialogService.ShowAsync<TerminalConfigDialog>(string.Empty, new DialogOptions { MaxWidth = MaxWidth.Medium });
+
+    private void ToggleWorkspaceDrawer() => _workspaceDrawerOpen = !_workspaceDrawerOpen;
+
+    private void CloseWorkspaceDrawer() => _workspaceDrawerOpen = false;
 
     protected override void OnInitialized()
     {
