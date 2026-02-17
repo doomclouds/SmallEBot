@@ -134,7 +134,7 @@ public sealed class BuiltInToolFactory(ITerminalConfigService terminalConfig, IC
         return "Error: skill not found. Check the skill name (id) under .agents/sys.skills/ or .agents/skills/.";
     }
 
-    [Description("Run a shell command on the host. Pass the command line (e.g. dotnet build or git status). Optional workingDirectory is relative to the app run directory. Blocks until the command exits or the configured timeout (see Terminal config). Not allowed if the command matches the terminal blacklist.")]
+    [Description("Run a shell command on the host. Pass the command line (e.g. dotnet build or git status). Optional workingDirectory is relative to the workspace root and defaults to the workspace root. Blocks until the command exits or the configured timeout (see Terminal config). Not allowed if the command matches the terminal blacklist.")]
     private string ExecuteCommand(string command, string? workingDirectory = null)
     {
         if (string.IsNullOrWhiteSpace(command))
@@ -143,13 +143,13 @@ public sealed class BuiltInToolFactory(ITerminalConfigService terminalConfig, IC
         var blacklist = terminalConfig.GetCommandBlacklist();
         if (blacklist.Any(b => normalized.Contains(b, StringComparison.OrdinalIgnoreCase)))
             return "Error: Command is not allowed by terminal blacklist.";
-        var baseDir = Path.GetFullPath(AppDomain.CurrentDomain.BaseDirectory);
+        var baseDir = Path.GetFullPath(vfs.GetRootPath());
         var workDir = baseDir;
         if (!string.IsNullOrWhiteSpace(workingDirectory))
         {
             var combined = Path.GetFullPath(Path.Combine(baseDir, workingDirectory.Trim().Replace('\\', Path.DirectorySeparatorChar)));
             if (!combined.StartsWith(baseDir, StringComparison.OrdinalIgnoreCase))
-                return "Error: Working directory must be under the run directory.";
+                return "Error: Working directory must be under the workspace.";
             if (!Directory.Exists(combined))
                 return "Error: Working directory does not exist.";
             workDir = combined;
@@ -157,7 +157,7 @@ public sealed class BuiltInToolFactory(ITerminalConfigService terminalConfig, IC
         return commandRunner.Run(normalized, workDir);
     }
 
-    [Description("Run Python using python.exe in the run directory. Provide either code (inline Python) or scriptPath (path to a .py file under the run directory, e.g. .agents/sys.skills/my-skill/script.py). If both are provided, scriptPath is used. Optional workingDirectory is relative to the run directory. Output is stdout and stderr; execution has a timeout (see Terminal config).")]
+    [Description("Run Python using python.exe in the run directory. Provide either code (inline Python) or scriptPath (path to a .py file in the workspace, e.g. script.py or src/main.py). If both are provided, scriptPath is used. Optional workingDirectory is relative to the workspace root. Output is stdout and stderr; execution has a timeout (see Terminal config).")]
     private string RunPython(string? code = null, string? scriptPath = null, string? workingDirectory = null)
     {
         if (string.IsNullOrWhiteSpace(code) && string.IsNullOrWhiteSpace(scriptPath))
