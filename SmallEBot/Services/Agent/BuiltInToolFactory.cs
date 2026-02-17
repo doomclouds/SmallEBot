@@ -2,6 +2,7 @@ using System.ComponentModel;
 using Microsoft.Extensions.AI;
 using SmallEBot.Services.Sandbox;
 using SmallEBot.Services.Terminal;
+using SmallEBot.Services.Workspace;
 
 namespace SmallEBot.Services.Agent;
 
@@ -11,7 +12,7 @@ public interface IBuiltInToolFactory
     AITool[] CreateTools();
 }
 
-public sealed class BuiltInToolFactory(ITerminalConfigService terminalConfig, ICommandRunner commandRunner, IPythonSandbox pythonSandbox) : IBuiltInToolFactory
+public sealed class BuiltInToolFactory(ITerminalConfigService terminalConfig, ICommandRunner commandRunner, IPythonSandbox pythonSandbox, IVirtualFileSystem vfs) : IBuiltInToolFactory
 {
     private static readonly HashSet<string> AllowedExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -32,14 +33,14 @@ public sealed class BuiltInToolFactory(ITerminalConfigService terminalConfig, IC
     [Description("Get the current local date and time (machine timezone) in ISO 8601 format.")]
     private static string GetCurrentTime() => DateTimeOffset.Now.ToString("O");
 
-    [Description("Read a text file under the current run directory. Pass path relative to the app directory (e.g. .agents/sys.skills/weekly-report-generator/SKILL.md or .agents/skills/my-skill/script.py). Only allowed extensions: .md, .cs, .py, .txt, .json, .yml, .yaml.")]
-    private static string ReadFile(string path)
+    [Description("Read a text file from the workspace. Pass path relative to the workspace root (e.g. notes.txt or src/script.py). Only allowed extensions: .md, .cs, .py, .txt, .json, .yml, .yaml.")]
+    private string ReadFile(string path)
     {
         if (string.IsNullOrWhiteSpace(path)) return "Error: path is required.";
-        var baseDir = Path.GetFullPath(AppDomain.CurrentDomain.BaseDirectory);
+        var baseDir = Path.GetFullPath(vfs.GetRootPath());
         var fullPath = Path.GetFullPath(Path.Combine(baseDir, path.Trim().Replace('\\', Path.DirectorySeparatorChar)));
         if (!fullPath.StartsWith(baseDir, StringComparison.OrdinalIgnoreCase))
-            return "Error: path must be under the current run directory.";
+            return "Error: path must be under the workspace.";
         var ext = Path.GetExtension(fullPath);
         if (string.IsNullOrEmpty(ext) || !AllowedExtensions.Contains(ext))
             return "Error: file type not allowed. Allowed: " + string.Join(", ", AllowedExtensions);
@@ -55,14 +56,14 @@ public sealed class BuiltInToolFactory(ITerminalConfigService terminalConfig, IC
         }
     }
 
-    [Description("Write a text file under the current run directory. Pass path relative to the app directory (e.g. .agents/skills/my-skill/notes.txt) and the content to write. Only allowed extensions: .md, .cs, .py, .txt, .json, .yml, .yaml. Parent directories are created if missing. Overwrites existing files.")]
-    private static string WriteFile(string path, string content)
+    [Description("Write a text file in the workspace. Pass path relative to the workspace root (e.g. notes.txt or src/foo.py) and the content to write. Only allowed extensions: .md, .cs, .py, .txt, .json, .yml, .yaml. Parent directories are created if missing. Overwrites existing files.")]
+    private string WriteFile(string path, string content)
     {
         if (string.IsNullOrWhiteSpace(path)) return "Error: path is required.";
-        var baseDir = Path.GetFullPath(AppDomain.CurrentDomain.BaseDirectory);
+        var baseDir = Path.GetFullPath(vfs.GetRootPath());
         var fullPath = Path.GetFullPath(Path.Combine(baseDir, path.Trim().Replace('\\', Path.DirectorySeparatorChar)));
         if (!fullPath.StartsWith(baseDir, StringComparison.OrdinalIgnoreCase))
-            return "Error: path must be under the current run directory.";
+            return "Error: path must be under the workspace.";
         var ext = Path.GetExtension(fullPath);
         if (string.IsNullOrEmpty(ext) || !AllowedExtensions.Contains(ext))
             return "Error: file type not allowed. Allowed: " + string.Join(", ", AllowedExtensions);
@@ -80,15 +81,15 @@ public sealed class BuiltInToolFactory(ITerminalConfigService terminalConfig, IC
         }
     }
 
-    [Description("List files and subdirectories under the run directory. Pass an optional path (relative to the run directory, e.g. .agents/skills or .) to list a subdirectory; omit or use . for the run directory itself. Returns one entry per line: directories end with /, files do not.")]
-    private static string ListFiles(string? path = null)
+    [Description("List files and subdirectories in the workspace. Pass an optional path (relative to the workspace root, e.g. src or .) to list a subdirectory; omit or use . for the workspace root. Returns one entry per line: directories end with /, files do not.")]
+    private string ListFiles(string? path = null)
     {
-        var baseDir = Path.GetFullPath(AppDomain.CurrentDomain.BaseDirectory);
+        var baseDir = Path.GetFullPath(vfs.GetRootPath());
         var targetDir = string.IsNullOrWhiteSpace(path) || path.Trim() == "."
             ? baseDir
             : Path.GetFullPath(Path.Combine(baseDir, path.Trim().Replace('\\', Path.DirectorySeparatorChar)));
         if (!targetDir.StartsWith(baseDir, StringComparison.OrdinalIgnoreCase))
-            return "Error: path must be under the current run directory.";
+            return "Error: path must be under the workspace.";
         if (!Directory.Exists(targetDir))
             return "Error: directory not found.";
         try
