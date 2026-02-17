@@ -1,11 +1,13 @@
-using System.Diagnostics;
 using System.Text;
+using SmallEBot.Services.Terminal;
 
 namespace SmallEBot.Services.Sandbox;
 
-/// <summary>Executes Python via the python.exe in the run directory. Supports inline code or a script file path under the run directory.</summary>
-public sealed class ProcessPythonSandbox : IPythonSandbox
+/// <summary>Executes Python via the python.exe in the run directory using ICommandRunner (same execution path as ExecuteCommand). Supports inline code or a script file path under the run directory.</summary>
+public sealed class ProcessPythonSandbox(ICommandRunner commandRunner, ITerminalConfigService terminalConfig) : IPythonSandbox
 {
+    private static readonly IReadOnlyDictionary<string, string> PythonUtf8Env = new Dictionary<string, string> { ["PYTHONIOENCODING"] = "utf-8" };
+
     /// <inheritdoc />
     public string Execute(string? code, string? scriptPath, string? workingDirectory, TimeSpan? timeout)
     {
@@ -70,8 +72,9 @@ public sealed class ProcessPythonSandbox : IPythonSandbox
             }
             try
             {
-                var result = RunProcess(pythonExe, tempPy, workDir, timeout ?? TimeSpan.FromSeconds(60));
-                return result;
+                var effectiveTimeout = timeout ?? TimeSpan.FromSeconds(terminalConfig.GetCommandTimeoutSeconds());
+                var command = Quoted(pythonExe) + " " + Quoted(tempPy);
+                return commandRunner.Run(command, workDir, effectiveTimeout, PythonUtf8Env);
             }
             finally
             {
@@ -79,41 +82,10 @@ public sealed class ProcessPythonSandbox : IPythonSandbox
             }
         }
 
-        return RunProcess(pythonExe, scriptToRun, workDir, timeout ?? TimeSpan.FromSeconds(60));
+        var timeoutEffective = timeout ?? TimeSpan.FromSeconds(terminalConfig.GetCommandTimeoutSeconds());
+        var cmd = Quoted(pythonExe) + " " + Quoted(scriptToRun);
+        return commandRunner.Run(cmd, workDir, timeoutEffective, PythonUtf8Env);
     }
 
-    private static string RunProcess(string pythonExe, string scriptPath, string workingDirectory, TimeSpan timeout)
-    {
-        try
-        {
-            using var process = new Process();
-            process.StartInfo.FileName = pythonExe;
-            process.StartInfo.ArgumentList.Add(scriptPath);
-            process.StartInfo.UseShellExecute = false;
-            process.StartInfo.RedirectStandardOutput = true;
-            process.StartInfo.RedirectStandardError = true;
-            process.StartInfo.CreateNoWindow = true;
-            process.StartInfo.StandardOutputEncoding = Encoding.UTF8;
-            process.StartInfo.StandardErrorEncoding = Encoding.UTF8;
-            process.StartInfo.WorkingDirectory = workingDirectory;
-            process.StartInfo.Environment["PYTHONIOENCODING"] = "utf-8";
-            process.Start();
-            var timeoutMs = (int)Math.Clamp(timeout.TotalMilliseconds, 100, int.MaxValue);
-            var stdoutTask = process.StandardOutput.ReadToEndAsync();
-            var stderrTask = process.StandardError.ReadToEndAsync();
-            var exited = process.WaitForExit(timeoutMs);
-            var stdout = stdoutTask.GetAwaiter().GetResult();
-            var stderr = stderrTask.GetAwaiter().GetResult();
-            if (!exited)
-            {
-                try { process.Kill(); } catch { /* ignore */ }
-                return $"Error: Script timed out after {timeout.TotalSeconds:F0} seconds.";
-            }
-            return "Stdout:\n" + stdout + "\nStderr:\n" + stderr;
-        }
-        catch (Exception ex)
-        {
-            return "Error: " + ex.Message;
-        }
-    }
+    private static string Quoted(string path) => "\"" + path.Replace("\"", "\"\"") + "\"";
 }

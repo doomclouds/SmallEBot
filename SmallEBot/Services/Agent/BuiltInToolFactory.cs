@@ -1,6 +1,4 @@
 using System.ComponentModel;
-using System.Diagnostics;
-using System.Runtime.InteropServices;
 using Microsoft.Extensions.AI;
 using SmallEBot.Services.Sandbox;
 using SmallEBot.Services.Terminal;
@@ -13,7 +11,7 @@ public interface IBuiltInToolFactory
     AITool[] CreateTools();
 }
 
-public sealed class BuiltInToolFactory(ITerminalConfigService terminalConfig, IPythonSandbox pythonSandbox) : IBuiltInToolFactory
+public sealed class BuiltInToolFactory(ITerminalConfigService terminalConfig, ICommandRunner commandRunner, IPythonSandbox pythonSandbox) : IBuiltInToolFactory
 {
     private static readonly HashSet<string> AllowedExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -155,42 +153,7 @@ public sealed class BuiltInToolFactory(ITerminalConfigService terminalConfig, IP
                 return "Error: Working directory does not exist.";
             workDir = combined;
         }
-        try
-        {
-            using var process = new Process();
-            process.StartInfo.UseShellExecute = false;
-            process.StartInfo.RedirectStandardOutput = true;
-            process.StartInfo.RedirectStandardError = true;
-            process.StartInfo.CreateNoWindow = true;
-            process.StartInfo.WorkingDirectory = workDir;
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                process.StartInfo.FileName = "cmd.exe";
-                process.StartInfo.Arguments = $"/c \"{normalized.Replace("\"", "\"\"")}\"";
-            }
-            else
-            {
-                process.StartInfo.FileName = "/bin/sh";
-                process.StartInfo.Arguments = $"-c \"{normalized.Replace("\\", "\\\\").Replace("\"", "\\\"")}\"";
-            }
-            process.Start();
-            var timeoutMs = Math.Clamp(terminalConfig.GetCommandTimeoutSeconds(), 5, 600) * 1000;
-            var stdoutTask = process.StandardOutput.ReadToEndAsync();
-            var stderrTask = process.StandardError.ReadToEndAsync();
-            var exited = process.WaitForExit(timeoutMs);
-            var stdout = stdoutTask.GetAwaiter().GetResult();
-            var stderr = stderrTask.GetAwaiter().GetResult();
-            if (!exited)
-            {
-                try { process.Kill(); } catch { /* ignore */ }
-                return $"Error: Command timed out after {terminalConfig.GetCommandTimeoutSeconds()} seconds.";
-            }
-            return $"ExitCode: {process.ExitCode}\nStdout:\n{stdout}\nStderr:\n{stderr}";
-        }
-        catch (Exception ex)
-        {
-            return "Error: " + ex.Message;
-        }
+        return commandRunner.Run(normalized, workDir);
     }
 
     [Description("Run Python using python.exe in the run directory. Provide either code (inline Python) or scriptPath (path to a .py file under the run directory, e.g. .agents/sys.skills/my-skill/script.py). If both are provided, scriptPath is used. Optional workingDirectory is relative to the run directory. Output is stdout and stderr; execution has a timeout (see Terminal config).")]
