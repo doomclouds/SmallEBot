@@ -11,7 +11,7 @@ A personal chat assistant built with ASP.NET Core Blazor Server, designed to run
 - **Skills**: File-based skills system — create custom skills in `.agents/skills/` with YAML frontmatter.
 - **Python execution**: Run Python code or scripts via the `RunPython` tool.
 - **Terminal**: Execute shell commands via the `ExecuteCommand` tool. Configurable command blacklist.
-- **File tools**: Read, write, and list files under the app's run directory.
+- **Workspace**: Agent file tools and RunPython/ExecuteCommand use a workspace at `.agents/vfs/`. Open the **Workspace** drawer (App bar) to browse, view, create, delete, and rename files.
 - **Themes**: Several UI themes (e.g. editorial-dark, paper-light, terminal) with persistence.
 - **No login**: First visit asks for a username; data is scoped by that name.
 
@@ -52,17 +52,17 @@ Main options live in `SmallEBot/appsettings.json` under `SmallEBot` and `Anthrop
 
 ## Built-in Tools
 
-The agent has access to these built-in tools:
+The agent has access to these built-in tools. File paths and working directories for ReadFile, WriteFile, ListFiles, ExecuteCommand, and RunPython are relative to the **workspace** (`.agents/vfs/`). Use the Workspace drawer in the App bar to browse and manage workspace files.
 
 | Tool | Description |
 |------|-------------|
 | `GetCurrentTime` | Returns current local datetime (machine timezone) |
-| `ReadFile(path)` | Read a file under the run directory |
-| `WriteFile(path, content)` | Write a file under the run directory |
-| `ListFiles(path?)` | List files and subdirectories |
-| `ReadSkill(skillName)` | Load a skill's `SKILL.md` file |
-| `ExecuteCommand(command)` | Run a shell command (respects blacklist) |
-| `RunPython(code?, scriptPath?)` | Execute Python code or a `.py` script |
+| `ReadFile(path)` | Read a file in the workspace |
+| `WriteFile(path, content)` | Write a file in the workspace |
+| `ListFiles(path?)` | List files and subdirectories in the workspace |
+| `ReadSkill(skillName)` | Load a skill's `SKILL.md` file (from skills folders, not workspace) |
+| `ExecuteCommand(command)` | Run a shell command (cwd defaults to workspace) |
+| `RunPython(code?, scriptPath?)` | Execute Python code or a `.py` script in the workspace |
 
 ## Skills
 
