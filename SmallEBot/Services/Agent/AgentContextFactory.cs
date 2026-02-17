@@ -15,7 +15,7 @@ public interface IAgentContextFactory
 
 public sealed class AgentContextFactory(ISkillsConfigService skillsConfig) : IAgentContextFactory
 {
-    private const string BaseInstructions = "You are SmallEBot, a helpful personal assistant. Be concise and friendly. When the user asks for the current time or date, use the GetCurrentTime tool. Use any other available MCP tools when they help answer the user. You can run shell commands on the host with the ExecuteCommand tool (command and optional working directory); avoid commands that are disallowed by the user's terminal blacklist. For running Python scripts or snippets, use the RunPython tool (inline code or path to a .py file under the run directory). Use ListFiles to list files and subdirectories under the run directory (optional path).";
+    private const string BaseInstructions = "You are SmallEBot, a helpful personal assistant. Be concise and friendly. When the user asks for the current time or date, use the GetCurrentTime tool. Use any other available MCP tools when they help answer the user. You can run shell commands on the host with the ExecuteCommand tool (command and optional working directory relative to the workspace). For running Python scripts or snippets, use the RunPython tool (inline code or path to a .py file in the workspace). Use ReadFile, WriteFile, and ListFiles for files in the workspace (paths relative to the workspace root). Avoid commands that are disallowed by the user's terminal blacklist.";
     private string? _cachedSystemPrompt;
 
     public async Task<string> BuildSystemPromptAsync(CancellationToken ct = default)
@@ -33,7 +33,7 @@ public sealed class AgentContextFactory(ISkillsConfigService skillsConfig) : IAg
     {
         if (skills.Count == 0) return "";
         var sb = new System.Text.StringBuilder();
-        sb.AppendLine("You have access to the following skills. Each has an id and a short description. To read a skill's SKILL.md, use the ReadSkill tool with the skill id (e.g. ReadSkill(\"weekly-report-generator\")); it looks in both system and user skill directories. To read other files inside a skill or elsewhere, use ReadFile with a path relative to the run directory (e.g. .agents/sys.skills/<id>/references/foo.md). ReadFile allows extensions: .md, .cs, .py, .txt, .json, .yml, .yaml.");
+        sb.AppendLine("You have access to the following skills. Each has an id and a short description. To read a skill's SKILL.md, use the ReadSkill tool with the skill id (e.g. ReadSkill(\"weekly-report-generator\")); it looks in both system and user skill directories. To read or write files in the workspace, use ReadFile or WriteFile with a path relative to the workspace root (e.g. notes.txt or src/foo.py). ReadFile allows extensions: .md, .cs, .py, .txt, .json, .yml, .yaml.");
         sb.AppendLine();
         foreach (var s in skills)
             sb.AppendLine($"- {s.Id}: {s.Name} — {s.Description}");
