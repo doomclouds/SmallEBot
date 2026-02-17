@@ -22,7 +22,7 @@
 In `AgentBuilder`:
 - Remove field `_agentWithThinking`; keep only `_agent`.
 - Keep the interface and method signature `GetOrCreateAgentAsync(bool useThinking, CancellationToken ct)` unchanged so all call sites continue to compile.
-- In `GetOrCreateAgentAsync`: remove the switch that returns one of two agents. Always use the reasoner model: `var model = config["Anthropic:Model"] ?? config["DeepSeek:Model"] ?? "deepseek-reasoner";`. If `_agent != null`, return `_agent`. Otherwise build once with `anthropicClient.AsAIAgent(model: model, name: "SmallEBot", instructions: instructions, tools: _allTools)`, assign to `_agent`, return it. Ignore the `useThinking` parameter for agent selection.
+- In `GetOrCreateAgentAsync`: remove the switch that returns one of two agents. Always use the reasoner model: `var model = config["Anthropic:Model"] ?? "deepseek-reasoner";`. If `_agent != null`, return `_agent`. Otherwise build once with `anthropicClient.AsAIAgent(model: model, name: "SmallEBot", instructions: instructions, tools: _allTools)`, assign to `_agent`, return it. Ignore the `useThinking` parameter for agent selection.
 - In `InvalidateAsync`: set only `_agent = null` (remove `_agentWithThinking = null`).
 - Remove the unused variable `model` for the non-thinking path (the old `var model = config["Anthropic:Model"] ?? ...`); use only the reasoner model variable as above.
 

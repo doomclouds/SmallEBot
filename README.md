@@ -36,7 +36,7 @@ dotnet run --project SmallEBot
 
 Set the API key via **configuration** or **environment variable** (do not commit secrets):
 
-- **Config:** `Anthropic:ApiKey` or `DeepSeek:ApiKey` (e.g. in user secrets or `appsettings.json`; prefer user secrets for local dev).
+- **Config:** `Anthropic:ApiKey` (e.g. in user secrets or `appsettings.json`; prefer user secrets for local dev).
 - **Environment:** `ANTHROPIC_API_KEY` or `DeepseekKey`
 
 Example (PowerShell, env):
@@ -51,7 +51,7 @@ Then open the URL shown in the console (e.g. `https://localhost:5xxx`).
 
 ## Configuration
 
-Main options live in `SmallEBot/appsettings.json` under `SmallEBot` and `Anthropic` / `DeepSeek` (e.g. default title, model name, base URL, optional `Anthropic:ApiKey` / `DeepSeek:ApiKey`). For DeepSeek use base URL `https://api.deepseek.com/anthropic`. Do not commit API keys; use user secrets or environment variables.
+Main options live in `SmallEBot/appsettings.json` under `SmallEBot` and `Anthropic` (Anthropic-compatible API: base URL, model, optional `Anthropic:ApiKey`, `ContextWindowTokens`). Example base URL for DeepSeek: `https://api.deepseek.com/anthropic`. Do not commit API keys; use user secrets or environment variables.
 
 ## Built-in Tools
 

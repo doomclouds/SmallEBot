@@ -84,8 +84,8 @@ ReadFile, WriteFile, ListFiles, ExecuteCommand (working directory), and RunPytho
 
 ### Configuration
 
-- **API keys**: Config `Anthropic:ApiKey` or `DeepSeek:ApiKey` (e.g. user secrets), or environment `ANTHROPIC_API_KEY` or `DeepseekKey`. Do not commit secrets to source.
-- **appsettings.json**: Model names, base URLs (`DeepSeek:AnthropicBaseUrl`, `Anthropic:Model`, etc.)
+- **API keys**: Config `Anthropic:ApiKey` (e.g. user secrets), or environment `ANTHROPIC_API_KEY` or `DeepseekKey`. Do not commit secrets to source.
+- **appsettings.json**: Under `Anthropic` (Anthropic-compatible API): BaseUrl, ApiKey, Model, ContextWindowTokens.
 - **Data paths**: All use `AppDomain.CurrentDomain.BaseDirectory` (run directory):
   - `smallebot.db` (SQLite)
   - `smallebot-settings.json` (user preferences)

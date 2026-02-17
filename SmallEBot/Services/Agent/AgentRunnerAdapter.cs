@@ -25,9 +25,20 @@ public sealed class AgentRunnerAdapter(IConversationRepository conversationRepos
             .ToList();
         frameworkMessages.Add(new ChatMessage(ChatRole.User, userMessage));
 
+        var reasoningOpt = new ReasoningOptions();
+        if(useThinking)
+        {
+            reasoningOpt.Effort = ReasoningEffort.ExtraHigh;
+            reasoningOpt.Output = ReasoningOutput.Full;
+        }
+        else
+        {
+            reasoningOpt.Effort = null;
+            reasoningOpt.Output = null;
+        }
         var chatOptions = new ChatOptions
         {
-            Reasoning = useThinking ? new ReasoningOptions() : null
+            Reasoning = reasoningOpt
         };
         var runOptions = new ChatClientAgentRunOptions(chatOptions);
 

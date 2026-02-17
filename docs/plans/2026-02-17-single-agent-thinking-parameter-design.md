@@ -18,7 +18,7 @@ We want a single agent: always the **reasoner** model (e.g. `deepseek-reasoner`)
 
 ## 2. Architecture
 
-**AgentBuilder:** Build and cache a single `AIAgent` instance, created with the reasoner model from config (`Anthropic:Model` or `DeepSeek:Model`). Remove `_agent` / `_agentWithThinking` duality; keep one `_agent` and one `GetOrCreateAgentAsync(CancellationToken)` (or keep the existing signature and ignore the boolean for agent selection). Tools and MCP loading stay unchanged; only the agent-creation branch is simplified.
+**AgentBuilder:** Build and cache a single `AIAgent` instance, created with the reasoner model from config (`Anthropic:Model`). Remove `_agent` / `_agentWithThinking` duality; keep one `_agent` and one `GetOrCreateAgentAsync(CancellationToken)` (or keep the existing signature and ignore the boolean for agent selection). Tools and MCP loading stay unchanged; only the agent-creation branch is simplified.
 
 **AgentRunnerAdapter:** Continue to receive `useThinking` from the conversation pipeline. Instead of choosing between two agents, get the single agent once and pass `useThinking` into the **run options** for `RunStreamingAsync(messages, session, options, cancellationToken)`. The options (e.g. `ChatClientAgentRunOptions` or provider-specific options) must carry a “thinking enabled” flag so the Anthropic/DeepSeek client can send `thinking: { type: "enabled" }` or omit it. If the C# SDK does not expose thinking in run options, fallback is either (a) pass via `AdditionalProperties` / extra request fields if the stack allows, or (b) keep a single agent and use `useThinking` only for UI (show/hide reasoning segments) and document that API-level disabling is pending SDK support.
 
@@ -28,7 +28,7 @@ We want a single agent: always the **reasoner** model (e.g. `deepseek-reasoner`)
 
 ## 3. Configuration and fallback
 
-**Config:** Single model key for the agent: `Anthropic:Model` or `DeepSeek:Model` (e.g. `deepseek-reasoner`). **API key** can be set via config (`Anthropic:ApiKey` or `DeepSeek:ApiKey`) or environment (`ANTHROPIC_API_KEY`, `DeepseekKey`); do not commit secrets. Title generation continues to use the same agent with thinking disabled via options (if supported) to avoid long reasoning for short titles.
+**Config:** Single section `Anthropic` (Anthropic-compatible API): `Anthropic:Model`, `Anthropic:ApiKey`, `Anthropic:BaseUrl`, `Anthropic:ContextWindowTokens`. API key can also come from environment `ANTHROPIC_API_KEY` or `DeepseekKey`; do not commit secrets. Title generation continues to use the same agent with thinking disabled via options (if supported) to avoid long reasoning for short titles.
 
 **Fallback if SDK lacks per-request thinking:**  
 - Option A: One agent (reasoner), always request with thinking enabled; use `useThinking` only in the UI (ReasoningSegmenter / display) to show or hide reasoning.  

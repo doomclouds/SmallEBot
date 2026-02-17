@@ -54,7 +54,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ITokenizer>(sp =>
         {
             var config = sp.GetRequiredService<IConfiguration>();
-            var path = config["DeepSeek:TokenizerPath"];
+            var path = config["Anthropic:TokenizerPath"];
             try
             {
                 return new DeepSeekTokenizer(path);

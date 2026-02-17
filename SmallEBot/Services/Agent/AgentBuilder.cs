@@ -25,7 +25,7 @@ public sealed class AgentBuilder(
     private AIAgent? _agent;
     private List<IAsyncDisposable>? _mcpClients;
     private AITool[]? _allTools;
-    private readonly int _contextWindowTokens = config.GetValue("DeepSeek:ContextWindowTokens", 128000);
+    private readonly int _contextWindowTokens = config.GetValue("Anthropic:ContextWindowTokens", 128000);
 
     public async Task<AIAgent> GetOrCreateAgentAsync(bool useThinking, CancellationToken ct = default)
     {
@@ -45,14 +45,12 @@ public sealed class AgentBuilder(
             _allTools = combined.ToArray();
         }
 
-        var apiKey = config["Anthropic:ApiKey"] ?? config["DeepSeek:ApiKey"]
-            ?? Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY")
-            ?? Environment.GetEnvironmentVariable("DeepseekKey");
+        var apiKey = GetApiKey(config);
         if (string.IsNullOrEmpty(apiKey))
-            log.LogWarning("API key not set. Set Anthropic:ApiKey or DeepSeek:ApiKey in config, or ANTHROPIC_API_KEY or DeepseekKey environment variable.");
+            log.LogWarning("API key not set. Set Anthropic:ApiKey in config, or ANTHROPIC_API_KEY or DeepseekKey environment variable.");
 
-        var baseUrl = config["Anthropic:BaseUrl"] ?? config["DeepSeek:AnthropicBaseUrl"] ?? "https://api.deepseek.com/anthropic";
-        var model = config["Anthropic:Model"] ?? config["DeepSeek:Model"] ?? "deepseek-reasoner";
+        var baseUrl = config["Anthropic:BaseUrl"] ?? "https://api.deepseek.com/anthropic";
+        var model = config["Anthropic:Model"] ?? "deepseek-reasoner";
 
         var clientOptions = new ClientOptions { ApiKey = apiKey ?? "", BaseUrl = baseUrl };
         var anthropicClient = new AnthropicClient(clientOptions);
@@ -80,4 +78,15 @@ public sealed class AgentBuilder(
     public int GetContextWindowTokens() => _contextWindowTokens;
 
     public string? GetCachedSystemPromptForTokenCount() => contextFactory.GetCachedSystemPrompt();
+
+    /// <summary>Returns the first non-null, non-whitespace API key from config or environment. Empty string in config is treated as unset.</summary>
+    private static string? GetApiKey(IConfiguration config)
+    {
+        var a = config["Anthropic:ApiKey"];
+        if (!string.IsNullOrWhiteSpace(a)) return a;
+        var c = Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY");
+        if (!string.IsNullOrWhiteSpace(c)) return c;
+        var d = Environment.GetEnvironmentVariable("DeepseekKey");
+        return !string.IsNullOrWhiteSpace(d) ? d : null;
+    }
 }
