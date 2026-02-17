@@ -23,7 +23,6 @@ public sealed class AgentBuilder(
     ILogger<AgentBuilder> log) : IAgentBuilder
 {
     private AIAgent? _agent;
-    private AIAgent? _agentWithThinking;
     private List<IAsyncDisposable>? _mcpClients;
     private AITool[]? _allTools;
     private readonly int _contextWindowTokens = config.GetValue("DeepSeek:ContextWindowTokens", 128000);
@@ -32,13 +31,8 @@ public sealed class AgentBuilder(
     {
         var instructions = await contextFactory.BuildSystemPromptAsync(ct);
 
-        switch (useThinking)
-        {
-            case true when _agentWithThinking != null:
-                return _agentWithThinking;
-            case false when _agent != null:
-                return _agent;
-        }
+        if (_agent != null)
+            return _agent;
 
         if (_allTools == null)
         {
@@ -51,27 +45,17 @@ public sealed class AgentBuilder(
             _allTools = combined.ToArray();
         }
 
-        var apiKey = Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY")
+        var apiKey = config["Anthropic:ApiKey"] ?? config["DeepSeek:ApiKey"]
+            ?? Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY")
             ?? Environment.GetEnvironmentVariable("DeepseekKey");
         if (string.IsNullOrEmpty(apiKey))
-            log.LogWarning("ANTHROPIC_API_KEY or DeepseekKey environment variable is not set.");
+            log.LogWarning("API key not set. Set Anthropic:ApiKey or DeepSeek:ApiKey in config, or ANTHROPIC_API_KEY or DeepseekKey environment variable.");
 
         var baseUrl = config["Anthropic:BaseUrl"] ?? config["DeepSeek:AnthropicBaseUrl"] ?? "https://api.deepseek.com/anthropic";
-        var model = config["Anthropic:Model"] ?? config["DeepSeek:Model"] ?? "deepseek-chat";
-        var thinkingModel = config["Anthropic:ThinkingModel"] ?? config["DeepSeek:ThinkingModel"] ?? "deepseek-reasoner";
+        var model = config["Anthropic:ThinkingModel"] ?? config["DeepSeek:ThinkingModel"] ?? "deepseek-reasoner";
 
         var clientOptions = new ClientOptions { ApiKey = apiKey ?? "", BaseUrl = baseUrl };
         var anthropicClient = new AnthropicClient(clientOptions);
-
-        if (useThinking)
-        {
-            _agentWithThinking = anthropicClient.AsAIAgent(
-                model: thinkingModel,
-                name: "SmallEBot",
-                instructions: instructions,
-                tools: _allTools);
-            return _agentWithThinking;
-        }
 
         _agent = anthropicClient.AsAIAgent(
             model: model,
@@ -90,7 +74,6 @@ public sealed class AgentBuilder(
             _mcpClients = null;
         }
         _agent = null;
-        _agentWithThinking = null;
         _allTools = null;
     }
 
