@@ -382,3 +382,79 @@ h1:focus {
 .view-skill-content-scroll::-webkit-scrollbar { width: 8px; }
 .view-skill-content-scroll::-webkit-scrollbar-track { background: transparent; }
 .view-skill-content-scroll::-webkit-scrollbar-thumb { background: var(--seb-border); border-radius: 4px; }
+
+/* Workspace drawer */
+.workspace-drawer {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: var(--seb-surface);
+}
+.workspace-drawer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--seb-border);
+}
+.workspace-drawer-toolbar {
+    display: flex;
+    gap: 4px;
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--seb-border);
+}
+.workspace-drawer-tree {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+}
+.workspace-drawer-viewer {
+    flex: 0 0 40%;
+    min-height: 120px;
+    max-height: 280px;
+    overflow: auto;
+    border-top: 1px solid var(--seb-border);
+}
+.workspace-viewer-pre {
+    margin: 0;
+    padding: 8px 12px;
+    font-size: 12px;
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: var(--seb-text);
+    font-family: ui-monospace, monospace;
+}
+.workspace-tree-root { padding-left: 0; }
+.workspace-tree-folder { margin-bottom: 2px; }
+.workspace-tree-children { padding-left: 16px; }
+.workspace-tree-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 4px;
+    cursor: pointer;
+    border-radius: 4px;
+}
+.workspace-tree-row:hover { background: var(--seb-primary-muted); }
+.workspace-tree-file .workspace-tree-icon-placeholder { opacity: 0.7; }
+
+/* Main layout with optional right workspace drawer */
+.smallebot-main-with-drawer {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    position: relative;
+}
+.smallebot-main-body {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+}
+.smallebot-workspace-drawer-panel {
+    width: 360px;
+    min-width: 360px;
+    height: 100%;
+    overflow: hidden;
+    border-left: 1px solid var(--seb-border);
+    background: var(--seb-surface);
+}

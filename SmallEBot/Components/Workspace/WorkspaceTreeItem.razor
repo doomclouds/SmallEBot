@@ -1,0 +1,35 @@
+@if (Node.IsDirectory)
+{
+    <div class="workspace-tree-folder">
+        <div class="workspace-tree-row" @onclick="ToggleExpand">
+            <MudIcon Icon="@(Expanded ? Icons.Material.Filled.ExpandMore : Icons.Material.Filled.ChevronRight)" Size="Size.Small" />
+            <MudIcon Icon="@Icons.Material.Filled.Folder" Size="Size.Small" />
+            <MudText Typo="Typo.body2">@Node.Name</MudText>
+        </div>
+        @if (Expanded && Node.Children.Count > 0)
+        {
+            <div class="workspace-tree-children">
+                @foreach (var child in Node.Children)
+                {
+                    <WorkspaceTreeItem Node="@child" OnFileSelected="OnFileSelected" />
+                }
+            </div>
+        }
+    </div>
+}
+else
+{
+    <div class="workspace-tree-row workspace-tree-file" @onclick="@(() => OnFileSelected.InvokeAsync(Node.RelativePath))">
+        <MudIcon Icon="@Icons.Material.Filled.InsertDriveFile" Size="Size.Small" Class="workspace-tree-icon-placeholder" />
+        <MudText Typo="Typo.body2">@Node.Name</MudText>
+    </div>
+}
+
+@code {
+    [Parameter] public WorkspaceNode Node { get; set; } = null!;
+    [Parameter] public EventCallback<string> OnFileSelected { get; set; }
+
+    private bool Expanded { get; set; } = true;
+
+    private void ToggleExpand() => Expanded = !Expanded;
+}

@@ -1,0 +1,42 @@
+@inject IWorkspaceService WorkspaceService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>Delete</TitleContent>
+    <DialogContent>
+        @if (IsDirectory)
+        {
+            <MudText>Delete "@Name"? This will delete all contents. This cannot be undone.</MudText>
+        }
+        else
+        {
+            <MudText>Delete "@Name"? This cannot be undone.</MudText>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Error" Variant="Variant.Filled" OnClick="Confirm">Delete</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public string RelativePath { get; set; } = "";
+    [Parameter] public string Name { get; set; } = "";
+    [Parameter] public bool IsDirectory { get; set; }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task Confirm()
+    {
+        try
+        {
+            await WorkspaceService.DeleteAsync(RelativePath);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}

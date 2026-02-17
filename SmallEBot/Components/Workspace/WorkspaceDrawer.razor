@@ -1,0 +1,101 @@
+@inject IWorkspaceService WorkspaceService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<div class="workspace-drawer">
+    <div class="workspace-drawer-header">
+        <MudText Typo="Typo.h6">Workspace</MudText>
+        <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(() => OnClose.InvokeAsync())" />
+    </div>
+    <div class="workspace-drawer-toolbar">
+        <MudButton Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Filled.Add" OnClick="OpenNewFileDialog">New file</MudButton>
+        <MudButton Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Filled.CreateNewFolder" OnClick="OpenNewFolderDialog">New folder</MudButton>
+    </div>
+    <div class="workspace-drawer-tree">
+        @if (_tree == null)
+        {
+            <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Small" />
+        }
+        else if (_tree.Count == 0)
+        {
+            <MudText Typo="Typo.body2" Class="pa-2">Workspace is empty</MudText>
+        }
+        else
+        {
+            <div class="workspace-tree-root">
+                @foreach (var node in _tree)
+                {
+                    <WorkspaceTreeItem Node="@node" OnFileSelected="@(path => SelectFile(path))" />
+                }
+            </div>
+        }
+    </div>
+    <MudDivider />
+    <div class="workspace-drawer-viewer">
+        @if (!string.IsNullOrEmpty(_selectedPath))
+        {
+            <MudText Typo="Typo.caption" Class="pa-2">@_selectedPath</MudText>
+            @if (_viewerContent == null && _viewerLoaded)
+            {
+                <MudText Typo="Typo.body2" Class="pa-2">Binary or too large to display.</MudText>
+            }
+            else if (_viewerContent != null)
+            {
+                <pre class="workspace-viewer-pre">@_viewerContent</pre>
+            }
+        }
+        else
+        {
+            <MudText Typo="Typo.body2" Class="pa-2">Select a file to view content.</MudText>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public bool Open { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private IReadOnlyList<WorkspaceNode>? _tree;
+    private string? _selectedPath;
+    private string? _viewerContent;
+    private bool _viewerLoaded;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Open)
+            await LoadTreeAsync();
+    }
+
+    public async Task LoadTreeAsync()
+    {
+        _tree = await WorkspaceService.GetTreeAsync();
+        StateHasChanged();
+    }
+
+    private async Task SelectFile(string relativePath)
+    {
+        _selectedPath = relativePath;
+        _viewerContent = null;
+        _viewerLoaded = false;
+        StateHasChanged();
+        _viewerContent = await WorkspaceService.ReadFileContentAsync(relativePath);
+        _viewerLoaded = true;
+        StateHasChanged();
+    }
+
+    private async Task OpenNewFileDialog()
+    {
+        var dialog = await DialogService.ShowAsync<NewWorkspaceFileDialog>("New file");
+        var result = await dialog.Result;
+        if (result != null && !result.Canceled)
+            await LoadTreeAsync();
+    }
+
+    private async Task OpenNewFolderDialog()
+    {
+        var dialog = await DialogService.ShowAsync<NewWorkspaceFolderDialog>("New folder");
+        var result = await dialog.Result;
+        if (result != null && !result.Canceled)
+            await LoadTreeAsync();
+    }
+}
