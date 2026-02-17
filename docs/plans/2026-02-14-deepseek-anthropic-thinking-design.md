@@ -49,12 +49,12 @@ Implementation work will be: ensure the Agent Framework’s Anthropic provider (
 
 ---
 
-## 3. Configuration (Environment Variables)
+## 3. Configuration
 
 For DeepSeek via Anthropic API:
 
-- **`ANTHROPIC_BASE_URL`** — `https://api.deepseek.com/anthropic` (required for DeepSeek; default Anthropic URL otherwise)
-- **`ANTHROPIC_API_KEY`** — DeepSeek API key (or fallback from `DeepseekKey` in code)
+- **Base URL:** Config `Anthropic:BaseUrl` or `DeepSeek:AnthropicBaseUrl` (default `https://api.deepseek.com/anthropic`), or env `ANTHROPIC_BASE_URL`.
+- **API key:** Config `Anthropic:ApiKey` or `DeepSeek:ApiKey` (e.g. user secrets), or environment `ANTHROPIC_API_KEY` or `DeepseekKey`. Do not commit secrets.
 - **`DeepSeek:Model`** — model for non-thinking mode, default `deepseek-chat`
 - **`DeepSeek:ThinkingModel`** — model for thinking mode, default `deepseek-reasoner` (native reasoning)
 

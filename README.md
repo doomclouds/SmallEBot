@@ -34,21 +34,24 @@ A personal chat assistant built with ASP.NET Core Blazor Server, designed to run
 dotnet run --project SmallEBot
 ```
 
-Set the API key via environment variable (do not put it in config or source):
+Set the API key via **configuration** or **environment variable** (do not commit secrets):
 
-- **Anthropic / DeepSeek:** `ANTHROPIC_API_KEY` or `DeepseekKey`
+- **Config:** `Anthropic:ApiKey` or `DeepSeek:ApiKey` (e.g. in user secrets or `appsettings.json`; prefer user secrets for local dev).
+- **Environment:** `ANTHROPIC_API_KEY` or `DeepseekKey`
 
-Example (PowerShell):
+Example (PowerShell, env):
 
 ```powershell
 $env:ANTHROPIC_API_KEY = "your-api-key"; dotnet run --project SmallEBot
 ```
 
+Example (user secrets): `dotnet user-secrets set "Anthropic:ApiKey" "your-api-key"` in the SmallEBot project directory.
+
 Then open the URL shown in the console (e.g. `https://localhost:5xxx`).
 
 ## Configuration
 
-Main options live in `SmallEBot/appsettings.json` under `SmallEBot` and `Anthropic` / `DeepSeek` (e.g. default title, model name, base URL). For DeepSeek use base URL `https://api.deepseek.com/anthropic`. API keys stay in environment or user secrets only.
+Main options live in `SmallEBot/appsettings.json` under `SmallEBot` and `Anthropic` / `DeepSeek` (e.g. default title, model name, base URL, optional `Anthropic:ApiKey` / `DeepSeek:ApiKey`). For DeepSeek use base URL `https://api.deepseek.com/anthropic`. Do not commit API keys; use user secrets or environment variables.
 
 ## Built-in Tools
 
