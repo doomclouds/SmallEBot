@@ -12,6 +12,7 @@ using SmallEBot.Services.Skills;
 using SmallEBot.Services.Sandbox;
 using SmallEBot.Services.Terminal;
 using SmallEBot.Services.User;
+using SmallEBot.Services.Workspace;
 
 namespace SmallEBot.Extensions;
 
@@ -36,6 +37,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ISkillsConfigService, SkillsConfigService>();
         services.AddSingleton<ITerminalConfigService, TerminalConfigService>();
         services.AddSingleton<ICommandRunner, CommandRunner>();
+        services.AddSingleton<IVirtualFileSystem, VirtualFileSystem>();
         services.AddSingleton<IPythonSandbox, ProcessPythonSandbox>();
         services.AddScoped<IMcpToolsLoaderService, McpToolsLoaderService>();
         services.AddScoped<IAgentContextFactory, AgentContextFactory>();
