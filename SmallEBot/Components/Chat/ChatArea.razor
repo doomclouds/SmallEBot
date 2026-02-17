@@ -86,6 +86,7 @@
     <ChatInputBar @bind-Value="_input"
                   Streaming="_streaming"
                   ContextPercentText="@_contextPercentText"
+                  ContextUsageTooltip="@_contextUsageTooltip"
                   OnSend="Send"
                   OnStop="StopSend"
                   Disabled="@string.IsNullOrWhiteSpace(_input)"
@@ -113,6 +114,7 @@
     private int _bubbleCountBeforeSend;
     private CancellationTokenSource? _sendCts;
     private string _contextPercentText = "0%";
+    private string? _contextUsageTooltip;
 
     private void StopSend()
     {
@@ -255,17 +257,28 @@
             _contextRefreshRequested = false;
             try
             {
-                var pct = await AgentCache.GetEstimatedContextUsageAsync(ConversationId.Value);
-                _contextPercentText = $"{pct:P1}";
+                var d = await AgentCache.GetEstimatedContextUsageDetailAsync(ConversationId.Value);
+                if (d != null)
+                {
+                    _contextPercentText = $"{d.Ratio:P1}";
+                    _contextUsageTooltip = $"Context: {d.Ratio:P1} · {AgentCacheService.FormatTokenCount(d.UsedTokens)}/{AgentCacheService.FormatTokenCount(d.ContextWindowTokens)}";
+                }
+                else
+                {
+                    _contextPercentText = "—";
+                    _contextUsageTooltip = null;
+                }
             }
             catch
             {
                 _contextPercentText = "—";
+                _contextUsageTooltip = null;
             }
         }
         else if (!ConversationId.HasValue)
         {
             _contextPercentText = "—";
+            _contextUsageTooltip = null;
         }
     }
 

@@ -3,6 +3,9 @@ using SmallEBot.Core.Repositories;
 
 namespace SmallEBot.Services.Agent;
 
+/// <summary>Estimated context usage: ratio (0–1), used tokens, and context window size.</summary>
+public record ContextUsageEstimate(double Ratio, int UsedTokens, int ContextWindowTokens);
+
 /// <summary>Host service for agent cache invalidation and context usage estimation (UI).</summary>
 public class AgentCacheService(
     IConversationRepository conversationRepository,
@@ -13,16 +16,32 @@ public class AgentCacheService(
 
     public async Task InvalidateAgentAsync() => await agentBuilder.InvalidateAsync();
 
-    public async Task<double> GetEstimatedContextUsageAsync(Guid conversationId, CancellationToken ct = default)
+    /// <summary>Estimated context usage for UI: ratio and token counts (e.g. for tooltip "8% · 10k/128k").</summary>
+    public async Task<ContextUsageEstimate?> GetEstimatedContextUsageDetailAsync(Guid conversationId, CancellationToken ct = default)
     {
         var messages = await conversationRepository.GetMessagesForConversationAsync(conversationId, ct);
         var systemPrompt = agentBuilder.GetCachedSystemPromptForTokenCount() ?? FallbackSystemPromptForTokenCount;
         var json = SerializeRequestJsonForTokenCount(systemPrompt, messages);
         var rawTokens = tokenizer.CountTokens(json);
-        var withBuffer = (int)Math.Ceiling(rawTokens * 1.05);
+        var usedTokens = (int)Math.Ceiling(rawTokens * 1.05);
         var contextWindow = agentBuilder.GetContextWindowTokens();
-        var ratio = contextWindow <= 0 ? 0.0 : Math.Min(1.0, withBuffer / (double)contextWindow);
-        return Math.Round(ratio, 3);
+        if (contextWindow <= 0) return new ContextUsageEstimate(0, usedTokens, contextWindow);
+        var ratio = Math.Min(1.0, usedTokens / (double)contextWindow);
+        return new ContextUsageEstimate(Math.Round(ratio, 3), usedTokens, contextWindow);
+    }
+
+    public async Task<double> GetEstimatedContextUsageAsync(Guid conversationId, CancellationToken ct = default)
+    {
+        var d = await GetEstimatedContextUsageDetailAsync(conversationId, ct);
+        return d?.Ratio ?? 0.0;
+    }
+
+    /// <summary>Format token count for tooltip, e.g. 128000 -> "128k", 10500 -> "10.5k".</summary>
+    public static string FormatTokenCount(int tokens)
+    {
+        if (tokens < 1000) return tokens.ToString();
+        var k = tokens / 1000.0;
+        return $"{k:F1}k";
     }
 
     private static string SerializeRequestJsonForTokenCount(string systemPrompt, List<Core.Entities.ChatMessage> messages)
