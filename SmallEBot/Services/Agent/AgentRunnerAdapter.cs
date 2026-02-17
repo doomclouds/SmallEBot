@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using SmallEBot.Application.Streaming;
 using SmallEBot.Core.Models;
@@ -24,7 +25,13 @@ public sealed class AgentRunnerAdapter(IConversationRepository conversationRepos
             .ToList();
         frameworkMessages.Add(new ChatMessage(ChatRole.User, userMessage));
 
-        await foreach (var update in agent.RunStreamingAsync(frameworkMessages, null, null, cancellationToken))
+        var chatOptions = new ChatOptions
+        {
+            Reasoning = useThinking ? new ReasoningOptions() : null
+        };
+        var runOptions = new ChatClientAgentRunOptions(chatOptions);
+
+        await foreach (var update in agent.RunStreamingAsync(frameworkMessages, null, runOptions, cancellationToken))
         {
             if (update.Contents is { Count: > 0 } contents)
             {
@@ -58,9 +65,10 @@ public sealed class AgentRunnerAdapter(IConversationRepository conversationRepos
     {
         var agent = await agentBuilder.GetOrCreateAgentAsync(useThinking: false, cancellationToken);
         var prompt = $"Generate a very short title (under 20 chars, no quotes) for a conversation that starts with: {firstMessage}";
+        var titleOptions = new ChatClientAgentRunOptions(new ChatOptions { Reasoning = null });
         try
         {
-            var result = await agent.RunAsync(prompt, null, null, cancellationToken);
+            var result = await agent.RunAsync(prompt, null, titleOptions, cancellationToken);
             var t = result.Text.Trim();
             return string.IsNullOrEmpty(t) ? "New conversation" : t;
         }
