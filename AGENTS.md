@@ -64,7 +64,7 @@ Blazor UI → SignalR → ConversationService → IAgentConversationService
                            IStreamSink (ChannelStreamSink) → UI updates
 ```
 
-**AgentBuilder** composes: `IAgentContextFactory` (system prompt + skills) + `IBuiltInToolFactory` + `IMcpToolFactory` → caches `AIAgent`. Two cached variants: normal and thinking mode.
+**AgentBuilder** composes: `IAgentContextFactory` (system prompt + skills) + `IBuiltInToolFactory` + `IMcpToolFactory` → caches `AIAgent`. Single cached agent (reasoner model); thinking on/off per request via ChatOptions.Reasoning in run options.
 
 ### Built-in tools
 
@@ -84,7 +84,7 @@ ReadFile, WriteFile, ListFiles, ExecuteCommand (working directory), and RunPytho
 
 ### Configuration
 
-- **API keys**: Environment variables `ANTHROPIC_API_KEY` or `DeepseekKey` — never in config/source
+- **API keys**: Config `Anthropic:ApiKey` or `DeepSeek:ApiKey` (e.g. user secrets), or environment `ANTHROPIC_API_KEY` or `DeepseekKey`. Do not commit secrets to source.
 - **appsettings.json**: Model names, base URLs (`DeepSeek:AnthropicBaseUrl`, `Anthropic:Model`, etc.)
 - **Data paths**: All use `AppDomain.CurrentDomain.BaseDirectory` (run directory):
   - `smallebot.db` (SQLite)
