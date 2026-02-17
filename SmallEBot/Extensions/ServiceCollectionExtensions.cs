@@ -35,7 +35,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IMcpConfigService, McpConfigService>();
         services.AddScoped<ISkillsConfigService, SkillsConfigService>();
         services.AddSingleton<ITerminalConfigService, TerminalConfigService>();
-        services.AddSingleton<IPythonSandbox, IronPythonSandbox>();
+        services.AddSingleton<IPythonSandbox, ProcessPythonSandbox>();
         services.AddScoped<IMcpToolsLoaderService, McpToolsLoaderService>();
         services.AddScoped<IAgentContextFactory, AgentContextFactory>();
         services.AddSingleton<IBuiltInToolFactory, BuiltInToolFactory>();

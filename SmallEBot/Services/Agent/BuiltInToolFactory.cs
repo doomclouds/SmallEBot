@@ -7,7 +7,7 @@ using SmallEBot.Services.Terminal;
 
 namespace SmallEBot.Services.Agent;
 
-/// <summary>Creates built-in AITools (GetCurrentTime, ReadFile, WriteFile, ReadSkill, ExecuteCommand, RunPython) for the agent.</summary>
+/// <summary>Creates built-in AITools (GetCurrentTime, ReadFile, WriteFile, ListFiles, ReadSkill, ExecuteCommand, RunPython) for the agent.</summary>
 public interface IBuiltInToolFactory
 {
     AITool[] CreateTools();
@@ -25,6 +25,7 @@ public sealed class BuiltInToolFactory(ITerminalConfigService terminalConfig, IP
         AIFunctionFactory.Create(GetCurrentTime),
         AIFunctionFactory.Create(ReadFile),
         AIFunctionFactory.Create(WriteFile),
+        AIFunctionFactory.Create(ListFiles),
         AIFunctionFactory.Create(ReadSkill),
         AIFunctionFactory.Create(ExecuteCommand),
         AIFunctionFactory.Create(RunPython)
@@ -74,6 +75,33 @@ public sealed class BuiltInToolFactory(ITerminalConfigService terminalConfig, IP
                 Directory.CreateDirectory(dir);
             File.WriteAllText(fullPath, content, System.Text.Encoding.UTF8);
             return "Written " + fullPath;
+        }
+        catch (Exception ex)
+        {
+            return "Error: " + ex.Message;
+        }
+    }
+
+    [Description("List files and subdirectories under the run directory. Pass an optional path (relative to the run directory, e.g. .agents/skills or .) to list a subdirectory; omit or use . for the run directory itself. Returns one entry per line: directories end with /, files do not.")]
+    private static string ListFiles(string? path = null)
+    {
+        var baseDir = Path.GetFullPath(AppDomain.CurrentDomain.BaseDirectory);
+        var targetDir = string.IsNullOrWhiteSpace(path) || path.Trim() == "."
+            ? baseDir
+            : Path.GetFullPath(Path.Combine(baseDir, path.Trim().Replace('\\', Path.DirectorySeparatorChar)));
+        if (!targetDir.StartsWith(baseDir, StringComparison.OrdinalIgnoreCase))
+            return "Error: path must be under the current run directory.";
+        if (!Directory.Exists(targetDir))
+            return "Error: directory not found.";
+        try
+        {
+            var entries = Directory.GetFileSystemEntries(targetDir)
+                .Select(p => (Name: Path.GetFileName(p), IsDir: Directory.Exists(p)))
+                .OrderBy(e => !e.IsDir)
+                .ThenBy(e => e.Name, StringComparer.OrdinalIgnoreCase)
+                .Select(e => e.IsDir ? e.Name + "/" : e.Name)
+                .ToList();
+            return entries.Count == 0 ? "(empty)" : string.Join("\n", entries);
         }
         catch (Exception ex)
         {
@@ -165,7 +193,7 @@ public sealed class BuiltInToolFactory(ITerminalConfigService terminalConfig, IP
         }
     }
 
-    [Description("Run Python code in a sandbox (IronPython). Provide either code (inline Python) or scriptPath (path to a .py file under the run directory, e.g. .agents/sys.skills/my-skill/script.py). If both are provided, scriptPath is used. Optional workingDirectory is relative to the run directory. Output is stdout and stderr; execution has a timeout (see Terminal config).")]
+    [Description("Run Python using python.exe in the run directory. Provide either code (inline Python) or scriptPath (path to a .py file under the run directory, e.g. .agents/sys.skills/my-skill/script.py). If both are provided, scriptPath is used. Optional workingDirectory is relative to the run directory. Output is stdout and stderr; execution has a timeout (see Terminal config).")]
     private string RunPython(string? code = null, string? scriptPath = null, string? workingDirectory = null)
     {
         if (string.IsNullOrWhiteSpace(code) && string.IsNullOrWhiteSpace(scriptPath))
