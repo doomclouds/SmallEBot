@@ -2,117 +2,72 @@ using SmallEBot.Core.Models;
 
 namespace SmallEBot.Services.Presentation;
 
-/// <summary>Segments a turn's timeline into reasoning blocks and reply segments per design §4.</summary>
+/// <summary>Segments a turn's timeline into ordered blocks (think vs non-think). Each block has multiple TimelineItems. Rule: find first Think, then first Text after it → [thinkIdx, textIdx-1] is one think block. Repeat. All other items form non-think blocks. UI iterates blocks and renders each.</summary>
 public static class ReasoningSegmenter
 {
-    /// <summary>One step inside a reasoning block: either Think or Tool.</summary>
-    public sealed record ReasoningStep(
-        bool IsThink,
-        string? Text = null,
-        string? ToolName = null,
-        string? ToolArguments = null,
-        string? ToolResult = null);
+    /// <summary>One block in timeline order: either a think block (reasoning) or a non-think block (reply). Contains items to render.</summary>
+    public sealed record SegmentBlock(bool IsThinkBlock, IReadOnlyList<TimelineItem> Items);
 
-    /// <summary>One segment in the reply stream: Text or Tool.</summary>
-    public sealed record ReplySegment(
-        bool IsText,
-        string? Text = null,
-        string? ToolName = null,
-        string? ToolArguments = null,
-        string? ToolResult = null);
-
-    /// <summary>Result of segmenting a turn: reasoning blocks (each a list of Think/Tool) and reply segments (Text/Tool in order).</summary>
-    public sealed record SegmentationResult(
-        IReadOnlyList<IReadOnlyList<ReasoningStep>> ReasoningBlocks,
-        IReadOnlyList<ReplySegment> ReplySegments);
-
-    /// <summary>Segment a turn's items by the reasoning block rule. When isThinkingMode is false, returns empty blocks and all content as reply segments.</summary>
-    public static SegmentationResult SegmentTurn(IReadOnlyList<TimelineItem> items, bool isThinkingMode)
+    /// <summary>Segment a turn into ordered blocks. When isThinkingMode is false, returns one non-think block with all items.</summary>
+    public static IReadOnlyList<SegmentBlock> SegmentTurn(IReadOnlyList<TimelineItem> items, bool isThinkingMode)
     {
         if (!isThinkingMode)
+            return [new SegmentBlock(IsThinkBlock: false, items)];
+
+        var thinkRanges = new List<(int Start, int End)>();
+        var i = 0;
+        while (i < items.Count)
         {
-            var replyOnly = ItemsToReplySegments(items);
-            return new SegmentationResult([], replyOnly);
-        }
-
-        var blocks = new List<List<ReasoningStep>>();
-        var replySegments = new List<ReplySegment>();
-        List<ReasoningStep>? currentBlock = null;
-
-        for (var i = 0; i < items.Count; i++)
-        {
-            var item = items[i];
-            var next = i + 1 < items.Count ? items[i + 1] : null;
-
-            if (item.ThinkBlock != null)
+            var thinkIdx = -1;
+            for (var j = i; j < items.Count; j++)
             {
-                currentBlock ??= [];
-                currentBlock.Add(new ReasoningStep(IsThink: true, Text: item.ThinkBlock.Content));
-                continue;
+                if (items[j].ThinkBlock == null) continue;
+                thinkIdx = j; break;
+            }
+            if (thinkIdx < 0) break;
+
+            var textIdx = -1;
+            for (var j = thinkIdx + 1; j < items.Count; j++)
+            {
+                if (items[j].Message is not { Role: "assistant" } msg || string.IsNullOrEmpty(msg.Content)) continue;
+                textIdx = j; break;
             }
 
-            if (item.ToolCall != null)
+            if (textIdx < 0)
             {
-                var step = new ReasoningStep(
-                    IsThink: false,
-                    ToolName: item.ToolCall.ToolName,
-                    ToolArguments: item.ToolCall.Arguments,
-                    ToolResult: item.ToolCall.Result);
-
-                if (currentBlock != null)
-                {
-                    currentBlock.Add(step);
-                    var nextIsThink = next?.ThinkBlock != null;
-                    if (!nextIsThink)
-                    {
-                        blocks.Add(currentBlock);
-                        currentBlock = null;
-                    }
-                }
-                else
-                {
-                    replySegments.Add(new ReplySegment(
-                        IsText: false,
-                        ToolName: item.ToolCall.ToolName,
-                        ToolArguments: item.ToolCall.Arguments,
-                        ToolResult: item.ToolCall.Result));
-                }
-                continue;
+                thinkRanges.Add((thinkIdx, items.Count - 1));
+                break;
             }
-
-            if (item.Message is { Role: "assistant" } msg && !string.IsNullOrEmpty(msg.Content))
-            {
-                if (currentBlock != null)
-                {
-                    blocks.Add(currentBlock);
-                    currentBlock = null;
-                }
-                replySegments.Add(new ReplySegment(IsText: true, Text: msg.Content));
-            }
+            thinkRanges.Add((thinkIdx, textIdx - 1));
+            i = textIdx + 1;
         }
 
-        if (currentBlock != null)
-            blocks.Add(currentBlock);
+        var inThink = new HashSet<int>();
+        foreach (var (s, e) in thinkRanges)
+            for (var k = s; k <= e; k++) inThink.Add(k);
 
-        return new SegmentationResult(blocks, replySegments);
-    }
-
-    private static List<ReplySegment> ItemsToReplySegments(IReadOnlyList<TimelineItem> items)
-    {
-        var result = new List<ReplySegment>();
-        foreach (var item in items)
+        var replyRanges = new List<(int Start, int End)>();
+        var idx = 0;
+        while (idx < items.Count)
         {
-            if (item.Message is { Role: "assistant" } msg && !string.IsNullOrEmpty(msg.Content))
-                result.Add(new ReplySegment(IsText: true, Text: msg.Content));
-            else if (item.ThinkBlock != null)
-                result.Add(new ReplySegment(IsText: true, Text: item.ThinkBlock.Content));
-            else if (item.ToolCall != null)
-                result.Add(new ReplySegment(
-                    IsText: false,
-                    ToolName: item.ToolCall.ToolName,
-                    ToolArguments: item.ToolCall.Arguments,
-                    ToolResult: item.ToolCall.Result));
+            if (inThink.Contains(idx)) { idx++; continue; }
+            var start = idx;
+            while (idx < items.Count && !inThink.Contains(idx)) idx++;
+            replyRanges.Add((start, idx - 1));
         }
-        return result;
+
+        var allRanges = new List<(bool IsThink, int Start, int End)>();
+        foreach (var (s, e) in thinkRanges) allRanges.Add((true, s, e));
+        foreach (var (s, e) in replyRanges) allRanges.Add((false, s, e));
+        allRanges.Sort((a, b) => a.Start.CompareTo(b.Start));
+
+        var blocks = new List<SegmentBlock>();
+        foreach (var (isThink, start, end) in allRanges)
+        {
+            var blockItems = new List<TimelineItem>();
+            for (var k = start; k <= end; k++) blockItems.Add(items[k]);
+            blocks.Add(new SegmentBlock(IsThinkBlock: isThink, blockItems));
+        }
+        return blocks;
     }
 }

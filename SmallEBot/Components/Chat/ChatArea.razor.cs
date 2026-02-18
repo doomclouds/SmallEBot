@@ -26,11 +26,13 @@ public partial class ChatArea
         public string? ToolResult { get; set; }
     }
 
-    private static ReasoningStepView ToReasoningStepView(ReasoningSegmenter.ReasoningStep step)
+    private static ReasoningStepView? TimelineItemToReasoningStepView(TimelineItem item)
     {
-        return step.IsThink
-            ? new ReasoningStepView { IsThink = true, Text = step.Text ?? "" }
-            : new ReasoningStepView { IsThink = false, ToolName = step.ToolName, ToolArguments = step.ToolArguments, ToolResult = step.ToolResult };
+        if (item.ThinkBlock is { } tb)
+            return new ReasoningStepView { IsThink = true, Text = tb.Content ?? "" };
+        if (item.ToolCall is { } tc)
+            return new ReasoningStepView { IsThink = false, ToolName = tc.ToolName, ToolArguments = tc.Arguments, ToolResult = tc.Result };
+        return null;
     }
 
     private static ReasoningStepView ToReasoningStepView(ReasoningStep step)
@@ -73,6 +75,7 @@ public partial class ChatArea
     }
 
 
+    /// <summary>Boundary rule: after think appears, everything until text is part of reasoning; once text is seen, further content goes to reply.</summary>
     private IEnumerable<StreamDisplayItem> GetStreamingDisplayItems()
     {
         var reasoningSteps = new List<ReasoningStep>();
@@ -119,7 +122,8 @@ public partial class ChatArea
                     else
                     {
                         var lastReasoningTool = reasoningSteps.LastOrDefault(x => !x.IsThink);
-                        lastReasoningTool?.ToolResult = tc.Result;
+                        if (lastReasoningTool != null)
+                            lastReasoningTool.ToolResult = tc.Result;
                     }
                     continue;
                 }

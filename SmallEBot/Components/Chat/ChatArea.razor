@@ -28,35 +28,45 @@
             }
             else if (bubble is AssistantBubble asstBubble)
             {
-                var result = ReasoningSegmenter.SegmentTurn(asstBubble.Items, asstBubble.IsThinkingMode);
+                var blocks = ReasoningSegmenter.SegmentTurn(asstBubble.Items, asstBubble.IsThinkingMode);
                 var firstCreatedAt = asstBubble.Items.Count > 0 ? asstBubble.Items[0].CreatedAt : DateTime.UtcNow;
                 var isError = IsErrorReply(asstBubble.Items);
                 var bubbleClass = isError ? "mb-3 smallebot-bubble smallebot-assistant-error" : "mb-3 smallebot-bubble";
                 <MudChat ChatPosition="ChatBubblePosition.Start" ArrowPosition="ChatArrowPosition.Top" Class="@bubbleClass">
                     <MudChatBubble>
                         <MudText Typo="Typo.caption">SmallEBot · @firstCreatedAt.ToString("g")</MudText>
-                        @foreach (var block in result.ReasoningBlocks)
+                        @foreach (var block in blocks)
                         {
-                            var toolCount = block.Count(x => !x.IsThink);
-                            var panelTitle = toolCount > 0 ? $"💭 Reasoning ({toolCount} tool calls)" : "💭 Reasoning";
-                            var stepViews = block.Select(ToReasoningStepView).ToList();
-                            <MudExpansionPanels Class="mt-2" Elevation="0">
-                                <MudExpansionPanel expanded="false" Text="@panelTitle">
-                                    <div class="d-flex flex-column gap-2">
-                                        <ReasoningBlockView Steps="@stepViews" />
-                                    </div>
-                                </MudExpansionPanel>
-                            </MudExpansionPanels>
-                        }
-                        @foreach (var seg in result.ReplySegments)
-                        {
-                            @if (seg.IsText && !string.IsNullOrEmpty(seg.Text))
+                            @if (block.IsThinkBlock)
                             {
-                                <MarkdownContentView Content="@seg.Text" />
+                                var stepViews = block.Items.Select(TimelineItemToReasoningStepView).Where(x => x != null).Cast<ReasoningStepView>().ToList();
+                                var toolCount = stepViews.Count(x => !x.IsThink);
+                                var panelTitle = toolCount > 0 ? $"💭 Reasoning ({toolCount} tool calls)" : "💭 Reasoning";
+                                <MudExpansionPanels Class="mt-2" Elevation="0">
+                                    <MudExpansionPanel expanded="false" Text="@panelTitle">
+                                        <div class="d-flex flex-column gap-2">
+                                            <ReasoningBlockView Steps="@stepViews" />
+                                        </div>
+                                    </MudExpansionPanel>
+                                </MudExpansionPanels>
                             }
-                            else if (!seg.IsText && ShowToolCalls)
+                            else
                             {
-                                <ToolCallView ToolName="@seg.ToolName" ToolArguments="@seg.ToolArguments" ToolResult="@seg.ToolResult" ShowToolCalls="@ShowToolCalls" />
+                                @foreach (var item in block.Items)
+                                {
+                                    @if (item.Message is { } msg && !string.IsNullOrEmpty(msg.Content))
+                                    {
+                                        <MarkdownContentView Content="@msg.Content" />
+                                    }
+                                    else if (item.ThinkBlock is { } tb && !string.IsNullOrEmpty(tb.Content))
+                                    {
+                                        <MarkdownContentView Content="@tb.Content" />
+                                    }
+                                    else if (item.ToolCall is { } tc && ShowToolCalls)
+                                    {
+                                        <ToolCallView ToolName="@tc.ToolName" ToolArguments="@tc.Arguments" ToolResult="@tc.Result" ShowToolCalls="@ShowToolCalls" />
+                                    }
+                                }
                             }
                         }
                     </MudChatBubble>
