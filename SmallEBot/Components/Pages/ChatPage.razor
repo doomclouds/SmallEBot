@@ -1,9 +1,11 @@
 @page "/"
 @layout MainLayout
 @using SmallEBot.Core.Entities
+@using SmallEBot.Services.Conversation
 @inject UserNameService UserNameSvc
 @inject ConversationService ConvSvc
 @inject IDialogService DialogSvc
+@inject ICurrentConversationService CurrentConversation
 
 @if (string.IsNullOrEmpty(_userName))
 {
@@ -79,6 +81,7 @@ else
     {
         _selectedId = id;
         _selectedConversation = await ConvSvc.GetByIdAsync(id, _userName!);
+        CurrentConversation.SetCurrentConversationId(id);
         StateHasChanged();
     }
 
@@ -88,6 +91,7 @@ else
         _conversations.Insert(0, c);
         _selectedId = c.Id;
         _selectedConversation = c;
+        CurrentConversation.SetCurrentConversationId(c.Id);
         StateHasChanged();
     }
 
@@ -97,6 +101,7 @@ else
         {
             _selectedId = null;
             _selectedConversation = null;
+            CurrentConversation.SetCurrentConversationId(null);
         }
         await LoadConversations();
     }

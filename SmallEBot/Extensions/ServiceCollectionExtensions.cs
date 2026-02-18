@@ -39,6 +39,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ITerminalConfigService, TerminalConfigService>();
         services.AddSingleton<ICommandConfirmationContext, CommandConfirmationContext>();
         services.AddSingleton<IConversationTaskContext, ConversationTaskContext>();
+        services.AddSingleton<ICurrentConversationService, CurrentConversationService>();
+        services.AddSingleton<ITaskListService, TaskListService>();
         services.AddSingleton<ICommandConfirmationService, CommandConfirmationService>();
         services.AddSingleton<ICommandRunner, CommandRunner>();
         services.AddSingleton<IVirtualFileSystem, VirtualFileSystem>();

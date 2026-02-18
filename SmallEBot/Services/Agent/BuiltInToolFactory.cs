@@ -74,26 +74,41 @@ public sealed class BuiltInToolFactory(
         return JsonSerializer.Serialize(new { tasks = list.Tasks }, TaskFileJsonOptions);
     }
 
-    [Description("Add a task to the current conversation's list. Pass title (required) and optional description. Returns the new task as JSON: { \"id\", \"title\", \"description\", \"done\": false }.")]
-    private string AddTask(string title, string? description = "")
+    [Description("Create or replace the task list for the current conversation. Pass tasksJson: a JSON array of objects with \"title\" (required) and optional \"description\". Example: [{\"title\":\"Step 1\",\"description\":\"Brief\"},{\"title\":\"Step 2\"}]. Replaces the entire list; all tasks start as not done. Returns the created list as JSON { \"tasks\": [ ... ] }.")]
+    private string SetTaskList(string tasksJson)
     {
         var conversationId = conversationTaskContext.GetConversationId();
         if (conversationId == null)
             return "Error: Task list is not available (no conversation context).";
-        var path = GetTaskFilePath(conversationId.Value);
-        var list = ReadTaskFile(path);
-        if (list == null)
-            list = new TaskListFile();
-        var task = new TaskItem
+        List<TaskInputItem>? input;
+        try
         {
-            Id = Guid.NewGuid().ToString("N"),
-            Title = title.Trim(),
-            Description = description ?? "",
-            Done = false
+            input = JsonSerializer.Deserialize<List<TaskInputItem>>(tasksJson, TaskFileJsonOptions);
+        }
+        catch
+        {
+            return "Error: Invalid JSON. Pass an array of objects with \"title\" (required) and optional \"description\".";
+        }
+        if (input == null || input.Count == 0)
+            return "Error: tasksJson must be a non-empty array of task objects.";
+        var list = new TaskListFile
+        {
+            Tasks = input
+                .Where(t => !string.IsNullOrWhiteSpace(t.Title))
+                .Select(t => new TaskItem
+                {
+                    Id = Guid.NewGuid().ToString("N"),
+                    Title = t.Title!.Trim(),
+                    Description = t.Description ?? "",
+                    Done = false
+                })
+                .ToList()
         };
-        list.Tasks.Add(task);
+        if (list.Tasks.Count == 0)
+            return "Error: No valid tasks (each must have a non-empty title).";
+        var path = GetTaskFilePath(conversationId.Value);
         WriteTaskFile(path, list);
-        return JsonSerializer.Serialize(task, TaskFileJsonOptions);
+        return JsonSerializer.Serialize(new { tasks = list.Tasks }, TaskFileJsonOptions);
     }
 
     [Description("Mark a task as done by id. Returns { \"ok\": true, \"task\": { ... } } or { \"ok\": false, \"error\": \"Task not found\" }.")]
@@ -116,43 +131,15 @@ public sealed class BuiltInToolFactory(
         return JsonSerializer.Serialize(new { ok = true, task });
     }
 
-    [Description("Mark a task as not done by id. Returns same shape as CompleteTask.")]
-    private string UncompleteTask(string taskId)
+    [Description("Clear all tasks for the current conversation. Call this before SetTaskList when starting a new task breakdown to remove old tasks. Returns { \"ok\": true }.")]
+    private string ClearTasks()
     {
         var conversationId = conversationTaskContext.GetConversationId();
         if (conversationId == null)
             return "Error: Task list is not available (no conversation context).";
         var path = GetTaskFilePath(conversationId.Value);
-        var list = ReadTaskFile(path);
-        if (list == null && File.Exists(path))
-            return "Error: Task file is corrupt or invalid.";
-        if (list == null)
-            return JsonSerializer.Serialize(new { ok = false, error = "Task not found" });
-        var task = list.Tasks.FirstOrDefault(t => string.Equals(t.Id, taskId, StringComparison.Ordinal));
-        if (task == null)
-            return JsonSerializer.Serialize(new { ok = false, error = "Task not found" });
-        task.Done = false;
-        WriteTaskFile(path, list);
-        return JsonSerializer.Serialize(new { ok = true, task });
-    }
-
-    [Description("Remove a task by id. Returns { \"ok\": true } or { \"ok\": false, \"error\": \"Task not found\" }.")]
-    private string DeleteTask(string taskId)
-    {
-        var conversationId = conversationTaskContext.GetConversationId();
-        if (conversationId == null)
-            return "Error: Task list is not available (no conversation context).";
-        var path = GetTaskFilePath(conversationId.Value);
-        var list = ReadTaskFile(path);
-        if (list == null && File.Exists(path))
-            return "Error: Task file is corrupt or invalid.";
-        if (list == null)
-            return JsonSerializer.Serialize(new { ok = false, error = "Task not found" });
-        var index = list.Tasks.FindIndex(t => string.Equals(t.Id, taskId, StringComparison.Ordinal));
-        if (index < 0)
-            return JsonSerializer.Serialize(new { ok = false, error = "Task not found" });
-        list.Tasks.RemoveAt(index);
-        WriteTaskFile(path, list);
+        if (File.Exists(path))
+            File.Delete(path);
         return JsonSerializer.Serialize(new { ok = true });
     }
 
@@ -167,10 +154,9 @@ public sealed class BuiltInToolFactory(
         AIFunctionFactory.Create(ListSkillFiles),
         AIFunctionFactory.Create(ExecuteCommand),
         AIFunctionFactory.Create(ListTasks),
-        AIFunctionFactory.Create(AddTask),
+        AIFunctionFactory.Create(SetTaskList),
         AIFunctionFactory.Create(CompleteTask),
-        AIFunctionFactory.Create(UncompleteTask),
-        AIFunctionFactory.Create(DeleteTask)
+        AIFunctionFactory.Create(ClearTasks)
     ];
 
     [Description("Get the current local date and time (machine timezone) in ISO 8601 format.")]
@@ -404,6 +390,15 @@ public sealed class BuiltInToolFactory(
         }
 
         return commandRunner.Run(normalized, workDir);
+    }
+
+    private sealed class TaskInputItem
+    {
+        [JsonPropertyName("title")]
+        public string? Title { get; set; }
+
+        [JsonPropertyName("description")]
+        public string? Description { get; set; }
     }
 
     private sealed class TaskItem

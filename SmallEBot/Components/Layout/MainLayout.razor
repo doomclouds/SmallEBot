@@ -2,6 +2,7 @@
 @using SmallEBot.Components.Mcp
 @using SmallEBot.Components.Terminal
 @using SmallEBot.Components.Workspace
+@using SmallEBot.Components.TaskList
 @implements IDisposable
 @inject UserNameService UserNameSvc
 @inject UserPreferencesService Preferences
@@ -61,6 +62,11 @@
                            Color="@(_workspaceDrawerOpen ? Color.Primary : Color.Default)"
                            OnClick="@ToggleWorkspaceDrawer" />
         </MudTooltip>
+        <MudTooltip Text="Task list">
+            <MudIconButton Icon="@Icons.Material.Filled.TaskAlt"
+                           Color="@(_taskListDrawerOpen ? Color.Primary : Color.Default)"
+                           OnClick="@ToggleTaskListDrawer" />
+        </MudTooltip>
         <MudText Typo="Typo.body2" Class="smallebot-username">@UserNameSvc.CurrentDisplayName</MudText>
     </MudAppBar>
     <MudMainContent Class="smallebot-main">
@@ -78,6 +84,12 @@
                     <WorkspaceDrawer Open="_workspaceDrawerOpen" OnClose="CloseWorkspaceDrawer" />
                 </div>
             }
+            @if (_taskListDrawerOpen)
+            {
+                <div class="smallebot-workspace-drawer-panel">
+                    <TaskListDrawer Open="_taskListDrawerOpen" OnClose="CloseTaskListDrawer" />
+                </div>
+            }
         </div>
     </MudMainContent>
     <CommandConfirmationStrip />
@@ -88,6 +100,7 @@
     private bool _showToolCalls = true;
     private bool _useThinkingMode;
     private bool _workspaceDrawerOpen;
+    private bool _taskListDrawerOpen;
     private string? _userName;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -175,6 +188,10 @@
     private void ToggleWorkspaceDrawer() => _workspaceDrawerOpen = !_workspaceDrawerOpen;
 
     private void CloseWorkspaceDrawer() => _workspaceDrawerOpen = false;
+
+    private void ToggleTaskListDrawer() => _taskListDrawerOpen = !_taskListDrawerOpen;
+
+    private void CloseTaskListDrawer() => _taskListDrawerOpen = false;
 
     protected override void OnInitialized()
     {

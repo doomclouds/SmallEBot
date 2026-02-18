@@ -82,10 +82,9 @@ ReadFile, WriteFile, ListFiles, and ExecuteCommand (working directory) are scope
 | `ListSkillFiles(skillId, path?)` | List files/dirs inside a skill folder |
 | `ExecuteCommand(command)` | Run shell command; working dir defaults to workspace root. Use for Python scripts (e.g. python script.py). Optional user confirmation and whitelist (prefix match) when enabled in Terminal config. |
 | `ListTasks` | List current conversation tasks (JSON `{ "tasks": [ { "id", "title", "description", "done" }, ... ] }`) |
-| `AddTask(title, description?)` | Add a task to the conversation list; returns the new task as JSON |
+| `SetTaskList(tasksJson)` | Create or replace the task list in one call; pass JSON array of `{ "title", "description"? }` objects; returns the created list |
 | `CompleteTask(taskId)` | Mark a task as done |
-| `UncompleteTask(taskId)` | Mark a task as not done |
-| `DeleteTask(taskId)` | Remove a task from the list |
+| `ClearTasks` | Delete all tasks for the current conversation; call before SetTaskList when starting a new breakdown |
 
 ### Configuration
 

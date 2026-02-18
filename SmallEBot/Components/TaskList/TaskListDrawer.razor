@@ -1,0 +1,151 @@
+@using SmallEBot.Services.Conversation
+@implements IDisposable
+@inject ICurrentConversationService CurrentConversation
+@inject ITaskListService TaskListService
+
+<div class="task-list-drawer">
+    <div class="task-list-drawer-header">
+        <div class="task-list-drawer-title">
+            <MudIcon Icon="@Icons.Material.Filled.List" Class="task-list-drawer-icon" />
+            <MudText Typo="Typo.h6">To-dos @(_tasks?.Count ?? 0)</MudText>
+        </div>
+        <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(() => OnClose.InvokeAsync())" />
+    </div>
+    <div class="task-list-drawer-body">
+        @if (_conversationId == null)
+        {
+            <MudText Typo="Typo.body2" Class="pa-2" Style="color: var(--seb-text-secondary);">Select a conversation to view tasks.</MudText>
+        }
+        else if (_tasks == null)
+        {
+            <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Small" Class="ma-2" />
+        }
+        else if (_tasks.Count == 0)
+        {
+            <MudText Typo="Typo.body2" Class="pa-2" Style="color: var(--seb-text-secondary);">No tasks yet. The assistant will add them when breaking down work.</MudText>
+        }
+        else
+        {
+            <div class="task-list-items">
+                @foreach (var task in _tasks)
+                {
+                    <div class="task-list-item">
+                        <MudIcon Icon="@(task.Done ? Icons.Material.Filled.CheckCircle : Icons.Material.Filled.RadioButtonUnchecked)"
+                                 Class="task-list-item-icon"
+                                 Color="@(task.Done ? Color.Success : Color.Default)" />
+                        <div class="task-list-item-content">
+                            <MudText Typo="Typo.body2" Class="@(task.Done ? "task-list-item-done" : "")">@task.Title</MudText>
+                            @if (!string.IsNullOrEmpty(task.Description))
+                            {
+                                <MudText Typo="Typo.caption" Class="task-list-item-desc" Style="color: var(--seb-text-secondary);">@task.Description</MudText>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+    @if (_conversationId != null && _tasks != null && _tasks.Count > 0)
+    {
+        <MudDivider />
+        <div class="task-list-drawer-actions">
+            <MudButton Variant="Variant.Text"
+                       Color="Color.Error"
+                       Size="Size.Small"
+                       StartIcon="@Icons.Material.Filled.DeleteSweep"
+                       OnClick="ClearAllTasksAsync">
+                Delete all
+            </MudButton>
+        </div>
+    }
+</div>
+
+@code {
+    private const int PollIntervalMs = 2000;
+
+    [Parameter] public bool Open { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private Guid? _conversationId;
+    private IReadOnlyList<TaskItemViewModel>? _tasks;
+    private CancellationTokenSource? _pollCts;
+
+    protected override void OnInitialized()
+    {
+        CurrentConversation.CurrentConversationChanged += OnConversationChanged;
+        _conversationId = CurrentConversation.CurrentConversationId;
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Open)
+        {
+            _conversationId ??= CurrentConversation.CurrentConversationId;
+            await LoadTasksAsync();
+            StartPolling();
+        }
+        else
+            StopPolling();
+    }
+
+    private void OnConversationChanged()
+    {
+        _conversationId = CurrentConversation.CurrentConversationId;
+        _ = InvokeAsync(LoadTasksAsync);
+    }
+
+    private async Task LoadTasksAsync()
+    {
+        if (_conversationId == null)
+        {
+            _tasks = [];
+            StateHasChanged();
+            return;
+        }
+        _tasks = await TaskListService.GetTasksAsync(_conversationId.Value);
+        StateHasChanged();
+    }
+
+    private async Task ClearAllTasksAsync()
+    {
+        if (_conversationId == null) return;
+        await TaskListService.ClearTasksAsync(_conversationId.Value);
+        await LoadTasksAsync();
+    }
+
+    private void StartPolling()
+    {
+        if (_pollCts != null) return;
+        _pollCts = new CancellationTokenSource();
+        var token = _pollCts.Token;
+        _ = Task.Run(async () =>
+        {
+            using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(PollIntervalMs));
+            try
+            {
+                while (await timer.WaitForNextTickAsync(token))
+                {
+                    await InvokeAsync(async () =>
+                    {
+                        if (!Open || _conversationId == null) return;
+                        await LoadTasksAsync();
+                    });
+                }
+            }
+            catch (OperationCanceledException) { }
+        }, token);
+    }
+
+    private void StopPolling()
+    {
+        _pollCts?.Cancel();
+        _pollCts?.Dispose();
+        _pollCts = null;
+    }
+
+    public void Dispose()
+    {
+        CurrentConversation.CurrentConversationChanged -= OnConversationChanged;
+        StopPolling();
+    }
+}
