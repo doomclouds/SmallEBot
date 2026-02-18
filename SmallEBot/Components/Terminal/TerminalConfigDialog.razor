@@ -73,6 +73,9 @@
     private List<string> _entries = [];
     private string _newEntry = "";
     private int _timeoutSeconds = 60;
+    private bool _requireConfirmation;
+    private int _confirmationTimeoutSeconds = 60;
+    private List<string> _whitelistEntries = [];
 
     protected override async Task OnInitializedAsync()
     {
@@ -81,6 +84,9 @@
             var list = await TerminalConfig.GetCommandBlacklistAsync();
             _entries = list.ToList();
             _timeoutSeconds = await TerminalConfig.GetCommandTimeoutSecondsAsync();
+            _requireConfirmation = await TerminalConfig.GetRequireCommandConfirmationAsync();
+            _confirmationTimeoutSeconds = await TerminalConfig.GetConfirmationTimeoutSecondsAsync();
+            _whitelistEntries = (await TerminalConfig.GetCommandWhitelistAsync()).ToList();
         }
         catch
         {
@@ -125,7 +131,7 @@
     {
         try
         {
-            await TerminalConfig.SaveAsync(_entries, _timeoutSeconds);
+            await TerminalConfig.SaveAsync(_entries, _timeoutSeconds, _requireConfirmation, _confirmationTimeoutSeconds, _whitelistEntries);
             Snackbar.Add("Saved", Severity.Success);
             MudDialog.Close(DialogResult.Ok(true));
         }

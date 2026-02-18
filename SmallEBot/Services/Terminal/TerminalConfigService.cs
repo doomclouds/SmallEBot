@@ -81,6 +81,10 @@ public sealed class TerminalConfigService : ITerminalConfigService
     private const int MinTimeoutSeconds = 5;
     private const int MaxTimeoutSeconds = 600;
 
+    private const int DefaultConfirmationTimeoutSeconds = 60;
+    private const int MinConfirmationTimeoutSeconds = 10;
+    private const int MaxConfirmationTimeoutSeconds = 120;
+
     public int GetCommandTimeoutSeconds()
     {
         if (!File.Exists(_filePath))
@@ -115,14 +119,122 @@ public sealed class TerminalConfigService : ITerminalConfigService
         }
     }
 
-    public async Task SaveAsync(IReadOnlyList<string> commandBlacklist, int commandTimeoutSeconds, CancellationToken ct = default)
+    public bool GetRequireCommandConfirmation()
+    {
+        if (!File.Exists(_filePath))
+            return false;
+        try
+        {
+            var json = File.ReadAllText(_filePath);
+            var data = JsonSerializer.Deserialize<TerminalConfigFile>(json, ReadOptions);
+            return data?.RequireCommandConfirmation ?? false;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public int GetConfirmationTimeoutSeconds()
+    {
+        if (!File.Exists(_filePath))
+            return DefaultConfirmationTimeoutSeconds;
+        try
+        {
+            var json = File.ReadAllText(_filePath);
+            var data = JsonSerializer.Deserialize<TerminalConfigFile>(json, ReadOptions);
+            var raw = data?.ConfirmationTimeoutSeconds ?? 0;
+            return raw >= MinConfirmationTimeoutSeconds ? Math.Clamp(raw, MinConfirmationTimeoutSeconds, MaxConfirmationTimeoutSeconds) : DefaultConfirmationTimeoutSeconds;
+        }
+        catch
+        {
+            return DefaultConfirmationTimeoutSeconds;
+        }
+    }
+
+    public IReadOnlyList<string> GetCommandWhitelist()
+    {
+        if (!File.Exists(_filePath))
+            return [];
+        try
+        {
+            var json = File.ReadAllText(_filePath);
+            var data = JsonSerializer.Deserialize<TerminalConfigFile>(json, ReadOptions);
+            return data?.CommandWhitelist ?? [];
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+    public async Task<bool> GetRequireCommandConfirmationAsync(CancellationToken ct = default)
+    {
+        if (!File.Exists(_filePath))
+            return false;
+        try
+        {
+            var json = await File.ReadAllTextAsync(_filePath, ct);
+            var data = JsonSerializer.Deserialize<TerminalConfigFile>(json, ReadOptions);
+            return data?.RequireCommandConfirmation ?? false;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public async Task<int> GetConfirmationTimeoutSecondsAsync(CancellationToken ct = default)
+    {
+        if (!File.Exists(_filePath))
+            return DefaultConfirmationTimeoutSeconds;
+        try
+        {
+            var json = await File.ReadAllTextAsync(_filePath, ct);
+            var data = JsonSerializer.Deserialize<TerminalConfigFile>(json, ReadOptions);
+            var raw = data?.ConfirmationTimeoutSeconds ?? 0;
+            return raw >= MinConfirmationTimeoutSeconds ? Math.Clamp(raw, MinConfirmationTimeoutSeconds, MaxConfirmationTimeoutSeconds) : DefaultConfirmationTimeoutSeconds;
+        }
+        catch
+        {
+            return DefaultConfirmationTimeoutSeconds;
+        }
+    }
+
+    public async Task<IReadOnlyList<string>> GetCommandWhitelistAsync(CancellationToken ct = default)
+    {
+        if (!File.Exists(_filePath))
+            return [];
+        try
+        {
+            var json = await File.ReadAllTextAsync(_filePath, ct);
+            var data = JsonSerializer.Deserialize<TerminalConfigFile>(json, ReadOptions);
+            return data?.CommandWhitelist ?? [];
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+    public async Task SaveAsync(
+        IReadOnlyList<string> commandBlacklist,
+        int commandTimeoutSeconds,
+        bool requireCommandConfirmation,
+        int confirmationTimeoutSeconds,
+        IReadOnlyList<string> commandWhitelist,
+        CancellationToken ct = default)
     {
         Directory.CreateDirectory(_agentsPath);
         var timeout = Math.Clamp(commandTimeoutSeconds, MinTimeoutSeconds, MaxTimeoutSeconds);
+        var confirmationTimeout = Math.Clamp(confirmationTimeoutSeconds, MinConfirmationTimeoutSeconds, MaxConfirmationTimeoutSeconds);
         var data = new TerminalConfigFile
         {
             CommandBlacklist = commandBlacklist.ToList(),
-            CommandTimeoutSeconds = timeout
+            CommandTimeoutSeconds = timeout,
+            RequireCommandConfirmation = requireCommandConfirmation,
+            ConfirmationTimeoutSeconds = confirmationTimeout,
+            CommandWhitelist = commandWhitelist.ToList()
         };
         var json = JsonSerializer.Serialize(data, WriteOptions);
         await File.WriteAllTextAsync(_filePath, json, ct);
@@ -132,5 +244,8 @@ public sealed class TerminalConfigService : ITerminalConfigService
     {
         public List<string> CommandBlacklist { get; set; } = [];
         public int CommandTimeoutSeconds { get; set; } = DefaultTimeoutSeconds;
+        public bool RequireCommandConfirmation { get; set; }
+        public int ConfirmationTimeoutSeconds { get; set; } = DefaultConfirmationTimeoutSeconds;
+        public List<string> CommandWhitelist { get; set; } = [];
     }
 }
