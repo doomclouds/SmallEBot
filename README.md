@@ -66,6 +66,7 @@ The agent has access to these built-in tools. File paths and working directory f
 | `ReadSkillFile(skillId, relativePath)` | Read a file inside a skill (e.g. references/guide.md, script.py) |
 | `ListSkillFiles(skillId, path?)` | List files and folders inside a skill |
 | `ExecuteCommand(command)` | Run a shell command (cwd defaults to workspace). Use e.g. `python script.py` to run Python scripts. Optional: require user approval and whitelist (Terminal config in App bar). |
+| **Task list (conversation-scoped)** | `ListTasks`, `AddTask(title, description?)`, `CompleteTask(taskId)`, `UncompleteTask(taskId)`, `DeleteTask(taskId)` — break down and track work per conversation. |
 
 ## Skills
 

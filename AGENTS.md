@@ -81,6 +81,11 @@ ReadFile, WriteFile, ListFiles, and ExecuteCommand (working directory) are scope
 | `ReadSkillFile(skillId, relativePath)` | Read a file inside a skill folder; returns JSON `{ "path", "content" }` |
 | `ListSkillFiles(skillId, path?)` | List files/dirs inside a skill folder |
 | `ExecuteCommand(command)` | Run shell command; working dir defaults to workspace root. Use for Python scripts (e.g. python script.py). Optional user confirmation and whitelist (prefix match) when enabled in Terminal config. |
+| `ListTasks` | List current conversation tasks (JSON `{ "tasks": [ { "id", "title", "description", "done" }, ... ] }`) |
+| `AddTask(title, description?)` | Add a task to the conversation list; returns the new task as JSON |
+| `CompleteTask(taskId)` | Mark a task as done |
+| `UncompleteTask(taskId)` | Mark a task as not done |
+| `DeleteTask(taskId)` | Remove a task from the list |
 
 ### Configuration
 
@@ -94,6 +99,7 @@ ReadFile, WriteFile, ListFiles, and ExecuteCommand (working directory) are scope
   - `.agents/.mcp.json` (user MCP + disabled system IDs)
   - `.agents/terminal.json` (command blacklist, require-confirmation flag, confirmation timeout, whitelist). When confirmation is enabled, a bottom-right strip appears for Allow/Reject; approved commands are added to the whitelist (prefix match).
   - `.agents/sys.skills/` and `.agents/skills/` (skill folders)
+  - `.agents/tasks/` (per-conversation task list JSON files)
 
 ### Cache invalidation
 
