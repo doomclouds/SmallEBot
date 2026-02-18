@@ -236,7 +236,7 @@ public sealed class BuiltInToolFactory(
         if (string.IsNullOrWhiteSpace(command))
             return "Error: command is required.";
         var normalized = Regex.Replace(command.Trim(), @"\s+", " ");
-        var blacklist = terminalConfig.GetCommandBlacklist();
+        var blacklist = await terminalConfig.GetCommandBlacklistAsync(cancellationToken);
         if (blacklist.Any(b => normalized.Contains(b, StringComparison.OrdinalIgnoreCase)))
             return "Error: Command is not allowed by terminal blacklist.";
 
@@ -252,15 +252,15 @@ public sealed class BuiltInToolFactory(
             workDir = combined;
         }
 
-        if (terminalConfig.GetRequireCommandConfirmation())
+        if (await terminalConfig.GetRequireCommandConfirmationAsync(cancellationToken))
         {
-            var whitelist = terminalConfig.GetCommandWhitelist();
+            var whitelist = await terminalConfig.GetCommandWhitelistAsync(cancellationToken);
             var allowedByWhitelist = whitelist.Any(w =>
                 normalized.Equals(w, StringComparison.OrdinalIgnoreCase) ||
                 normalized.StartsWith(w, StringComparison.OrdinalIgnoreCase));
             if (!allowedByWhitelist)
             {
-                var result = await confirmationService.RequestConfirmationAsync(normalized, workDir, terminalConfig.GetConfirmationTimeoutSeconds(), cancellationToken);
+                var result = await confirmationService.RequestConfirmationAsync(normalized, workDir, await terminalConfig.GetConfirmationTimeoutSecondsAsync(cancellationToken), cancellationToken);
                 if (result != CommandConfirmResult.Allow)
                     return "Error: Command was not approved (rejected or timed out).";
                 _ = terminalConfig.AddToWhitelistAndSaveAsync(normalized, cancellationToken);

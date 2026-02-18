@@ -37,7 +37,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IMcpConfigService, McpConfigService>();
         services.AddScoped<ISkillsConfigService, SkillsConfigService>();
         services.AddSingleton<ITerminalConfigService, TerminalConfigService>();
-        services.AddSingleton<Application.Conversation.ICommandConfirmationContext, CommandConfirmationContext>();
+        services.AddSingleton<ICommandConfirmationContext, CommandConfirmationContext>();
         services.AddSingleton<ICommandConfirmationService, CommandConfirmationService>();
         services.AddSingleton<ICommandRunner, CommandRunner>();
         services.AddSingleton<IVirtualFileSystem, VirtualFileSystem>();
