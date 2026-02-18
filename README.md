@@ -9,7 +9,7 @@ A personal chat assistant built with ASP.NET Core Blazor Server, designed to run
 - **Thinking mode**: Toggle extended reasoning (e.g. DeepSeek Reasoner) via Anthropic thinking support.
 - **MCP tools**: Connect to Model Context Protocol servers for extended capabilities (filesystem, web search, databases, etc.).
 - **Skills**: File-based skills system — create custom skills in `.agents/skills/` with YAML frontmatter.
-- **Terminal**: Execute shell commands via the `ExecuteCommand` tool (e.g. `python script.py` for Python). Configurable command blacklist.
+- **Terminal**: Execute shell commands via the `ExecuteCommand` tool (e.g. `python script.py` for Python). Configurable command blacklist. Optional **command confirmation** (bottom-right approval strip) and **whitelist** (approved commands run without asking again).
 - **Workspace**: Agent file tools and ExecuteCommand use a workspace at `.agents/vfs/`. Open the **Workspace** drawer (App bar) to browse and view files.
 - **Themes**: Several UI themes (e.g. editorial-dark, paper-light, terminal) with persistence.
 - **No login**: First visit asks for a username; data is scoped by that name.
@@ -50,7 +50,7 @@ Then open the URL shown in the console (e.g. `https://localhost:5xxx`).
 
 ## Configuration
 
-Main options live in `SmallEBot/appsettings.json` under `SmallEBot` and `Anthropic` (Anthropic-compatible API: base URL, model, optional `Anthropic:ApiKey`, `ContextWindowTokens`). Example base URL for DeepSeek: `https://api.deepseek.com/anthropic`. Do not commit API keys; use user secrets or environment variables.
+Main options live in `SmallEBot/appsettings.json` under `SmallEBot` and `Anthropic` (Anthropic-compatible API: base URL, model, optional `Anthropic:ApiKey`, `ContextWindowTokens`). Example base URL for DeepSeek: `https://api.deepseek.com/anthropic`. Do not commit API keys; use user secrets or environment variables. **Terminal** (command blacklist, optional confirmation, whitelist) is configured via the Terminal config dialog in the App bar; settings are stored in `.agents/terminal.json`.
 
 ## Built-in Tools
 
@@ -65,7 +65,7 @@ The agent has access to these built-in tools. File paths and working directory f
 | `ReadSkill(skillName)` | Load a skill's `SKILL.md` file (from skills folders, not workspace) |
 | `ReadSkillFile(skillId, relativePath)` | Read a file inside a skill (e.g. references/guide.md, script.py) |
 | `ListSkillFiles(skillId, path?)` | List files and folders inside a skill |
-| `ExecuteCommand(command)` | Run a shell command (cwd defaults to workspace). Use e.g. `python script.py` to run Python scripts. |
+| `ExecuteCommand(command)` | Run a shell command (cwd defaults to workspace). Use e.g. `python script.py` to run Python scripts. Optional: require user approval and whitelist (Terminal config in App bar). |
 
 ## Skills
 
