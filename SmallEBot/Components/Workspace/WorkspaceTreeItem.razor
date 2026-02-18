@@ -11,7 +11,7 @@
             <div class="workspace-tree-children">
                 @foreach (var child in Node.Children)
                 {
-                    <WorkspaceTreeItem Node="@child" OnFileSelected="OnFileSelected" />
+                    <WorkspaceTreeItem Node="@child" OnFileSelected="OnFileSelected" OnDeleteRequested="OnDeleteRequested" />
                 }
             </div>
         }
@@ -19,17 +19,44 @@
 }
 else
 {
-    <div class="workspace-tree-row workspace-tree-file" @onclick="@(() => OnFileSelected.InvokeAsync(Node.RelativePath))">
+    <div class="workspace-tree-row workspace-tree-file d-flex align-center" @onclick="@(() => OnFileSelected.InvokeAsync(Node.RelativePath))">
         <MudIcon Icon="@Icons.Material.Filled.InsertDriveFile" Size="Size.Small" Class="workspace-tree-icon-placeholder" />
-        <MudText Typo="Typo.body2">@Node.Name</MudText>
+        <MudText Typo="Typo.body2" Class="flex-grow-1">@Node.Name</MudText>
+        <div class="workspace-tree-file-actions" @onclick:stopPropagation="true">
+            @if (IsMarkdown)
+            {
+                <MudTooltip Text="View"><MudIconButton Icon="@Icons.Material.Filled.Visibility" Size="Size.Small" OnClick="@OpenPreviewAsync" /></MudTooltip>
+            }
+            @if (IsDeletable)
+            {
+                <MudTooltip Text="Delete"><MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => OnDeleteRequested.InvokeAsync(Node.RelativePath))" Color="Color.Default" /></MudTooltip>
+            }
+        </div>
     </div>
 }
 
 @code {
     [Parameter] public WorkspaceNode Node { get; set; } = null!;
     [Parameter] public EventCallback<string> OnFileSelected { get; set; }
+    [Parameter] public EventCallback<string> OnDeleteRequested { get; set; }
+
+    [Inject] private IWorkspaceService WorkspaceService { get; set; } = null!;
+    [Inject] private IDialogService DialogService { get; set; } = null!;
 
     private bool Expanded { get; set; } = true;
 
+    private bool IsMarkdown => Node.RelativePath.EndsWith(".md", StringComparison.OrdinalIgnoreCase);
+    private bool IsDeletable => WorkspaceService.IsDeletableFile(Node.RelativePath);
+
     private void ToggleExpand() => Expanded = !Expanded;
+
+    private async Task OpenPreviewAsync()
+    {
+        var parameters = new DialogParameters
+        {
+            [nameof(ViewWorkspaceMarkdownDialog.RelativePath)] = Node.RelativePath,
+            [nameof(ViewWorkspaceMarkdownDialog.Name)] = Node.Name
+        };
+        await DialogService.ShowAsync<ViewWorkspaceMarkdownDialog>("Preview", parameters);
+    }
 }

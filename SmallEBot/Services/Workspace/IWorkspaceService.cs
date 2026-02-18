@@ -9,13 +9,11 @@ public sealed class WorkspaceNode
     public IReadOnlyList<WorkspaceNode> Children { get; init; } = [];
 }
 
-/// <summary>Service for the Workspace UI: list tree, read file content, create/delete/rename.</summary>
+/// <summary>Service for the Workspace UI: list tree, read file content, delete (files with allowed extensions only).</summary>
 public interface IWorkspaceService
 {
     Task<IReadOnlyList<WorkspaceNode>> GetTreeAsync(CancellationToken ct = default);
     Task<string?> ReadFileContentAsync(string relativePath, CancellationToken ct = default);
-    Task CreateFileAsync(string relativePath, CancellationToken ct = default);
-    Task CreateDirectoryAsync(string relativePath, CancellationToken ct = default);
+    bool IsDeletableFile(string relativePath);
     Task DeleteAsync(string relativePath, CancellationToken ct = default);
-    Task RenameAsync(string oldRelativePath, string newName, CancellationToken ct = default);
 }

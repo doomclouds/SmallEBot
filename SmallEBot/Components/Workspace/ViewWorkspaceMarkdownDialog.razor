@@ -1,0 +1,51 @@
+@inject IWorkspaceService WorkspaceService
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(string.IsNullOrEmpty(Name) ? "Preview" : Name)</MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (_loading)
+        {
+            <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+        }
+        else if (_content == null)
+        {
+            <MudAlert Severity="Severity.Warning">File not found or not readable.</MudAlert>
+        }
+        else
+        {
+            <div class="view-workspace-markdown-scroll" style="max-height: 70vh; overflow-y: auto;">
+                <MarkdownContentView Content="@_content" />
+            </div>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="Close">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public string RelativePath { get; set; } = "";
+    [Parameter] public string Name { get; set; } = "";
+
+    private bool _loading = true;
+    private string? _content;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (string.IsNullOrWhiteSpace(RelativePath)) return;
+        _loading = true;
+        try
+        {
+            _content = await WorkspaceService.ReadFileContentAsync(RelativePath);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void Close() => MudDialog.Close();
+}

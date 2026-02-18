@@ -437,6 +437,12 @@ h1:focus {
 }
 .workspace-tree-row:hover { background: var(--seb-primary-muted); }
 .workspace-tree-file .workspace-tree-icon-placeholder { opacity: 0.7; }
+.workspace-tree-file-actions {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin-left: auto;
+}
 
 /* Main layout with optional right workspace drawer */
 .smallebot-main-with-drawer {

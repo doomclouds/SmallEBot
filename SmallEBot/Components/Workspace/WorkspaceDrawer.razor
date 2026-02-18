@@ -1,3 +1,5 @@
+@using System.IO
+@implements IDisposable
 @inject IWorkspaceService WorkspaceService
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
@@ -6,10 +8,6 @@
     <div class="workspace-drawer-header">
         <MudText Typo="Typo.h6">Workspace</MudText>
         <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(() => OnClose.InvokeAsync())" />
-    </div>
-    <div class="workspace-drawer-toolbar">
-        <MudButton Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Filled.Add" OnClick="OpenNewFileDialog">New file</MudButton>
-        <MudButton Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Filled.CreateNewFolder" OnClick="OpenNewFolderDialog">New folder</MudButton>
     </div>
     <div class="workspace-drawer-tree">
         @if (_tree == null)
@@ -25,7 +23,7 @@
             <div class="workspace-tree-root">
                 @foreach (var node in _tree)
                 {
-                    <WorkspaceTreeItem Node="@node" OnFileSelected="@(path => SelectFile(path))" />
+                    <WorkspaceTreeItem Node="@node" OnFileSelected="@(path => SelectFile(path))" OnDeleteRequested="ShowDeleteConfirmAsync" />
                 }
             </div>
         }
@@ -52,6 +50,8 @@
 </div>
 
 @code {
+    private const int PollIntervalMs = 2000;
+
     [Parameter] public bool Open { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
 
@@ -59,11 +59,17 @@
     private string? _selectedPath;
     private string? _viewerContent;
     private bool _viewerLoaded;
+    private CancellationTokenSource? _pollCts;
 
     protected override async Task OnParametersSetAsync()
     {
         if (Open)
+        {
             await LoadTreeAsync();
+            StartPolling();
+        }
+        else
+            StopPolling();
     }
 
     public async Task LoadTreeAsync()
@@ -83,19 +89,57 @@
         StateHasChanged();
     }
 
-    private async Task OpenNewFileDialog()
+    private async Task ShowDeleteConfirmAsync(string relativePath)
     {
-        var dialog = await DialogService.ShowAsync<NewWorkspaceFileDialog>("New file");
+        var name = Path.GetFileName(relativePath);
+        var parameters = new DialogParameters
+        {
+            [nameof(DeleteWorkspaceConfirmDialog.RelativePath)] = relativePath,
+            [nameof(DeleteWorkspaceConfirmDialog.Name)] = name,
+            [nameof(DeleteWorkspaceConfirmDialog.IsDirectory)] = false
+        };
+        var dialog = await DialogService.ShowAsync<DeleteWorkspaceConfirmDialog>("Delete", parameters);
         var result = await dialog.Result;
         if (result != null && !result.Canceled)
             await LoadTreeAsync();
     }
 
-    private async Task OpenNewFolderDialog()
+    private void StartPolling()
     {
-        var dialog = await DialogService.ShowAsync<NewWorkspaceFolderDialog>("New folder");
-        var result = await dialog.Result;
-        if (result != null && !result.Canceled)
-            await LoadTreeAsync();
+        if (_pollCts != null) return;
+        _pollCts = new CancellationTokenSource();
+        var token = _pollCts.Token;
+        _ = Task.Run(async () =>
+        {
+            using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(PollIntervalMs));
+            try
+            {
+                while (await timer.WaitForNextTickAsync(token))
+                {
+                    await InvokeAsync(async () =>
+                    {
+                        if (!Open) return;
+                        await LoadTreeAsync();
+                        if (!string.IsNullOrEmpty(_selectedPath))
+                        {
+                            var newContent = await WorkspaceService.ReadFileContentAsync(_selectedPath);
+                            if (newContent != _viewerContent)
+                                _viewerContent = newContent;
+                        }
+                        StateHasChanged();
+                    });
+                }
+            }
+            catch (OperationCanceledException) { }
+        }, token);
     }
+
+    private void StopPolling()
+    {
+        _pollCts?.Cancel();
+        _pollCts?.Dispose();
+        _pollCts = null;
+    }
+
+    public void Dispose() => StopPolling();
 }

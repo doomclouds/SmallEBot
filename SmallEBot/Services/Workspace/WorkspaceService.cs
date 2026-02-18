@@ -43,67 +43,29 @@ public sealed class WorkspaceService(IVirtualFileSystem vfs) : IWorkspaceService
         }
     }
 
-    public Task CreateFileAsync(string relativePath, CancellationToken ct = default)
+    /// <summary>True if the path is a file (not a directory) with an allowed extension (.cs, .yml, .md, etc.). Only such files can be deleted from the UI.</summary>
+    public bool IsDeletableFile(string relativePath)
     {
         if (string.IsNullOrWhiteSpace(relativePath))
-            throw new ArgumentException("Path is required.", nameof(relativePath));
-        var fullPath = ResolveAndValidate(relativePath, mustExist: false);
-        if (fullPath == null)
-            throw new InvalidOperationException("Path must be under the workspace.");
+            return false;
+        var fullPath = ResolveAndValidate(relativePath, mustExist: true);
+        if (fullPath == null || Directory.Exists(fullPath))
+            return false;
         var ext = Path.GetExtension(fullPath);
-        if (string.IsNullOrEmpty(ext) || !AllowedExtensions.Contains(ext))
-            throw new InvalidOperationException("File type not allowed. Allowed: " + string.Join(", ", AllowedExtensions));
-        var dir = Path.GetDirectoryName(fullPath);
-        if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
-            Directory.CreateDirectory(dir);
-        File.WriteAllText(fullPath, "", System.Text.Encoding.UTF8);
-        return Task.CompletedTask;
-    }
-
-    public Task CreateDirectoryAsync(string relativePath, CancellationToken ct = default)
-    {
-        if (string.IsNullOrWhiteSpace(relativePath))
-            throw new ArgumentException("Path is required.", nameof(relativePath));
-        var fullPath = ResolveAndValidate(relativePath, mustExist: false);
-        if (fullPath == null)
-            throw new InvalidOperationException("Path must be under the workspace.");
-        Directory.CreateDirectory(fullPath);
-        return Task.CompletedTask;
+        return !string.IsNullOrEmpty(ext) && AllowedExtensions.Contains(ext);
     }
 
     public Task DeleteAsync(string relativePath, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(relativePath))
             throw new ArgumentException("Path is required.", nameof(relativePath));
+        if (!IsDeletableFile(relativePath))
+            throw new InvalidOperationException("Only files with allowed extensions can be deleted: " + string.Join(", ", AllowedExtensions));
         var fullPath = ResolveAndValidate(relativePath, mustExist: true);
         if (fullPath == null)
             throw new InvalidOperationException("Path must be under the workspace.");
         if (File.Exists(fullPath))
             File.Delete(fullPath);
-        else if (Directory.Exists(fullPath))
-            Directory.Delete(fullPath, recursive: true);
-        return Task.CompletedTask;
-    }
-
-    public Task RenameAsync(string oldRelativePath, string newName, CancellationToken ct = default)
-    {
-        if (string.IsNullOrWhiteSpace(oldRelativePath))
-            throw new ArgumentException("Path is required.", nameof(oldRelativePath));
-        if (string.IsNullOrWhiteSpace(newName) || newName.IndexOfAny(['/', '\\']) >= 0)
-            throw new ArgumentException("New name must be a single segment.", nameof(newName));
-        var oldFull = ResolveAndValidate(oldRelativePath, mustExist: true);
-        if (oldFull == null)
-            throw new InvalidOperationException("Path must be under the workspace.");
-        var parent = Path.GetDirectoryName(oldFull);
-        if (string.IsNullOrEmpty(parent))
-            throw new InvalidOperationException("Invalid path.");
-        var newFull = Path.Combine(parent, newName.Trim());
-        if (!Path.GetFullPath(newFull).StartsWith(Path.GetFullPath(vfs.GetRootPath()), StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException("New path must be under the workspace.");
-        if (File.Exists(oldFull))
-            File.Move(oldFull, newFull);
-        else if (Directory.Exists(oldFull))
-            Directory.Move(oldFull, newFull);
         return Task.CompletedTask;
     }
 

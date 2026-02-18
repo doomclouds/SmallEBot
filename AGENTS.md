@@ -48,7 +48,7 @@ SmallEBot (Host)        → Core, Application, Infrastructure — Blazor UI, Sig
 | Agent builder | `SmallEBot/Services/Agent/AgentBuilder.cs` |
 | System prompt | `SmallEBot/Services/Agent/AgentContextFactory.cs` |
 | Built-in tools | `SmallEBot/Services/Agent/BuiltInToolFactory.cs` |
-| Workspace (VFS + UI) | `SmallEBot/Services/Workspace/` (IVirtualFileSystem, IWorkspaceService); drawer in `Components/Workspace/` |
+| Workspace (VFS + UI) | `SmallEBot/Services/Workspace/` (IVirtualFileSystem, IWorkspaceService); drawer in `Components/Workspace/`. Drawer: file tree + preview only; delete allowed only for configured extensions (.cs, .yml, .md, etc.); no new file/folder. Polls every 2s when open to refresh tree and open-file preview. |
 
 Host services are grouped by folder/namespace: **Agent**, **Workspace**, **Mcp**, **Skills**, **Terminal**, **Sandbox**, **Conversation**, **User**, **Presentation**. UI: `Components/` (Razor + MudBlazor); layout and App bar in `Components/Layout/MainLayout.razor`.
 
@@ -85,7 +85,7 @@ ReadFile, WriteFile, ListFiles, ExecuteCommand (working directory), and RunPytho
 ### Configuration
 
 - **API keys**: Config `Anthropic:ApiKey` (e.g. user secrets), or environment `ANTHROPIC_API_KEY` or `DeepseekKey`. Do not commit secrets to source.
-- **appsettings.json**: Under `Anthropic` (Anthropic-compatible API): BaseUrl, ApiKey, Model, ContextWindowTokens.
+- **appsettings.json**: Under `Anthropic` (Anthropic-compatible API): BaseUrl, ApiKey, Model, ContextWindowTokens. Optional `Anthropic:TokenizerPath` for context-usage token counting.
 - **Data paths**: All use `AppDomain.CurrentDomain.BaseDirectory` (run directory):
   - `smallebot.db` (SQLite)
   - `smallebot-settings.json` (user preferences)
