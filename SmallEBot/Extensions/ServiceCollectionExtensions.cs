@@ -9,6 +9,8 @@ using SmallEBot.Services.Conversation;
 using SmallEBot.Services.Mcp;
 using SmallEBot.Services.Presentation;
 using SmallEBot.Services.Skills;
+using Microsoft.AspNetCore.Components.Server.Circuits;
+using SmallEBot.Services.Circuit;
 using SmallEBot.Services.Terminal;
 using SmallEBot.Services.User;
 using SmallEBot.Services.Workspace;
@@ -35,7 +37,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IMcpConfigService, McpConfigService>();
         services.AddScoped<ISkillsConfigService, SkillsConfigService>();
         services.AddSingleton<ITerminalConfigService, TerminalConfigService>();
-        services.AddSingleton<ICommandConfirmationContext, CommandConfirmationContext>();
+        services.AddSingleton<Application.Conversation.ICommandConfirmationContext, CommandConfirmationContext>();
         services.AddSingleton<ICommandConfirmationService, CommandConfirmationService>();
         services.AddSingleton<ICommandRunner, CommandRunner>();
         services.AddSingleton<IVirtualFileSystem, VirtualFileSystem>();
@@ -50,6 +52,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ConversationService>();
         services.AddScoped<AgentCacheService>();
         services.AddScoped<UserNameService>();
+        services.AddScoped<ICurrentCircuitAccessor, CurrentCircuitAccessor>();
+        services.AddScoped<CircuitHandler, CircuitContextHandler>();
         services.AddSingleton<MarkdownService>();
         services.AddSingleton<ITokenizer>(sp =>
         {

@@ -1,4 +1,4 @@
-namespace SmallEBot.Services.Terminal;
+namespace SmallEBot.Application.Conversation;
 
 /// <summary>Provides the current context id (e.g. Blazor Circuit.Id) for associating command confirmation requests with the correct UI.</summary>
 public interface ICommandConfirmationContext

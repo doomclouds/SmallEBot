@@ -1,3 +1,5 @@
+using SmallEBot.Application.Conversation;
+
 namespace SmallEBot.Services.Terminal;
 
 /// <summary>Stores the current command confirmation context id in AsyncLocal so it flows through the async call stack.</summary>

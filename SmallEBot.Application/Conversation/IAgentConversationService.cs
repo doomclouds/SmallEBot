@@ -20,14 +20,15 @@ public interface IAgentConversationService
         bool useThinking,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Streams agent reply to the sink and persists assistant segments. Call after CreateTurnAndUserMessageAsync.</summary>
+    /// <summary>Streams agent reply to the sink and persists assistant segments. Call after CreateTurnAndUserMessageAsync. Pass commandConfirmationContextId (e.g. Circuit.Id) to enable command confirmation.</summary>
     Task StreamResponseAndCompleteAsync(
         Guid conversationId,
         Guid turnId,
         string userMessage,
         bool useThinking,
         IStreamSink sink,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        string? commandConfirmationContextId = null);
 
     /// <summary>Persist assistant segments for an existing turn (e.g. on success).</summary>
     Task CompleteTurnWithAssistantAsync(

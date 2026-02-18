@@ -5,7 +5,10 @@ using ConversationEntity = SmallEBot.Core.Entities.Conversation;
 
 namespace SmallEBot.Application.Conversation;
 
-public sealed class AgentConversationService(IConversationRepository repository, IAgentRunner agentRunner) : IAgentConversationService
+public sealed class AgentConversationService(
+    IConversationRepository repository,
+    IAgentRunner agentRunner,
+    ICommandConfirmationContext commandConfirmationContext) : IAgentConversationService
 {
     public Task<ConversationEntity> CreateConversationAsync(string userName, CancellationToken cancellationToken = default) =>
         repository.CreateAsync(userName, "New conversation", cancellationToken);
@@ -40,8 +43,10 @@ public sealed class AgentConversationService(IConversationRepository repository,
         string userMessage,
         bool useThinking,
         IStreamSink sink,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? commandConfirmationContextId = null)
     {
+        commandConfirmationContext.SetCurrentId(commandConfirmationContextId);
         var updates = new List<StreamUpdate>();
         await foreach (var update in agentRunner.RunStreamingAsync(conversationId, userMessage, useThinking, cancellationToken))
         {

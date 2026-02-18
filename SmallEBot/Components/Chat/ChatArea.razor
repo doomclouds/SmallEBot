@@ -1,6 +1,8 @@
 @using SmallEBot.Application.Conversation
 @using SmallEBot.Core.Models
+@using SmallEBot.Services.Circuit
 @inject IAgentConversationService ConversationPipeline
+@inject ICurrentCircuitAccessor CircuitAccessor
 @inject AgentCacheService AgentCache
 @inject UserNameService UserNameSvc
 @inject IJSRuntime JS
@@ -171,8 +173,9 @@
         var persisted = false;
         var channel = System.Threading.Channels.Channel.CreateUnbounded<StreamUpdate>();
         var sink = new ChannelStreamSink(channel.Writer);
+        var contextId = CircuitAccessor.CurrentCircuit?.Id;
         var runTask = ConversationPipeline
-            .StreamResponseAndCompleteAsync(ConversationId!.Value, turnId, msg, UseThinkingMode, sink, _sendCts!.Token)
+            .StreamResponseAndCompleteAsync(ConversationId!.Value, turnId, msg, UseThinkingMode, sink, _sendCts!.Token, contextId)
             .ContinueWith(_ => channel.Writer.Complete());
 
         try

@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using SmallEBot.Application.Conversation;
 
 namespace SmallEBot.Services.Terminal;
 
