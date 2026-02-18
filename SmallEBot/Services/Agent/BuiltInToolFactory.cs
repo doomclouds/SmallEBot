@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Text.RegularExpressions;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.Extensions.AI;
 using SmallEBot.Application.Conversation;
 using SmallEBot.Services.Terminal;
@@ -24,6 +25,38 @@ public sealed class BuiltInToolFactory(
     {
         ".md", ".cs", ".py", ".txt", ".json", ".yml", ".yaml"
     };
+
+    private static readonly JsonSerializerOptions TaskFileJsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = true
+    };
+
+    private static string GetTaskFilePath(Guid conversationId) =>
+        Path.Combine(AppDomain.CurrentDomain.BaseDirectory, ".agents", "tasks", conversationId.ToString("N") + ".json");
+
+    private static TaskListFile? ReadTaskFile(string path)
+    {
+        if (!File.Exists(path)) return null;
+        try
+        {
+            var json = File.ReadAllText(path);
+            return JsonSerializer.Deserialize<TaskListFile>(json, TaskFileJsonOptions);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static void WriteTaskFile(string path, TaskListFile data)
+    {
+        var dir = Path.GetDirectoryName(path);
+        if (!string.IsNullOrEmpty(dir))
+            Directory.CreateDirectory(dir);
+        var json = JsonSerializer.Serialize(data, TaskFileJsonOptions);
+        File.WriteAllText(path, json, System.Text.Encoding.UTF8);
+    }
 
     public AITool[] CreateTools() =>
     [
@@ -268,5 +301,26 @@ public sealed class BuiltInToolFactory(
         }
 
         return commandRunner.Run(normalized, workDir);
+    }
+
+    private sealed class TaskItem
+    {
+        [JsonPropertyName("id")]
+        public string Id { get; set; } = "";
+
+        [JsonPropertyName("title")]
+        public string Title { get; set; } = "";
+
+        [JsonPropertyName("description")]
+        public string Description { get; set; } = "";
+
+        [JsonPropertyName("done")]
+        public bool Done { get; set; }
+    }
+
+    private sealed class TaskListFile
+    {
+        [JsonPropertyName("tasks")]
+        public List<TaskItem> Tasks { get; set; } = [];
     }
 }
