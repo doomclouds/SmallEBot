@@ -8,7 +8,8 @@ namespace SmallEBot.Application.Conversation;
 public sealed class AgentConversationService(
     IConversationRepository repository,
     IAgentRunner agentRunner,
-    ICommandConfirmationContext commandConfirmationContext) : IAgentConversationService
+    ICommandConfirmationContext commandConfirmationContext,
+    IConversationTaskContext conversationTaskContext) : IAgentConversationService
 {
     public Task<ConversationEntity> CreateConversationAsync(string userName, CancellationToken cancellationToken = default) =>
         repository.CreateAsync(userName, "New conversation", cancellationToken);
@@ -47,14 +48,22 @@ public sealed class AgentConversationService(
         string? commandConfirmationContextId = null)
     {
         commandConfirmationContext.SetCurrentId(commandConfirmationContextId);
-        var updates = new List<StreamUpdate>();
-        await foreach (var update in agentRunner.RunStreamingAsync(conversationId, userMessage, useThinking, cancellationToken))
+        conversationTaskContext.SetConversationId(conversationId);
+        try
         {
-            updates.Add(update);
-            await sink.OnNextAsync(update, cancellationToken);
+            var updates = new List<StreamUpdate>();
+            await foreach (var update in agentRunner.RunStreamingAsync(conversationId, userMessage, useThinking, cancellationToken))
+            {
+                updates.Add(update);
+                await sink.OnNextAsync(update, cancellationToken);
+            }
+            var segments = StreamUpdateToSegments.ToSegments(updates, useThinking);
+            await repository.CompleteTurnWithAssistantAsync(conversationId, turnId, segments, cancellationToken);
         }
-        var segments = StreamUpdateToSegments.ToSegments(updates, useThinking);
-        await repository.CompleteTurnWithAssistantAsync(conversationId, turnId, segments, cancellationToken);
+        finally
+        {
+            conversationTaskContext.SetConversationId(null);
+        }
     }
 
     public Task CompleteTurnWithAssistantAsync(
