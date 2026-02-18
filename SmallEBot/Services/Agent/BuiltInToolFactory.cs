@@ -19,7 +19,8 @@ public sealed class BuiltInToolFactory(
     ITerminalConfigService terminalConfig,
     ICommandConfirmationService confirmationService,
     ICommandRunner commandRunner,
-    IVirtualFileSystem vfs) : IBuiltInToolFactory
+    IVirtualFileSystem vfs,
+    IConversationTaskContext conversationTaskContext) : IBuiltInToolFactory
 {
     private static readonly HashSet<string> AllowedExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -58,6 +59,43 @@ public sealed class BuiltInToolFactory(
         File.WriteAllText(path, json, System.Text.Encoding.UTF8);
     }
 
+    [Description("List tasks for the current conversation. Returns JSON: { \"tasks\": [ { \"id\", \"title\", \"description\", \"done\" }, ... ] }. Use this to see progress and decide next steps.")]
+    private string ListTasks()
+    {
+        var conversationId = conversationTaskContext.GetConversationId();
+        if (conversationId == null)
+            return "Error: Task list is not available (no conversation context).";
+        var path = GetTaskFilePath(conversationId.Value);
+        if (!File.Exists(path))
+            return JsonSerializer.Serialize(new { tasks = Array.Empty<object>() }, TaskFileJsonOptions);
+        var list = ReadTaskFile(path);
+        if (list == null)
+            return "Error: Task file is corrupt or invalid.";
+        return JsonSerializer.Serialize(new { tasks = list.Tasks }, TaskFileJsonOptions);
+    }
+
+    [Description("Add a task to the current conversation's list. Pass title (required) and optional description. Returns the new task as JSON: { \"id\", \"title\", \"description\", \"done\": false }.")]
+    private string AddTask(string title, string? description = "")
+    {
+        var conversationId = conversationTaskContext.GetConversationId();
+        if (conversationId == null)
+            return "Error: Task list is not available (no conversation context).";
+        var path = GetTaskFilePath(conversationId.Value);
+        var list = ReadTaskFile(path);
+        if (list == null)
+            list = new TaskListFile();
+        var task = new TaskItem
+        {
+            Id = Guid.NewGuid().ToString("N"),
+            Title = title.Trim(),
+            Description = description ?? "",
+            Done = false
+        };
+        list.Tasks.Add(task);
+        WriteTaskFile(path, list);
+        return JsonSerializer.Serialize(task, TaskFileJsonOptions);
+    }
+
     public AITool[] CreateTools() =>
     [
         AIFunctionFactory.Create(GetCurrentTime),
@@ -67,7 +105,9 @@ public sealed class BuiltInToolFactory(
         AIFunctionFactory.Create(ReadSkill),
         AIFunctionFactory.Create(ReadSkillFile),
         AIFunctionFactory.Create(ListSkillFiles),
-        AIFunctionFactory.Create(ExecuteCommand)
+        AIFunctionFactory.Create(ExecuteCommand),
+        AIFunctionFactory.Create(ListTasks),
+        AIFunctionFactory.Create(AddTask)
     ];
 
     [Description("Get the current local date and time (machine timezone) in ISO 8601 format.")]
