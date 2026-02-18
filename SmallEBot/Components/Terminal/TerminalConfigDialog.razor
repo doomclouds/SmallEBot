@@ -11,6 +11,11 @@
         <MudText Typo="Typo.subtitle2" Class="mb-2">Command timeout (seconds)</MudText>
         <MudText Typo="Typo.body2" Class="mb-2">Maximum time to wait for a shell command before cancelling (5–600).</MudText>
         <MudNumericField T="int" @bind-Value="_timeoutSeconds" Min="5" Max="600" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3" Style="max-width: 120px;" />
+        <MudSwitch @bind-Value="_requireConfirmation" Color="Color.Primary" Class="mb-2">Require command confirmation</MudSwitch>
+        <MudText Typo="Typo.body2" Class="mb-2">When enabled, commands not in the whitelist will wait for your approval in the bottom-right corner before running. Timeout below applies.</MudText>
+        <MudText Typo="Typo.subtitle2" Class="mb-2">Confirmation timeout (seconds)</MudText>
+        <MudText Typo="Typo.body2" Class="mb-2">How long to wait for Allow/Reject before treating as rejected (10–120).</MudText>
+        <MudNumericField T="int" @bind-Value="_confirmationTimeoutSeconds" Min="10" Max="120" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3" Style="max-width: 120px;" />
         <MudText Typo="Typo.subtitle2" Class="mb-2">Command blacklist</MudText>
         <MudText Typo="Typo.body2" Class="mb-3">Commands that contain any of these entries (case-insensitive) will be blocked when the agent runs shell commands.</MudText>
         @if (_loading)
@@ -51,6 +56,30 @@
                                 <MudIconButton Icon="@Icons.Material.Filled.Delete"
                                                Size="Size.Small"
                                                OnClick="@(() => ConfirmRemoveEntry(item))"
+                                               title="Remove" />
+                            </MudStack>
+                        </MudListItem>
+                    }
+                </MudList>
+            }
+            <MudText Typo="Typo.subtitle2" Class="mb-2 mt-4">Command whitelist</MudText>
+            <MudText Typo="Typo.body2" Class="mb-3">Commands you have approved (prefix match). Add entries by approving commands when confirmation is enabled.</MudText>
+            @if (_whitelistEntries.Count == 0)
+            {
+                <MudText Typo="Typo.body2" Class="mb-3">No entries. Approve a command in chat to add it.</MudText>
+            }
+            else
+            {
+                <MudList T="string" Dense="true" Class="mb-3" Style="max-height: 200px; overflow-y: auto;">
+                    @foreach (var w in _whitelistEntries)
+                    {
+                        var item = w;
+                        <MudListItem T="string">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                                <MudText Typo="Typo.body2" Style="word-break: break-all;">@item</MudText>
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                               Size="Size.Small"
+                                               OnClick="@(() => RemoveWhitelistEntry(item))"
                                                title="Remove" />
                             </MudStack>
                         </MudListItem>
@@ -116,6 +145,11 @@
     {
         if (e.Key == "Enter")
             AddEntry();
+    }
+
+    private void RemoveWhitelistEntry(string entry)
+    {
+        _whitelistEntries.Remove(entry);
     }
 
     private async Task ConfirmRemoveEntry(string entry)
