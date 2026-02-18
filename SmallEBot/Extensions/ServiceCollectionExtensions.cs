@@ -9,7 +9,6 @@ using SmallEBot.Services.Conversation;
 using SmallEBot.Services.Mcp;
 using SmallEBot.Services.Presentation;
 using SmallEBot.Services.Skills;
-using SmallEBot.Services.Sandbox;
 using SmallEBot.Services.Terminal;
 using SmallEBot.Services.User;
 using SmallEBot.Services.Workspace;
@@ -39,7 +38,6 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ICommandRunner, CommandRunner>();
         services.AddSingleton<IVirtualFileSystem, VirtualFileSystem>();
         services.AddScoped<IWorkspaceService, WorkspaceService>();
-        services.AddSingleton<IPythonSandbox, ProcessPythonSandbox>();
         services.AddScoped<IMcpToolsLoaderService, McpToolsLoaderService>();
         services.AddScoped<IAgentContextFactory, AgentContextFactory>();
         services.AddSingleton<IBuiltInToolFactory, BuiltInToolFactory>();

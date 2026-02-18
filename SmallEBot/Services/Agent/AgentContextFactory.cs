@@ -1,9 +1,10 @@
 using SmallEBot.Models;
 using SmallEBot.Services.Skills;
+using SmallEBot.Services.Terminal;
 
 namespace SmallEBot.Services.Agent;
 
-/// <summary>Builds the agent system prompt (base instructions + skills block) for the Agent Builder.</summary>
+/// <summary>Builds the agent system prompt (base instructions + skills block + terminal blacklist) for the Agent Builder.</summary>
 public interface IAgentContextFactory
 {
     /// <summary>Builds system prompt from base instructions and skills metadata; caches result.</summary>
@@ -13,16 +14,19 @@ public interface IAgentContextFactory
     string? GetCachedSystemPrompt();
 }
 
-public sealed class AgentContextFactory(ISkillsConfigService skillsConfig) : IAgentContextFactory
+public sealed class AgentContextFactory(ISkillsConfigService skillsConfig, ITerminalConfigService terminalConfig) : IAgentContextFactory
 {
-    private const string BaseInstructions = "You are SmallEBot, a helpful personal assistant. Be concise and friendly. When the user asks for the current time or date, use the GetCurrentTime tool. Use any other available MCP tools when they help answer the user. You can run shell commands on the host with the ExecuteCommand tool (command and optional working directory relative to the workspace). For running Python scripts or snippets, use the RunPython tool (inline code or path to a .py file in the workspace). Use ReadFile, WriteFile, and ListFiles for files in the workspace (paths relative to the workspace root). For skill content: ReadSkill(skillId) reads a skill's SKILL.md; ReadSkillFile(skillId, relativePath) reads other files inside a skill (e.g. references/guide.md, script.py); ListSkillFiles(skillId, path?) lists files and folders in a skill. Avoid commands that are disallowed by the user's terminal blacklist.";
+    private const string BaseInstructions = "You are SmallEBot, a helpful personal assistant. Be concise and friendly. When the user asks for the current time or date, use the GetCurrentTime tool. Use any other available MCP tools when they help answer the user. You can run shell commands on the host with the ExecuteCommand tool (command and optional working directory relative to the workspace). For running Python scripts, use ExecuteCommand (e.g. python script.py) with the workspace as working directory. Use ReadFile, WriteFile, and ListFiles for files in the workspace (paths relative to the workspace root). For skill content: ReadSkill(skillId) reads a skill's SKILL.md; ReadSkillFile(skillId, relativePath) reads other files inside a skill (e.g. references/guide.md, script.py); ListSkillFiles(skillId, path?) lists files and folders in a skill. Do not run or suggest commands that match the terminal command blacklist below.";
     private string? _cachedSystemPrompt;
 
     public async Task<string> BuildSystemPromptAsync(CancellationToken ct = default)
     {
         var skills = await skillsConfig.GetMetadataForAgentAsync(ct);
         var skillsBlock = BuildSkillsBlock(skills);
-        var result = string.IsNullOrEmpty(skillsBlock) ? BaseInstructions : BaseInstructions + "\n\n" + skillsBlock;
+        var blacklistBlock = BuildTerminalBlacklistBlock(await terminalConfig.GetCommandBlacklistAsync(ct));
+        var result = BaseInstructions;
+        if (!string.IsNullOrEmpty(skillsBlock)) result += "\n\n" + skillsBlock;
+        if (!string.IsNullOrEmpty(blacklistBlock)) result += "\n\n" + blacklistBlock;
         _cachedSystemPrompt = result;
         return result;
     }
@@ -37,6 +41,16 @@ public sealed class AgentContextFactory(ISkillsConfigService skillsConfig) : IAg
         sb.AppendLine();
         foreach (var s in skills)
             sb.AppendLine($"- {s.Id}: {s.Name} — {s.Description}");
+        return sb.ToString();
+    }
+
+    private static string BuildTerminalBlacklistBlock(IReadOnlyList<string> blacklist)
+    {
+        if (blacklist.Count == 0) return "";
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("Terminal command blacklist: ExecuteCommand rejects any command that contains the following substrings (case-insensitive). Do not run or suggest such commands:");
+        foreach (var entry in blacklist)
+            sb.AppendLine($"- \"{entry}\"");
         return sb.ToString();
     }
 }

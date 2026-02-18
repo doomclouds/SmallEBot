@@ -68,7 +68,7 @@ Blazor UI → SignalR → ConversationService → IAgentConversationService
 
 ### Built-in tools
 
-ReadFile, WriteFile, ListFiles, ExecuteCommand (working directory), and RunPython (scriptPath, workingDirectory) are scoped to the **workspace root** (`.agents/vfs/`). ReadSkill is unchanged (reads from `.agents/sys.skills/` and `.agents/skills/`).
+ReadFile, WriteFile, ListFiles, and ExecuteCommand (working directory) are scoped to the **workspace root** (`.agents/vfs/`). ReadSkill is unchanged (reads from `.agents/sys.skills/` and `.agents/skills/`).
 
 | Tool | Purpose |
 |------|---------|
@@ -79,8 +79,7 @@ ReadFile, WriteFile, ListFiles, ExecuteCommand (working directory), and RunPytho
 | `ReadSkill(skillName)` | Load SKILL.md from sys.skills or skills (not workspace) |
 | `ReadSkillFile(skillId, relativePath)` | Read a file inside a skill folder; returns JSON `{ "path", "content" }` |
 | `ListSkillFiles(skillId, path?)` | List files/dirs inside a skill folder |
-| `ExecuteCommand(command)` | Run shell command; working dir defaults to workspace root |
-| `RunPython(code?, scriptPath?)` | Execute Python; paths and cwd relative to workspace root |
+| `ExecuteCommand(command)` | Run shell command; working dir defaults to workspace root. Use for Python scripts (e.g. python script.py). |
 
 ### Configuration
 
@@ -89,7 +88,7 @@ ReadFile, WriteFile, ListFiles, ExecuteCommand (working directory), and RunPytho
 - **Data paths**: All use `AppDomain.CurrentDomain.BaseDirectory` (run directory):
   - `smallebot.db` (SQLite)
   - `smallebot-settings.json` (user preferences)
-  - `.agents/vfs/` (workspace — agent file tools and RunPython/ExecuteCommand cwd)
+  - `.agents/vfs/` (workspace — agent file tools and ExecuteCommand cwd)
   - `.agents/.sys.mcp.json` (system MCP)
   - `.agents/.mcp.json` (user MCP + disabled system IDs)
   - `.agents/terminal.json` (command blacklist)

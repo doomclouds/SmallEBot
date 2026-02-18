@@ -1,19 +1,18 @@
 using System.ComponentModel;
 using System.Text.Json;
 using Microsoft.Extensions.AI;
-using SmallEBot.Services.Sandbox;
 using SmallEBot.Services.Terminal;
 using SmallEBot.Services.Workspace;
 
 namespace SmallEBot.Services.Agent;
 
-/// <summary>Creates built-in AITools (GetCurrentTime, ReadFile, WriteFile, ListFiles, ReadSkill, ReadSkillFile, ListSkillFiles, ExecuteCommand, RunPython) for the agent.</summary>
+/// <summary>Creates built-in AITools (GetCurrentTime, ReadFile, WriteFile, ListFiles, ReadSkill, ReadSkillFile, ListSkillFiles, ExecuteCommand) for the agent.</summary>
 public interface IBuiltInToolFactory
 {
     AITool[] CreateTools();
 }
 
-public sealed class BuiltInToolFactory(ITerminalConfigService terminalConfig, ICommandRunner commandRunner, IPythonSandbox pythonSandbox, IVirtualFileSystem vfs) : IBuiltInToolFactory
+public sealed class BuiltInToolFactory(ITerminalConfigService terminalConfig, ICommandRunner commandRunner, IVirtualFileSystem vfs) : IBuiltInToolFactory
 {
     private static readonly HashSet<string> AllowedExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -29,8 +28,7 @@ public sealed class BuiltInToolFactory(ITerminalConfigService terminalConfig, IC
         AIFunctionFactory.Create(ReadSkill),
         AIFunctionFactory.Create(ReadSkillFile),
         AIFunctionFactory.Create(ListSkillFiles),
-        AIFunctionFactory.Create(ExecuteCommand),
-        AIFunctionFactory.Create(RunPython)
+        AIFunctionFactory.Create(ExecuteCommand)
     ];
 
     [Description("Get the current local date and time (machine timezone) in ISO 8601 format.")]
@@ -247,15 +245,5 @@ public sealed class BuiltInToolFactory(ITerminalConfigService terminalConfig, IC
             workDir = combined;
         }
         return commandRunner.Run(normalized, workDir);
-    }
-
-    [Description("Run Python using python.exe in the run directory. Provide either code (inline Python) or scriptPath (path to a .py file in the workspace, e.g. script.py or src/main.py). If both are provided, scriptPath is used. Optional workingDirectory is relative to the workspace root. Output is stdout and stderr; execution has a timeout (see Terminal config).")]
-    private string RunPython(string? code = null, string? scriptPath = null, string? workingDirectory = null)
-    {
-        if (string.IsNullOrWhiteSpace(code) && string.IsNullOrWhiteSpace(scriptPath))
-            return "Error: provide either code or scriptPath.";
-        var timeoutSec = Math.Clamp(terminalConfig.GetCommandTimeoutSeconds(), 5, 600);
-        var timeout = TimeSpan.FromSeconds(timeoutSec);
-        return pythonSandbox.Execute(code?.Trim(), scriptPath?.Trim(), string.IsNullOrWhiteSpace(workingDirectory) ? null : workingDirectory.Trim(), timeout);
     }
 }

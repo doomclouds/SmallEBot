@@ -9,9 +9,8 @@ A personal chat assistant built with ASP.NET Core Blazor Server, designed to run
 - **Thinking mode**: Toggle extended reasoning (e.g. DeepSeek Reasoner) via Anthropic thinking support.
 - **MCP tools**: Connect to Model Context Protocol servers for extended capabilities (filesystem, web search, databases, etc.).
 - **Skills**: File-based skills system — create custom skills in `.agents/skills/` with YAML frontmatter.
-- **Python execution**: Run Python code or scripts via the `RunPython` tool.
-- **Terminal**: Execute shell commands via the `ExecuteCommand` tool. Configurable command blacklist.
-- **Workspace**: Agent file tools and RunPython/ExecuteCommand use a workspace at `.agents/vfs/`. Open the **Workspace** drawer (App bar) to browse, view, create, delete, and rename files.
+- **Terminal**: Execute shell commands via the `ExecuteCommand` tool (e.g. `python script.py` for Python). Configurable command blacklist.
+- **Workspace**: Agent file tools and ExecuteCommand use a workspace at `.agents/vfs/`. Open the **Workspace** drawer (App bar) to browse and view files.
 - **Themes**: Several UI themes (e.g. editorial-dark, paper-light, terminal) with persistence.
 - **No login**: First visit asks for a username; data is scoped by that name.
 
@@ -55,7 +54,7 @@ Main options live in `SmallEBot/appsettings.json` under `SmallEBot` and `Anthrop
 
 ## Built-in Tools
 
-The agent has access to these built-in tools. File paths and working directories for ReadFile, WriteFile, ListFiles, ExecuteCommand, and RunPython are relative to the **workspace** (`.agents/vfs/`). Use the Workspace drawer in the App bar to browse and manage workspace files.
+The agent has access to these built-in tools. File paths and working directory for ReadFile, WriteFile, ListFiles, and ExecuteCommand are relative to the **workspace** (`.agents/vfs/`). Use the Workspace drawer in the App bar to browse and view workspace files.
 
 | Tool | Description |
 |------|-------------|
@@ -66,8 +65,7 @@ The agent has access to these built-in tools. File paths and working directories
 | `ReadSkill(skillName)` | Load a skill's `SKILL.md` file (from skills folders, not workspace) |
 | `ReadSkillFile(skillId, relativePath)` | Read a file inside a skill (e.g. references/guide.md, script.py) |
 | `ListSkillFiles(skillId, path?)` | List files and folders inside a skill |
-| `ExecuteCommand(command)` | Run a shell command (cwd defaults to workspace) |
-| `RunPython(code?, scriptPath?)` | Execute Python code or a `.py` script in the workspace |
+| `ExecuteCommand(command)` | Run a shell command (cwd defaults to workspace). Use e.g. `python script.py` to run Python scripts. |
 
 ## Skills
 
