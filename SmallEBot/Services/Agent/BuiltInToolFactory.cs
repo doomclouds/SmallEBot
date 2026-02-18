@@ -96,6 +96,66 @@ public sealed class BuiltInToolFactory(
         return JsonSerializer.Serialize(task, TaskFileJsonOptions);
     }
 
+    [Description("Mark a task as done by id. Returns { \"ok\": true, \"task\": { ... } } or { \"ok\": false, \"error\": \"Task not found\" }.")]
+    private string CompleteTask(string taskId)
+    {
+        var conversationId = conversationTaskContext.GetConversationId();
+        if (conversationId == null)
+            return "Error: Task list is not available (no conversation context).";
+        var path = GetTaskFilePath(conversationId.Value);
+        var list = ReadTaskFile(path);
+        if (list == null && File.Exists(path))
+            return "Error: Task file is corrupt or invalid.";
+        if (list == null)
+            return JsonSerializer.Serialize(new { ok = false, error = "Task not found" });
+        var task = list.Tasks.FirstOrDefault(t => string.Equals(t.Id, taskId, StringComparison.Ordinal));
+        if (task == null)
+            return JsonSerializer.Serialize(new { ok = false, error = "Task not found" });
+        task.Done = true;
+        WriteTaskFile(path, list);
+        return JsonSerializer.Serialize(new { ok = true, task });
+    }
+
+    [Description("Mark a task as not done by id. Returns same shape as CompleteTask.")]
+    private string UncompleteTask(string taskId)
+    {
+        var conversationId = conversationTaskContext.GetConversationId();
+        if (conversationId == null)
+            return "Error: Task list is not available (no conversation context).";
+        var path = GetTaskFilePath(conversationId.Value);
+        var list = ReadTaskFile(path);
+        if (list == null && File.Exists(path))
+            return "Error: Task file is corrupt or invalid.";
+        if (list == null)
+            return JsonSerializer.Serialize(new { ok = false, error = "Task not found" });
+        var task = list.Tasks.FirstOrDefault(t => string.Equals(t.Id, taskId, StringComparison.Ordinal));
+        if (task == null)
+            return JsonSerializer.Serialize(new { ok = false, error = "Task not found" });
+        task.Done = false;
+        WriteTaskFile(path, list);
+        return JsonSerializer.Serialize(new { ok = true, task });
+    }
+
+    [Description("Remove a task by id. Returns { \"ok\": true } or { \"ok\": false, \"error\": \"Task not found\" }.")]
+    private string DeleteTask(string taskId)
+    {
+        var conversationId = conversationTaskContext.GetConversationId();
+        if (conversationId == null)
+            return "Error: Task list is not available (no conversation context).";
+        var path = GetTaskFilePath(conversationId.Value);
+        var list = ReadTaskFile(path);
+        if (list == null && File.Exists(path))
+            return "Error: Task file is corrupt or invalid.";
+        if (list == null)
+            return JsonSerializer.Serialize(new { ok = false, error = "Task not found" });
+        var index = list.Tasks.FindIndex(t => string.Equals(t.Id, taskId, StringComparison.Ordinal));
+        if (index < 0)
+            return JsonSerializer.Serialize(new { ok = false, error = "Task not found" });
+        list.Tasks.RemoveAt(index);
+        WriteTaskFile(path, list);
+        return JsonSerializer.Serialize(new { ok = true });
+    }
+
     public AITool[] CreateTools() =>
     [
         AIFunctionFactory.Create(GetCurrentTime),
@@ -107,7 +167,10 @@ public sealed class BuiltInToolFactory(
         AIFunctionFactory.Create(ListSkillFiles),
         AIFunctionFactory.Create(ExecuteCommand),
         AIFunctionFactory.Create(ListTasks),
-        AIFunctionFactory.Create(AddTask)
+        AIFunctionFactory.Create(AddTask),
+        AIFunctionFactory.Create(CompleteTask),
+        AIFunctionFactory.Create(UncompleteTask),
+        AIFunctionFactory.Create(DeleteTask)
     ];
 
     [Description("Get the current local date and time (machine timezone) in ISO 8601 format.")]
