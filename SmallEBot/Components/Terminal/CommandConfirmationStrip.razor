@@ -1,0 +1,87 @@
+@using SmallEBot.Services.Terminal
+@using SmallEBot.Services.Circuit
+@implements IDisposable
+@inject ICommandConfirmationService ConfirmationService
+@inject ICurrentCircuitAccessor CircuitAccessor
+
+@if (_pendingRequest is { } req)
+{
+    <div class="command-confirmation-strip">
+        <MudPaper Class="pa-3" Elevation="4">
+            <MudStack Spacing="2">
+                <MudText Typo="Typo.subtitle1">Command pending approval</MudText>
+                <MudText Typo="Typo.body2" Style="word-break: break-all;">@req.Command</MudText>
+                @if (!string.IsNullOrEmpty(req.WorkingDirectory))
+                {
+                    <MudText Typo="Typo.caption">Working dir: @req.WorkingDirectory</MudText>
+                }
+                <MudStack Row="true" Spacing="2" Justify="Justify.FlexEnd">
+                    <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="@(() => OnReject(req.RequestId))">Reject</MudButton>
+                    <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="@(() => OnAllow(req.RequestId))">Allow</MudButton>
+                </MudStack>
+            </MudStack>
+        </MudPaper>
+    </div>
+}
+
+<style>
+    .command-confirmation-strip {
+        position: fixed;
+        right: 16px;
+        bottom: 16px;
+        z-index: 1100;
+        max-width: 420px;
+    }
+</style>
+
+@code {
+    private PendingCommandRequest? _pendingRequest;
+
+    protected override void OnInitialized()
+    {
+        ConfirmationService.PendingRequestAdded += OnPendingRequestAdded;
+        ConfirmationService.PendingRequestCompleted += OnPendingRequestCompleted;
+    }
+
+    private void OnPendingRequestCompleted(object? sender, PendingRequestCompletedEventArgs e)
+    {
+        var myId = CircuitAccessor.CurrentCircuit?.Id;
+        if (string.IsNullOrEmpty(myId) || !string.Equals(e.ContextId, myId, StringComparison.Ordinal))
+            return;
+        if (_pendingRequest?.RequestId == e.RequestId)
+        {
+            _pendingRequest = null;
+            _ = InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void OnPendingRequestAdded(object? sender, PendingRequestEventArgs e)
+    {
+        var myId = CircuitAccessor.CurrentCircuit?.Id;
+        if (string.IsNullOrEmpty(myId) || !string.Equals(e.ContextId, myId, StringComparison.Ordinal))
+            return;
+
+        _pendingRequest = e.Request;
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private void OnAllow(string requestId)
+    {
+        ConfirmationService.Complete(requestId, allowed: true);
+        _pendingRequest = null;
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private void OnReject(string requestId)
+    {
+        ConfirmationService.Complete(requestId, allowed: false);
+        _pendingRequest = null;
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        ConfirmationService.PendingRequestAdded -= OnPendingRequestAdded;
+        ConfirmationService.PendingRequestCompleted -= OnPendingRequestCompleted;
+    }
+}

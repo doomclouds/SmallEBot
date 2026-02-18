@@ -6,6 +6,9 @@ public interface ICommandConfirmationService
     /// <summary>Raised when a new confirmation request is added. Args include ContextId and PendingCommandRequest.</summary>
     event EventHandler<PendingRequestEventArgs>? PendingRequestAdded;
 
+    /// <summary>Raised when a request is completed (Allow, Reject, or Timeout). Args include ContextId and RequestId.</summary>
+    event EventHandler<PendingRequestCompletedEventArgs>? PendingRequestCompleted;
+
     /// <summary>Registers a pending request and returns a task that completes when the user Allows, Rejects, or timeout occurs. Returns Reject immediately if context id is not set.</summary>
     Task<CommandConfirmResult> RequestConfirmationAsync(string command, string? workingDirectory, int timeoutSeconds, CancellationToken cancellationToken = default);
 

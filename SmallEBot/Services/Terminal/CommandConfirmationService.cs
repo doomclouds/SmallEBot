@@ -12,6 +12,9 @@ public sealed class CommandConfirmationService(ICommandConfirmationContext conte
     public event EventHandler<PendingRequestEventArgs>? PendingRequestAdded;
 
     /// <inheritdoc />
+    public event EventHandler<PendingRequestCompletedEventArgs>? PendingRequestCompleted;
+
+    /// <inheritdoc />
     public Task<CommandConfirmResult> RequestConfirmationAsync(string command, string? workingDirectory, int timeoutSeconds, CancellationToken cancellationToken = default)
     {
         var contextId = context.GetCurrentId();
@@ -34,6 +37,14 @@ public sealed class CommandConfirmationService(ICommandConfirmationContext conte
                 /* ignore - may already be cancelled */
             }
             tcs.TrySetResult(result);
+            try
+            {
+                PendingRequestCompleted?.Invoke(this, new PendingRequestCompletedEventArgs { ContextId = contextId, RequestId = requestId });
+            }
+            catch
+            {
+                /* ignore */
+            }
         }
 
         var timeoutCts = new CancellationTokenSource();
@@ -50,7 +61,7 @@ public sealed class CommandConfirmationService(ICommandConfirmationContext conte
             WorkingDirectory = workingDirectory
         };
 
-        _pending[requestId] = new PendingState(tcs, timeoutCts);
+        _pending[requestId] = new PendingState(tcs, timeoutCts, contextId);
 
         try
         {
@@ -80,11 +91,20 @@ public sealed class CommandConfirmationService(ICommandConfirmationContext conte
         }
 
         state.Tcs.TrySetResult(allowed ? CommandConfirmResult.Allow : CommandConfirmResult.Reject);
+        try
+        {
+            PendingRequestCompleted?.Invoke(this, new PendingRequestCompletedEventArgs { ContextId = state.ContextId, RequestId = requestId });
+        }
+        catch
+        {
+            /* ignore */
+        }
     }
 
-    private sealed class PendingState(TaskCompletionSource<CommandConfirmResult> tcs, CancellationTokenSource timeoutCts)
+    private sealed class PendingState(TaskCompletionSource<CommandConfirmResult> tcs, CancellationTokenSource timeoutCts, string contextId)
     {
         public TaskCompletionSource<CommandConfirmResult> Tcs { get; } = tcs;
         public CancellationTokenSource TimeoutCts { get; } = timeoutCts;
+        public string ContextId { get; } = contextId;
     }
 }
