@@ -240,6 +240,19 @@ public sealed class TerminalConfigService : ITerminalConfigService
         await File.WriteAllTextAsync(_filePath, json, ct);
     }
 
+    /// <summary>Adds a normalized command to the whitelist and persists. No-op if already present (case-insensitive).</summary>
+    public async Task AddToWhitelistAndSaveAsync(string normalizedCommand, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(normalizedCommand))
+            return;
+        var trimmed = normalizedCommand.Trim();
+        var whitelist = (await GetCommandWhitelistAsync(ct)).ToList();
+        if (whitelist.Contains(trimmed, StringComparer.OrdinalIgnoreCase))
+            return;
+        whitelist.Add(trimmed);
+        await SaveAsync(GetCommandBlacklist(), GetCommandTimeoutSeconds(), GetRequireCommandConfirmation(), GetConfirmationTimeoutSeconds(), whitelist, ct);
+    }
+
     private sealed class TerminalConfigFile
     {
         public List<string> CommandBlacklist { get; set; } = [];

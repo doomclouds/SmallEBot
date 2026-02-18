@@ -1,6 +1,8 @@
 using System.ComponentModel;
+using System.Text.RegularExpressions;
 using System.Text.Json;
 using Microsoft.Extensions.AI;
+using SmallEBot.Application.Conversation;
 using SmallEBot.Services.Terminal;
 using SmallEBot.Services.Workspace;
 
@@ -12,7 +14,11 @@ public interface IBuiltInToolFactory
     AITool[] CreateTools();
 }
 
-public sealed class BuiltInToolFactory(ITerminalConfigService terminalConfig, ICommandRunner commandRunner, IVirtualFileSystem vfs) : IBuiltInToolFactory
+public sealed class BuiltInToolFactory(
+    ITerminalConfigService terminalConfig,
+    ICommandConfirmationService confirmationService,
+    ICommandRunner commandRunner,
+    IVirtualFileSystem vfs) : IBuiltInToolFactory
 {
     private static readonly HashSet<string> AllowedExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -224,15 +230,16 @@ public sealed class BuiltInToolFactory(ITerminalConfigService terminalConfig, IC
         }
     }
 
-    [Description("Run a shell command on the host. Pass the command line (e.g. dotnet build or git status). Optional workingDirectory is relative to the workspace root and defaults to the workspace root. Blocks until the command exits or the configured timeout (see Terminal config). Not allowed if the command matches the terminal blacklist.")]
-    private string ExecuteCommand(string command, string? workingDirectory = null)
+    [Description("Run a shell command on the host. Pass the command line (e.g. dotnet build or git status). Optional workingDirectory is relative to the workspace root and defaults to the workspace root. Blocks until the command exits or the configured timeout (see Terminal config). Not allowed if the command matches the terminal blacklist. When confirmation is enabled, you must wait for user approval.")]
+    private async Task<string> ExecuteCommand(string command, string? workingDirectory = null, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(command))
             return "Error: command is required.";
-        var normalized = command.Trim();
+        var normalized = Regex.Replace(command.Trim(), @"\s+", " ");
         var blacklist = terminalConfig.GetCommandBlacklist();
         if (blacklist.Any(b => normalized.Contains(b, StringComparison.OrdinalIgnoreCase)))
             return "Error: Command is not allowed by terminal blacklist.";
+
         var baseDir = Path.GetFullPath(vfs.GetRootPath());
         var workDir = baseDir;
         if (!string.IsNullOrWhiteSpace(workingDirectory))
@@ -244,6 +251,22 @@ public sealed class BuiltInToolFactory(ITerminalConfigService terminalConfig, IC
                 return "Error: Working directory does not exist.";
             workDir = combined;
         }
+
+        if (terminalConfig.GetRequireCommandConfirmation())
+        {
+            var whitelist = terminalConfig.GetCommandWhitelist();
+            var allowedByWhitelist = whitelist.Any(w =>
+                normalized.Equals(w, StringComparison.OrdinalIgnoreCase) ||
+                normalized.StartsWith(w, StringComparison.OrdinalIgnoreCase));
+            if (!allowedByWhitelist)
+            {
+                var result = await confirmationService.RequestConfirmationAsync(normalized, workDir, terminalConfig.GetConfirmationTimeoutSeconds(), cancellationToken);
+                if (result != CommandConfirmResult.Allow)
+                    return "Error: Command was not approved (rejected or timed out).";
+                _ = terminalConfig.AddToWhitelistAndSaveAsync(normalized, cancellationToken);
+            }
+        }
+
         return commandRunner.Run(normalized, workDir);
     }
 }

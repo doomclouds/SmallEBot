@@ -32,6 +32,9 @@ public interface ITerminalConfigService
     /// <summary>Loads the command whitelist for the UI.</summary>
     Task<IReadOnlyList<string>> GetCommandWhitelistAsync(CancellationToken ct = default);
 
+    /// <summary>Adds a normalized command to the whitelist and persists. No-op if already present.</summary>
+    Task AddToWhitelistAndSaveAsync(string normalizedCommand, CancellationToken ct = default);
+
     /// <summary>Persists all terminal config to .agents/terminal.json.</summary>
     Task SaveAsync(
         IReadOnlyList<string> commandBlacklist,
