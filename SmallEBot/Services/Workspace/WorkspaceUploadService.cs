@@ -13,6 +13,7 @@ public sealed class WorkspaceUploadService : IWorkspaceUploadService
     private readonly object _indexLock = new();
     private readonly Dictionary<string, (string StagingPath, string FileName, long ContentLength, FileStream? Stream)> _uploads = [];
     private readonly object _uploadsLock = new();
+    private bool _cleanedOrphans;
 
     public WorkspaceUploadService(IVirtualFileSystem vfs)
     {
@@ -26,7 +27,11 @@ public sealed class WorkspaceUploadService : IWorkspaceUploadService
         if (!AllowedFileExtensions.IsAllowed(ext))
             throw new ArgumentException($"File extension '{ext}' is not allowed. Allowed: {AllowedFileExtensions.List}.", nameof(fileName));
 
-        CleanupOrphanStagingFiles();
+        if (!_cleanedOrphans)
+        {
+            CleanupOrphanStagingFiles();
+            _cleanedOrphans = true;
+        }
 
         var uploadId = Guid.NewGuid().ToString("N");
         var stagingPath = GetStagingPath(uploadId);
