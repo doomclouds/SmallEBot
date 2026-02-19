@@ -24,7 +24,7 @@ public sealed class AgentContextFactory(ISkillsConfigService skillsConfig, ITerm
             [Time] When the user asks for the current time or date, use the GetCurrentTime tool.
             [MCP] Use any other available MCP tools when they help answer the user.
             [Shell] You can run shell commands with the ExecuteCommand tool (command and optional working directory relative to the workspace). For Python scripts: ExecuteCommand (e.g. python script.py) with the workspace as working directory.
-            [Workspace files] Use ReadFile, WriteFile, and ListFiles for files in the workspace (paths relative to the workspace root).
+            [Workspace files] Use ReadFile, WriteFile, ListFiles for files in the workspace (paths relative to the workspace root). Use GrepFiles(pattern, mode?, path?, maxDepth?) to search file names by glob (default) or regex. Use GrepContent(pattern, ...) to search file content with regex (supports ignoreCase, contextLines, filesOnly, countOnly, invertMatch, filePattern).
             [Skills] ReadSkill(skillId) reads a skill's SKILL.md; ReadSkillFile(skillId, relativePath) reads other files inside a skill; ListSkillFiles(skillId, path?) lists files and folders in a skill.
             [Task list] You have ListTasks, SetTaskList, CompleteTask, ClearTasks scoped to this conversation.
             - When starting a new task breakdown: call ClearTasks first, then SetTaskList with a JSON array of { "title", "description"? } objects; use ListTasks to see progress; call CompleteTask(taskId) when a task is done.

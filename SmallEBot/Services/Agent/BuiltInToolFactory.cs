@@ -12,7 +12,7 @@ using SmallEBot.Services.Workspace;
 
 namespace SmallEBot.Services.Agent;
 
-/// <summary>Creates built-in AITools (GetCurrentTime, ReadFile, WriteFile, ListFiles, ReadSkill, ReadSkillFile, ListSkillFiles, ExecuteCommand) for the agent.</summary>
+/// <summary>Creates built-in AITools (GetCurrentTime, ReadFile, WriteFile, ListFiles, GrepFiles, GrepContent, ReadSkill, ReadSkillFile, ListSkillFiles, ExecuteCommand) for the agent.</summary>
 public interface IBuiltInToolFactory
 {
     AITool[] CreateTools();
