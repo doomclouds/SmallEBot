@@ -1,10 +1,12 @@
 @using SmallEBot.Application.Conversation
 @using SmallEBot.Core.Models
+@using SmallEBot.Models
 @using SmallEBot.Services.Conversation
 @using SmallEBot.Services.Workspace
 @using SmallEBot.Services.Skills
 @using SmallEBot.Services.Circuit
 @inject IAgentConversationService ConversationPipeline
+@inject IWorkspaceUploadService UploadService
 @inject ICurrentCircuitAccessor CircuitAccessor
 @inject AgentCacheService AgentCache
 @inject UserNameService UserNameSvc
@@ -110,14 +112,24 @@
                           FilePaths="@_filePaths"
                           Skills="@_skills"
                           OnSelect="OnAttachmentSelected" />
-        @if (_attachedPaths.Count > 0 || _requestedSkillIds.Count > 0)
+        @if (_attachmentItems.Count > 0 || _requestedSkillIds.Count > 0)
         {
             <div class="d-flex flex-wrap align-items-center gap-1 mb-2">
-                @foreach (var path in _attachedPaths)
+                @foreach (var item in _attachmentItems)
                 {
-                    <MudChip T="object" Color="Color.Primary" Variant="Variant.Filled" OnClose="@(() => RemoveAttachedPath(path))" CloseIcon="@Icons.Material.Filled.Cancel">
-                        @path
-                    </MudChip>
+                    @if (item is ResolvedPathAttachment r)
+                    {
+                        <MudChip T="object" Color="Color.Primary" Variant="Variant.Filled" OnClose="@(() => RemoveAttachmentItem(r))" CloseIcon="@Icons.Material.Filled.Cancel">
+                            @r.Path
+                        </MudChip>
+                    }
+                    else if (item is PendingUploadAttachment p)
+                    {
+                        <MudChip T="object" Color="Color.Primary" Variant="Variant.Filled" OnClose="@(() => RemoveAttachmentItem(p))" CloseIcon="@Icons.Material.Filled.Cancel">
+                            <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                            @p.DisplayName
+                        </MudChip>
+                    }
                 }
                 @foreach (var skillId in _requestedSkillIds)
                 {
@@ -134,7 +146,7 @@
                       ContextUsageTooltip="@_contextUsageTooltip"
                       OnSend="Send"
                       OnStop="StopSend"
-                      Disabled="@string.IsNullOrWhiteSpace(_input)"
+                      Disabled="@(string.IsNullOrWhiteSpace(_input) || _attachmentItems.OfType<PendingUploadAttachment>().Any())"
                       Class="" />
     </div>
 </MudPaper>
@@ -167,7 +179,7 @@
     private IReadOnlyList<string> _filePaths = [];
     private IReadOnlyList<SmallEBot.Models.SkillMetadata> _skills = [];
     private bool _moveCursorToEnd;
-    private readonly List<string> _attachedPaths = [];
+    private readonly List<AttachmentItem> _attachmentItems = [];
     private readonly List<string> _requestedSkillIds = [];
     private AttachmentPopover? _attachmentPopoverRef;
     private bool _suggestionKeysAttached;
@@ -216,8 +228,8 @@
     {
         if (_popoverKind == "file")
         {
-            if (!_attachedPaths.Contains(value))
-                _attachedPaths.Add(value);
+            if (!_attachmentItems.OfType<ResolvedPathAttachment>().Any(x => x.Path == value))
+                _attachmentItems.Add(new ResolvedPathAttachment(value));
             var lastAt = _input.LastIndexOf('@');
             _input = lastAt >= 0 ? _input[..lastAt].TrimEnd() : _input;
         }
@@ -236,9 +248,11 @@
         await InvokeAsync(StateHasChanged);
     }
 
-    private void RemoveAttachedPath(string path)
+    private void RemoveAttachmentItem(AttachmentItem item)
     {
-        _attachedPaths.Remove(path);
+        _attachmentItems.Remove(item);
+        if (item is PendingUploadAttachment pending)
+            UploadService.CancelUpload(pending.UploadId);
         StateHasChanged();
     }
 
@@ -284,9 +298,9 @@
             return;
         }
 
-        var attachedPaths = _attachedPaths.ToList();
+        var attachedPaths = _attachmentItems.OfType<ResolvedPathAttachment>().Select(x => x.Path).ToList();
+        _attachmentItems.RemoveAll(x => x is ResolvedPathAttachment);
         var requestedSkillIds = _requestedSkillIds.ToList();
-        _attachedPaths.Clear();
         _requestedSkillIds.Clear();
         var turnId = await ConversationPipeline.CreateTurnAndUserMessageAsync(ConversationId!.Value, userName, msg, UseThinkingMode, _sendCts!.Token, attachedPaths, requestedSkillIds);
         _ = RunStreamingLoopAsync(turnId, msg, attachedPaths, requestedSkillIds);
