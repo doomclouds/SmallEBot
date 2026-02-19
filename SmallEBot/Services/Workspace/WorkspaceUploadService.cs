@@ -62,13 +62,13 @@ public sealed class WorkspaceUploadService : IWorkspaceUploadService
     }
 
     /// <inheritdoc />
-    public Task<string?> CompleteUploadAsync(string uploadId, CancellationToken cancellationToken = default)
+    public Task<UploadCompleteResult?> CompleteUploadAsync(string uploadId, CancellationToken cancellationToken = default)
     {
         (string StagingPath, string FileName, long ContentLength, FileStream? Stream) record;
         lock (_uploadsLock)
         {
             if (!_uploads.Remove(uploadId, out record))
-                return Task.FromResult<string?>(null);
+                return Task.FromResult<UploadCompleteResult?>(null);
         }
 
         record.Stream?.Close();
@@ -87,6 +87,7 @@ public sealed class WorkspaceUploadService : IWorkspaceUploadService
         }
 
         // Index format: path -> hash (design). When renaming, remove old path key and add new path key.
+        string? replacedOldPath = null;
         Dictionary<string, string> index;
         lock (_indexLock)
         {
@@ -102,6 +103,7 @@ public sealed class WorkspaceUploadService : IWorkspaceUploadService
                     File.Move(existingFullPath, targetFullPath, overwrite: true);
                     index.Remove(existingPath);
                     index[targetRelativePath] = hash;
+                    replacedOldPath = existingPath;
                 }
                 else if (!File.Exists(existingFullPath))
                 {
@@ -109,6 +111,7 @@ public sealed class WorkspaceUploadService : IWorkspaceUploadService
                     File.Move(record.StagingPath, targetFullPath, overwrite: true);
                     index.Remove(existingPath);
                     index[targetRelativePath] = hash;
+                    replacedOldPath = existingPath;
                 }
                 else
                 {
@@ -117,6 +120,7 @@ public sealed class WorkspaceUploadService : IWorkspaceUploadService
                     {
                         index.Remove(existingPath);
                         index[targetRelativePath] = hash;
+                        replacedOldPath = existingPath;
                     }
                 }
             }
@@ -129,7 +133,7 @@ public sealed class WorkspaceUploadService : IWorkspaceUploadService
             SaveHashIndex(index);
         }
 
-        return Task.FromResult<string?>(targetRelativePath);
+        return Task.FromResult<UploadCompleteResult?>(new UploadCompleteResult(targetRelativePath, replacedOldPath));
     }
 
     /// <inheritdoc />

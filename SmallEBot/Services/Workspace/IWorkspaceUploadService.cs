@@ -1,5 +1,10 @@
 namespace SmallEBot.Services.Workspace;
 
+/// <summary>Result of completing an upload. ReplacedOldPath is set when a duplicate (same hash) was deduplicated by renaming the existing file.</summary>
+/// <param name="Path">Final workspace-relative path (e.g. temp/foo.txt).</param>
+/// <param name="ReplacedOldPath">If not null, an existing attachment with this path was renamed to Path; UI should update the chip.</param>
+public sealed record UploadCompleteResult(string Path, string? ReplacedOldPath);
+
 /// <summary>Service for chunked workspace file upload with temp staging and hash deduplication.</summary>
 public interface IWorkspaceUploadService
 {
@@ -17,11 +22,11 @@ public interface IWorkspaceUploadService
     /// <param name="cancellationToken">Cancellation token.</param>
     Task ReportChunkAsync(string uploadId, ReadOnlyMemory<byte> chunk, CancellationToken cancellationToken = default);
 
-    /// <summary>Completes an upload: closes stream, computes hash, deduplicates, and moves to temp. Returns workspace-relative path or null if upload not found.</summary>
+    /// <summary>Completes an upload: closes stream, computes hash, deduplicates, and moves to temp. Returns result or null if upload not found.</summary>
     /// <param name="uploadId">Upload ID from StartUploadAsync.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>Workspace-relative path like "temp/foo.txt", or null if upload was not found (e.g. already completed or cancelled).</returns>
-    Task<string?> CompleteUploadAsync(string uploadId, CancellationToken cancellationToken = default);
+    /// <returns>Result with final path; ReplacedOldPath is set when an existing file was renamed (same hash, different name). Null if upload was not found.</returns>
+    Task<UploadCompleteResult?> CompleteUploadAsync(string uploadId, CancellationToken cancellationToken = default);
 
     /// <summary>Cancels an in-progress upload and removes staging file.</summary>
     /// <param name="uploadId">Upload ID to cancel.</param>

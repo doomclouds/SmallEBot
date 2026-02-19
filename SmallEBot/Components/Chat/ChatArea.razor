@@ -532,12 +532,17 @@
     [JSInvokable]
     public async Task CompleteUploadAsync(string uploadId)
     {
-        var path = await UploadService.CompleteUploadAsync(uploadId);
+        var result = await UploadService.CompleteUploadAsync(uploadId);
         var idx = _attachmentItems.FindIndex(x => x is PendingUploadAttachment p && p.UploadId == uploadId);
         if (idx >= 0)
             _attachmentItems.RemoveAt(idx);
-        if (path != null)
-            _attachmentItems.Add(new ResolvedPathAttachment(path));
+        if (result != null)
+        {
+            if (result.ReplacedOldPath != null)
+                _attachmentItems.RemoveAll(x => x is ResolvedPathAttachment r && r.Path == result.ReplacedOldPath);
+            if (!_attachmentItems.OfType<ResolvedPathAttachment>().Any(r => r.Path == result.Path))
+                _attachmentItems.Add(new ResolvedPathAttachment(result.Path));
+        }
         else
             Snackbar.Add("Upload failed", Severity.Error);
         await InvokeAsync(StateHasChanged);
