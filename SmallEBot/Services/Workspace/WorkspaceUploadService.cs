@@ -1,3 +1,4 @@
+using System.Linq;
 using SmallEBot.Core;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -85,11 +86,13 @@ public sealed class WorkspaceUploadService : IWorkspaceUploadService
             hash = Convert.ToHexString(sha.ComputeHash(fs));
         }
 
+        // Index format: path -> hash (design). When renaming, remove old path key and add new path key.
         Dictionary<string, string> index;
         lock (_indexLock)
         {
             index = LoadHashIndex();
-            if (index.TryGetValue(hash, out var existingPath))
+            var existingPath = index.FirstOrDefault(kv => string.Equals(kv.Value, hash, StringComparison.OrdinalIgnoreCase)).Key;
+            if (existingPath != null)
             {
                 var existingFullPath = ResolveFullPath(rootPath, existingPath);
                 if (File.Exists(existingFullPath) && existingPath != targetRelativePath)
@@ -97,23 +100,31 @@ public sealed class WorkspaceUploadService : IWorkspaceUploadService
                     File.Delete(record.StagingPath);
                     Directory.CreateDirectory(Path.GetDirectoryName(targetFullPath)!);
                     File.Move(existingFullPath, targetFullPath, overwrite: true);
+                    index.Remove(existingPath);
+                    index[targetRelativePath] = hash;
                 }
                 else if (!File.Exists(existingFullPath))
                 {
                     Directory.CreateDirectory(Path.GetDirectoryName(targetFullPath)!);
                     File.Move(record.StagingPath, targetFullPath, overwrite: true);
+                    index.Remove(existingPath);
+                    index[targetRelativePath] = hash;
                 }
                 else
                 {
                     File.Delete(record.StagingPath);
+                    if (existingPath != targetRelativePath)
+                    {
+                        index.Remove(existingPath);
+                        index[targetRelativePath] = hash;
+                    }
                 }
-                index[hash] = targetRelativePath;
             }
             else
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(targetFullPath)!);
                 File.Move(record.StagingPath, targetFullPath, overwrite: true);
-                index[hash] = targetRelativePath;
+                index[targetRelativePath] = hash;
             }
             SaveHashIndex(index);
         }
@@ -193,8 +204,18 @@ public sealed class WorkspaceUploadService : IWorkspaceUploadService
             try
             {
                 var json = File.ReadAllText(indexPath);
-                return JsonSerializer.Deserialize<Dictionary<string, string>>(json)
+                var raw = JsonSerializer.Deserialize<Dictionary<string, string>>(json)
                     ?? new Dictionary<string, string>();
+                // Normalize to path->hash: migrate old hash->path format (key is hex, value is path)
+                var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var kv in raw)
+                {
+                    if (kv.Key.Contains('/'))
+                        result[kv.Key] = kv.Value;
+                    else
+                        result[kv.Value] = kv.Key;
+                }
+                return result;
             }
             catch (Exception)
             {
