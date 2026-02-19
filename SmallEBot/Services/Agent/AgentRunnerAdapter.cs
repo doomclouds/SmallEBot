@@ -5,24 +5,43 @@ using Microsoft.Extensions.AI;
 using SmallEBot.Application.Streaming;
 using SmallEBot.Core.Models;
 using SmallEBot.Core.Repositories;
+using SmallEBot.Services.Conversation;
 using ChatMessage = Microsoft.Extensions.AI.ChatMessage;
 
 namespace SmallEBot.Services.Agent;
 
 /// <summary>Host implementation of IAgentRunner: loads history from repository, uses IAgentBuilder to run the agent and map updates to StreamUpdate.</summary>
-public sealed class AgentRunnerAdapter(IConversationRepository conversationRepository, IAgentBuilder agentBuilder) : IAgentRunner
+public sealed class AgentRunnerAdapter(
+    IConversationRepository conversationRepository,
+    IAgentBuilder agentBuilder,
+    ITurnContextFragmentBuilder fragmentBuilder) : IAgentRunner
 {
     public async IAsyncEnumerable<StreamUpdate> RunStreamingAsync(
         Guid conversationId,
         string userMessage,
         bool useThinking,
-        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        [EnumeratorCancellation] CancellationToken cancellationToken = default,
+        IReadOnlyList<string>? attachedPaths = null,
+        IReadOnlyList<string>? requestedSkillIds = null)
     {
         var agent = await agentBuilder.GetOrCreateAgentAsync(useThinking, cancellationToken);
         var history = await conversationRepository.GetMessagesForConversationAsync(conversationId, cancellationToken);
         var frameworkMessages = history
             .Select(m => new ChatMessage(ToChatRole(m.Role), m.Content))
             .ToList();
+
+        var hasAttachments = (attachedPaths?.Count ?? 0) + (requestedSkillIds?.Count ?? 0) > 0;
+        if (hasAttachments)
+        {
+            var fragment = await fragmentBuilder.BuildFragmentAsync(
+                attachedPaths ?? [],
+                requestedSkillIds ?? [],
+                cancellationToken);
+            if (!string.IsNullOrWhiteSpace(fragment))
+            {
+                frameworkMessages.Add(new ChatMessage(ChatRole.User, fragment));
+            }
+        }
         frameworkMessages.Add(new ChatMessage(ChatRole.User, userMessage));
 
         var reasoningOpt = new ReasoningOptions();
