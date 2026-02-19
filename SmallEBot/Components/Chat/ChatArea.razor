@@ -1,11 +1,15 @@
 @using SmallEBot.Application.Conversation
 @using SmallEBot.Core.Models
 @using SmallEBot.Services.Conversation
+@using SmallEBot.Services.Workspace
+@using SmallEBot.Services.Skills
 @using SmallEBot.Services.Circuit
 @inject IAgentConversationService ConversationPipeline
 @inject ICurrentCircuitAccessor CircuitAccessor
 @inject AgentCacheService AgentCache
 @inject UserNameService UserNameSvc
+@inject IWorkspaceService WorkspaceService
+@inject ISkillsConfigService SkillsConfigService
 @inject IJSRuntime JS
 @inject ISnackbar Snackbar
 @inject ILogger<ChatArea> Log
@@ -96,14 +100,22 @@
     }
     </div>
 
-    <ChatInputBar @bind-Value="_input"
-                  Streaming="_streaming"
-                  ContextPercentText="@_contextPercentText"
-                  ContextUsageTooltip="@_contextUsageTooltip"
-                  OnSend="Send"
-                  OnStop="StopSend"
-                  Disabled="@string.IsNullOrWhiteSpace(_input)"
-                  Class="mt-2" />
+    <div class="position-relative mt-2">
+        <ChatInputBar Value="_input"
+                      ValueChanged="HandleInputChanged"
+                      Streaming="_streaming"
+                      ContextPercentText="@_contextPercentText"
+                      ContextUsageTooltip="@_contextUsageTooltip"
+                      OnSend="Send"
+                      OnStop="StopSend"
+                      Disabled="@string.IsNullOrWhiteSpace(_input)"
+                      Class="" />
+        <AttachmentPopover @bind-Open="_popoverOpen"
+                          Kind="@_popoverKind"
+                          FilePaths="@_filePaths"
+                          Skills="@_skills"
+                          OnSelect="OnAttachmentSelected" />
+    </div>
 </MudPaper>
 
 @code {
@@ -128,6 +140,47 @@
     private CancellationTokenSource? _sendCts;
     private string _contextPercentText = "0%";
     private string? _contextUsageTooltip;
+    private bool _popoverOpen;
+    private string _popoverKind = "file";
+    private IReadOnlyList<string> _filePaths = [];
+    private IReadOnlyList<SmallEBot.Models.SkillMetadata> _skills = [];
+
+    private async Task HandleInputChanged(string v)
+    {
+        _input = v;
+        if (v.EndsWith('@'))
+        {
+            _popoverKind = "file";
+            _popoverOpen = true;
+            _filePaths = await WorkspaceService.GetAllowedFilePathsAsync();
+        }
+        else if (v.EndsWith('/'))
+        {
+            _popoverKind = "skill";
+            _popoverOpen = true;
+            _skills = await SkillsConfigService.GetMetadataForAgentAsync();
+        }
+        else
+        {
+            ClosePopover();
+        }
+        StateHasChanged();
+    }
+
+    private void ClosePopover()
+    {
+        _popoverOpen = false;
+    }
+
+    private async Task OnAttachmentSelected(string value)
+    {
+        if (_popoverKind == "file")
+            _input = _input.TrimEnd('@') + "@" + value;
+        else
+            _input = _input.TrimEnd('/') + "/" + value;
+        ClosePopover();
+        await InvokeAsync(StateHasChanged);
+    }
 
     private void StopSend()
     {

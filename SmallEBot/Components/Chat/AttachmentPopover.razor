@@ -1,0 +1,62 @@
+@* Popover for @ (workspace files) or / (skills) selection. Anchored below the input. *@
+<MudMenu Open="@Open" OpenChanged="@OpenChanged"
+         AnchorOrigin="Origin.BottomCenter"
+         TransformOrigin="Origin.TopCenter"
+         Dense="true"
+         Style="margin-top: 4px;">
+    <ActivatorContent>
+        <div style="position: absolute; bottom: 0; left: 0; right: 0; height: 1px;"></div>
+    </ActivatorContent>
+    <ChildContent>
+        <MudPaper Outlined="true" Class="pa-1" Style="max-height: 240px; overflow-y: auto; min-width: 220px;">
+            @if (Kind == "file")
+            {
+                @if (FilePaths.Count == 0)
+                {
+                    <MudText Typo="Typo.body2" Class="pa-3 text-secondary">No files with allowed extensions.</MudText>
+                }
+                else
+                {
+                    <MudList T="string" Dense="true">
+                        @foreach (var path in FilePaths)
+                        {
+                            <MudListItem T="string" Value="@path" OnClick="@(() => OnSelect.InvokeAsync(path))">
+                                <MudIcon Icon="@Icons.Material.Filled.InsertDriveFile" Size="Size.Small" Class="me-2" />
+                                @path
+                            </MudListItem>
+                        }
+                    </MudList>
+                }
+            }
+            else
+            {
+                @if (Skills.Count == 0)
+                {
+                    <MudText Typo="Typo.body2" Class="pa-3 text-secondary">No skills available.</MudText>
+                }
+                else
+                {
+                    <MudList T="string" Dense="true">
+                        @foreach (var skill in Skills)
+                        {
+                            <MudListItem T="string" Value="@skill.Id" OnClick="@(() => OnSelect.InvokeAsync(skill.Id))">
+                                <MudText Typo="Typo.body2">@skill.Name</MudText>
+                                <MudText Typo="Typo.caption" Class="text-secondary ms-1">@skill.Id</MudText>
+                            </MudListItem>
+                        }
+                    </MudList>
+                }
+            }
+        </MudPaper>
+    </ChildContent>
+</MudMenu>
+
+@code {
+    [Parameter] public bool Open { get; set; }
+    [Parameter] public EventCallback<bool> OpenChanged { get; set; }
+    [Parameter] public string Kind { get; set; } = "file";
+    [Parameter] public IReadOnlyList<string> FilePaths { get; set; } = [];
+    [Parameter] public IReadOnlyList<SmallEBot.Models.SkillMetadata> Skills { get; set; } = [];
+    [Parameter] public EventCallback<string> OnSelect { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+}
