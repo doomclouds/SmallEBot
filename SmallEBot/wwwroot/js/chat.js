@@ -105,6 +105,58 @@ window.SmallEBot.detachChatInputSuggestionKeys = function (wrapperId) {
     _suggestionKeyWrapperId = null;
 };
 
+// Chunked file upload and drop zone
+SmallEBot.uploadFileInChunks = async function (dotNetRef, uploadId, file, chunkSize) {
+    chunkSize = chunkSize || 65536;
+    var sent = 0;
+    var total = file.size;
+    while (sent < total) {
+        var chunk = file.slice(sent, sent + chunkSize);
+        var buf = await chunk.arrayBuffer();
+        var bytes = new Uint8Array(buf);
+        var binary = '';
+        for (var i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+        var b64 = btoa(binary);
+        await dotNetRef.invokeMethodAsync('ReportChunkAsync', uploadId, b64);
+        var pct = total > 0 ? (sent + bytes.length) / total * 100 : 0;
+        await dotNetRef.invokeMethodAsync('ReportUploadProgress', uploadId, Math.round(pct));
+        sent += bytes.length;
+    }
+    await dotNetRef.invokeMethodAsync('CompleteUploadAsync', uploadId);
+};
+
+var _dropZoneListeners = {};
+SmallEBot.attachDropZone = function (elementId, dotNetRef) {
+    var el = document.getElementById(elementId);
+    if (!el) return;
+    SmallEBot.detachDropZone(elementId);
+    var dragover = function (e) { e.preventDefault(); };
+    var drop = function (e) {
+        e.preventDefault();
+        var files = e.dataTransfer && e.dataTransfer.files;
+        if (!files) return;
+        for (var i = 0; i < files.length; i++) {
+            (function (f) {
+                dotNetRef.invokeMethodAsync('StartUploadFromDrop', f.name, f.size).then(function (uploadId) {
+                    if (uploadId) SmallEBot.uploadFileInChunks(dotNetRef, uploadId, f, 65536);
+                });
+            })(files[i]);
+        }
+    };
+    el.addEventListener('dragover', dragover);
+    el.addEventListener('drop', drop);
+    _dropZoneListeners[elementId] = { dragover: dragover, drop: drop };
+};
+SmallEBot.detachDropZone = function (elementId) {
+    var el = document.getElementById(elementId);
+    var stored = _dropZoneListeners[elementId];
+    if (el && stored) {
+        el.removeEventListener('dragover', stored.dragover);
+        el.removeEventListener('drop', stored.drop);
+    }
+    delete _dropZoneListeners[elementId];
+};
+
 // Expose for Blazor JSInvoke (cannot call SmallEBot.getTheme directly)
 window.SmallEBotGetTheme = function () { return window.SmallEBot.getTheme(); };
 window.SmallEBotSetTheme = function (id) { window.SmallEBot.setTheme(id); };

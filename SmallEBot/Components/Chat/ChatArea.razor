@@ -1,4 +1,6 @@
+@using System.IO
 @using SmallEBot.Application.Conversation
+@using SmallEBot.Core
 @using SmallEBot.Core.Models
 @using SmallEBot.Models
 @using SmallEBot.Services.Conversation
@@ -103,7 +105,7 @@
     }
     </div>
 
-    <div class="position-relative mt-2">
+    <div id="smallebot-chat-drop-zone" class="position-relative mt-2">
         @* Chips for @ (files) and / (skills); different colors, closable. Input does not show path or skill text. *@
         <AttachmentPopover @ref="_attachmentPopoverRef"
                           @bind-Open="_popoverOpen"
@@ -126,7 +128,7 @@
                     else if (item is PendingUploadAttachment p)
                     {
                         <MudChip T="object" Color="Color.Primary" Variant="Variant.Filled" OnClose="@(() => RemoveAttachmentItem(p))" CloseIcon="@Icons.Material.Filled.Cancel">
-                            <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                            <MudProgressCircular Size="Size.Small" Indeterminate="@(p.Progress <= 0 || p.Progress >= 100)" Value="@p.Progress" />
                             @p.DisplayName
                         </MudChip>
                     }
@@ -184,6 +186,7 @@
     private AttachmentPopover? _attachmentPopoverRef;
     private bool _suggestionKeysAttached;
     private DotNetObjectReference<ChatArea>? _suggestionKeysDotNetRef;
+    private DotNetObjectReference<ChatArea>? _dropZoneDotNetRef;
     private bool _justSelectedAttachment;
 
     private async Task HandleInputChanged(string v)
@@ -437,6 +440,20 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (firstRender)
+        {
+            _dropZoneDotNetRef = DotNetObjectReference.Create(this);
+            try
+            {
+                await JS.InvokeVoidAsync("SmallEBot.attachDropZone", "smallebot-chat-drop-zone", _dropZoneDotNetRef);
+            }
+            catch (Exception ex)
+            {
+                Log.LogWarning(ex, "Failed to attach drop zone");
+                _dropZoneDotNetRef?.Dispose();
+                _dropZoneDotNetRef = null;
+            }
+        }
         if (_scrollToBottomRequested)
         {
             _scrollToBottomRequested = false;
@@ -480,6 +497,53 @@
     }
 
     [JSInvokable]
+    public async Task<string?> StartUploadFromDrop(string fileName, long contentLength)
+    {
+        var ext = Path.GetExtension(fileName);
+        if (!AllowedFileExtensions.IsAllowed(ext))
+        {
+            Snackbar.Add("Extension not allowed", Severity.Warning);
+            return null;
+        }
+        var uploadId = await UploadService.StartUploadAsync(fileName, contentLength);
+        _attachmentItems.Add(new PendingUploadAttachment(uploadId, fileName, 0));
+        await InvokeAsync(StateHasChanged);
+        return uploadId;
+    }
+
+    [JSInvokable]
+    public async Task ReportChunkAsync(string uploadId, string base64Chunk)
+    {
+        var chunk = Convert.FromBase64String(base64Chunk);
+        await UploadService.ReportChunkAsync(uploadId, chunk);
+    }
+
+    [JSInvokable]
+    public void ReportUploadProgress(string uploadId, int progress)
+    {
+        var pending = _attachmentItems.OfType<PendingUploadAttachment>().FirstOrDefault(p => p.UploadId == uploadId);
+        if (pending != null)
+        {
+            pending.Progress = progress;
+            _ = InvokeAsync(StateHasChanged);
+        }
+    }
+
+    [JSInvokable]
+    public async Task CompleteUploadAsync(string uploadId)
+    {
+        var path = await UploadService.CompleteUploadAsync(uploadId);
+        var idx = _attachmentItems.FindIndex(x => x is PendingUploadAttachment p && p.UploadId == uploadId);
+        if (idx >= 0)
+            _attachmentItems.RemoveAt(idx);
+        if (path != null)
+            _attachmentItems.Add(new ResolvedPathAttachment(path));
+        else
+            Snackbar.Add("Upload failed", Severity.Error);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
     public async Task OnSuggestionKeyDown(string key)
     {
         if (_attachmentPopoverRef != null)
@@ -502,5 +566,11 @@
         return item.Message is { Role: "assistant" } msg && msg.Content.StartsWith("Error: ", StringComparison.Ordinal);
     }
 
-    public void Dispose() => _suggestionKeysDotNetRef?.Dispose();
+    public void Dispose()
+    {
+        try { _ = JS.InvokeVoidAsync("SmallEBot.detachDropZone", "smallebot-chat-drop-zone"); } catch { /* ignore */ }
+        _dropZoneDotNetRef?.Dispose();
+        _dropZoneDotNetRef = null;
+        _suggestionKeysDotNetRef?.Dispose();
+    }
 }
