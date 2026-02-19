@@ -77,6 +77,8 @@ public sealed class WorkspaceService(IVirtualFileSystem vfs) : IWorkspaceService
                          .ThenBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase))
             {
                 var name = Path.GetFileName(entry)!;
+                if (!Directory.Exists(entry) && string.Equals(name, "python.exe", StringComparison.OrdinalIgnoreCase))
+                    continue;
                 var rel = string.IsNullOrEmpty(relativePath) ? name : relativePath + Path.DirectorySeparatorChar + name;
                 if (Directory.Exists(entry))
                 {
