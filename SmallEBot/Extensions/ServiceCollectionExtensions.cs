@@ -45,6 +45,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ICommandRunner, CommandRunner>();
         services.AddSingleton<IVirtualFileSystem, VirtualFileSystem>();
         services.AddScoped<IWorkspaceService, WorkspaceService>();
+        services.AddScoped<IWorkspaceUploadService, WorkspaceUploadService>();
         services.AddScoped<IMcpToolsLoaderService, McpToolsLoaderService>();
         services.AddScoped<IAgentContextFactory, AgentContextFactory>();
         services.AddSingleton<IBuiltInToolFactory, BuiltInToolFactory>();

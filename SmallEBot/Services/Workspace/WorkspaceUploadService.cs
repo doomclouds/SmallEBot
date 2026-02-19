@@ -1,19 +1,165 @@
 using SmallEBot.Core;
+using System.Security.Cryptography;
 using System.Text.Json;
 
 namespace SmallEBot.Services.Workspace;
 
-/// <summary>Temp folder and hash index helpers for chunked upload staging.</summary>
-public sealed class WorkspaceUploadService
+/// <summary>Temp folder and hash index helpers for chunked upload staging. Implements IWorkspaceUploadService.</summary>
+public sealed class WorkspaceUploadService : IWorkspaceUploadService
 {
     private const string TempRelativeFolder = "temp";
     private const string HashIndexFileName = ".hash-index.json";
     private readonly IVirtualFileSystem _vfs;
     private readonly object _indexLock = new();
+    private readonly Dictionary<string, (string StagingPath, string FileName, long ContentLength, FileStream? Stream)> _uploads = [];
+    private readonly object _uploadsLock = new();
 
     public WorkspaceUploadService(IVirtualFileSystem vfs)
     {
         _vfs = vfs;
+    }
+
+    /// <inheritdoc />
+    public Task<string> StartUploadAsync(string fileName, long contentLength, CancellationToken cancellationToken = default)
+    {
+        var ext = Path.GetExtension(fileName);
+        if (!AllowedFileExtensions.IsAllowed(ext))
+            throw new ArgumentException($"File extension '{ext}' is not allowed. Allowed: {AllowedFileExtensions.List}.", nameof(fileName));
+
+        CleanupOrphanStagingFiles();
+
+        var uploadId = Guid.NewGuid().ToString("N");
+        var stagingPath = GetStagingPath(uploadId);
+        var stream = new FileStream(stagingPath, FileMode.Create, FileAccess.Write, FileShare.None);
+
+        lock (_uploadsLock)
+        {
+            _uploads[uploadId] = (stagingPath, fileName, contentLength, stream);
+        }
+
+        return Task.FromResult(uploadId);
+    }
+
+    /// <inheritdoc />
+    public Task ReportChunkAsync(string uploadId, ReadOnlyMemory<byte> chunk, CancellationToken cancellationToken = default)
+    {
+        FileStream? stream;
+        lock (_uploadsLock)
+        {
+            if (!_uploads.TryGetValue(uploadId, out var record))
+                return Task.CompletedTask;
+            stream = record.Stream;
+        }
+
+        stream?.Write(chunk.Span);
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public Task<string?> CompleteUploadAsync(string uploadId, CancellationToken cancellationToken = default)
+    {
+        (string StagingPath, string FileName, long ContentLength, FileStream? Stream) record;
+        lock (_uploadsLock)
+        {
+            if (!_uploads.Remove(uploadId, out record))
+                return Task.FromResult<string?>(null);
+        }
+
+        record.Stream?.Close();
+        record.Stream?.Dispose();
+
+        var sanitizedFileName = Path.GetFileName(record.FileName);
+        var targetRelativePath = "temp/" + sanitizedFileName;
+        var rootPath = _vfs.GetRootPath();
+        var targetFullPath = ResolveFullPath(rootPath, targetRelativePath);
+
+        string hash;
+        using (var sha = SHA256.Create())
+        using (var fs = File.OpenRead(record.StagingPath))
+        {
+            hash = Convert.ToHexString(sha.ComputeHash(fs));
+        }
+
+        Dictionary<string, string> index;
+        lock (_indexLock)
+        {
+            index = LoadHashIndex();
+            if (index.TryGetValue(hash, out var existingPath))
+            {
+                var existingFullPath = ResolveFullPath(rootPath, existingPath);
+                if (File.Exists(existingFullPath) && existingPath != targetRelativePath)
+                {
+                    File.Delete(record.StagingPath);
+                    Directory.CreateDirectory(Path.GetDirectoryName(targetFullPath)!);
+                    File.Move(existingFullPath, targetFullPath, overwrite: true);
+                }
+                else if (!File.Exists(existingFullPath))
+                {
+                    Directory.CreateDirectory(Path.GetDirectoryName(targetFullPath)!);
+                    File.Move(record.StagingPath, targetFullPath, overwrite: true);
+                }
+                else
+                {
+                    File.Delete(record.StagingPath);
+                }
+                index[hash] = targetRelativePath;
+            }
+            else
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(targetFullPath)!);
+                File.Move(record.StagingPath, targetFullPath, overwrite: true);
+                index[hash] = targetRelativePath;
+            }
+            SaveHashIndex(index);
+        }
+
+        return Task.FromResult<string?>(targetRelativePath);
+    }
+
+    /// <inheritdoc />
+    public void CancelUpload(string uploadId)
+    {
+        (string StagingPath, string FileName, long ContentLength, FileStream? Stream) record;
+        lock (_uploadsLock)
+        {
+            if (!_uploads.Remove(uploadId, out record))
+                return;
+        }
+
+        record.Stream?.Dispose();
+        if (File.Exists(record.StagingPath))
+            File.Delete(record.StagingPath);
+    }
+
+    private void CleanupOrphanStagingFiles()
+    {
+        var tempDir = GetTempDirectoryPath();
+        try
+        {
+            foreach (var f in Directory.EnumerateFiles(tempDir, ".upload-*"))
+            {
+                try
+                {
+                    var age = DateTime.UtcNow - File.GetLastWriteTimeUtc(f);
+                    if (age.TotalMinutes > 30)
+                        File.Delete(f);
+                }
+                catch
+                {
+                    // ignore per-file errors
+                }
+            }
+        }
+        catch
+        {
+            // ignore if temp dir doesn't exist yet
+        }
+    }
+
+    private static string ResolveFullPath(string rootPath, string workspaceRelativePath)
+    {
+        var parts = workspaceRelativePath.Replace('\\', '/').Split('/');
+        return Path.GetFullPath(Path.Combine([rootPath, ..parts]));
     }
 
     /// <summary>Returns the absolute path to the temp folder under workspace root. Ensures the directory exists.</summary>
@@ -59,7 +205,7 @@ public sealed class WorkspaceUploadService
         ArgumentNullException.ThrowIfNull(index);
         lock (_indexLock)
         {
-            GetTempDirectoryPath(); // ensure temp dir exists
+            GetTempDirectoryPath();
             var json = JsonSerializer.Serialize(index);
             File.WriteAllText(GetHashIndexPath(), json);
         }
