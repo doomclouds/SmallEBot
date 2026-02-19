@@ -3,6 +3,8 @@ using System.Text.RegularExpressions;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.FileSystemGlobbing;
+using Microsoft.Extensions.FileSystemGlobbing.Abstractions;
 using SmallEBot.Application.Conversation;
 using SmallEBot.Core;
 using SmallEBot.Services.Terminal;
@@ -139,6 +141,91 @@ public sealed class BuiltInToolFactory(
         return JsonSerializer.Serialize(new { ok = true });
     }
 
+    [Description("Search for files by name pattern in the workspace. Returns JSON with matching file paths. pattern: search pattern. mode: 'glob' (default, e.g. '*.cs', '**/test*.py') or 'regex'. path: optional starting directory (default: workspace root). maxDepth: max recursion depth (default: 10, 0 for unlimited).")]
+    private string GrepFiles(string pattern, string? mode = null, string? path = null, int maxDepth = 10)
+    {
+        if (string.IsNullOrWhiteSpace(pattern))
+            return "Error: pattern is required.";
+
+        var baseDir = Path.GetFullPath(vfs.GetRootPath());
+        var searchDir = string.IsNullOrWhiteSpace(path) || path!.Trim() == "."
+            ? baseDir
+            : Path.GetFullPath(Path.Combine(baseDir, path.Trim().Replace('\\', Path.DirectorySeparatorChar)));
+
+        if (!searchDir.StartsWith(baseDir, StringComparison.OrdinalIgnoreCase))
+            return "Error: path must be under the workspace.";
+        if (!Directory.Exists(searchDir))
+            return "Error: directory not found.";
+
+        var effectiveDepth = maxDepth <= 0 ? int.MaxValue : maxDepth;
+        var files = new List<string>();
+        var matchMode = (mode ?? "glob").ToLowerInvariant();
+
+        try
+        {
+            if (matchMode == "glob")
+            {
+                var matcher = new Matcher(StringComparison.OrdinalIgnoreCase);
+                matcher.AddInclude(pattern);
+                var result = matcher.Execute(new DirectoryInfoWrapper(new DirectoryInfo(searchDir)));
+                files = result.Files
+                    .Select(f => f.Path.Replace('/', Path.DirectorySeparatorChar))
+                    .Where(f => AllowedFileExtensions.IsAllowed(Path.GetExtension(f)))
+                    .ToList();
+            }
+            else if (matchMode == "regex")
+            {
+                Regex regex;
+                try
+                {
+                    regex = new Regex(pattern, RegexOptions.Compiled);
+                }
+                catch (ArgumentException ex)
+                {
+                    return $"Error: Invalid regex pattern: {ex.Message}";
+                }
+
+                files = Directory.EnumerateFiles(searchDir, "*", new EnumerationOptions
+                {
+                    RecurseSubdirectories = true,
+                    MaxRecursionDepth = effectiveDepth
+                })
+                .Where(f => AllowedFileExtensions.IsAllowed(Path.GetExtension(f)))
+                .Where(f =>
+                {
+                    var relativePath = Path.GetRelativePath(searchDir, f);
+                    return regex.IsMatch(relativePath);
+                })
+                .Select(f => string.IsNullOrEmpty(path) || path!.Trim() == "."
+                    ? Path.GetRelativePath(baseDir, f)
+                    : Path.GetRelativePath(searchDir, f))
+                .ToList();
+            }
+            else
+            {
+                return "Error: mode must be 'glob' or 'regex'.";
+            }
+
+            const int maxFiles = 500;
+            var truncated = files.Count > maxFiles;
+            var limitedFiles = files.Take(maxFiles).ToList();
+
+            return JsonSerializer.Serialize(new
+            {
+                pattern,
+                mode = matchMode,
+                path = path ?? ".",
+                files = limitedFiles,
+                count = files.Count,
+                truncated
+            }, TaskFileJsonOptions);
+        }
+        catch (Exception ex)
+        {
+            return "Error: " + ex.Message;
+        }
+    }
+
     public AITool[] CreateTools() =>
     [
         AIFunctionFactory.Create(GetCurrentTime),
@@ -148,6 +235,7 @@ public sealed class BuiltInToolFactory(
         AIFunctionFactory.Create(ReadSkill),
         AIFunctionFactory.Create(ReadSkillFile),
         AIFunctionFactory.Create(ListSkillFiles),
+        AIFunctionFactory.Create(GrepFiles),
         AIFunctionFactory.Create(ExecuteCommand),
         AIFunctionFactory.Create(ListTasks),
         AIFunctionFactory.Create(SetTaskList),
