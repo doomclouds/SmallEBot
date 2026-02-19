@@ -1,12 +1,10 @@
+using SmallEBot.Core;
+
 namespace SmallEBot.Services.Workspace;
 
 public sealed class WorkspaceService(IVirtualFileSystem vfs) : IWorkspaceService
 {
     private const int MaxViewFileBytes = 512 * 1024;
-    private static readonly HashSet<string> AllowedExtensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".md", ".cs", ".py", ".txt", ".json", ".yml", ".yaml"
-    };
 
     public Task<IReadOnlyList<WorkspaceNode>> GetTreeAsync(CancellationToken ct = default)
     {
@@ -28,7 +26,7 @@ public sealed class WorkspaceService(IVirtualFileSystem vfs) : IWorkspaceService
         if (!File.Exists(fullPath))
             return null;
         var ext = Path.GetExtension(fullPath);
-        if (string.IsNullOrEmpty(ext) || !AllowedExtensions.Contains(ext))
+        if (!AllowedFileExtensions.IsAllowed(ext))
             return null;
         var info = new FileInfo(fullPath);
         if (info.Length > MaxViewFileBytes)
@@ -52,7 +50,7 @@ public sealed class WorkspaceService(IVirtualFileSystem vfs) : IWorkspaceService
         if (fullPath == null || Directory.Exists(fullPath))
             return false;
         var ext = Path.GetExtension(fullPath);
-        return !string.IsNullOrEmpty(ext) && AllowedExtensions.Contains(ext);
+        return AllowedFileExtensions.IsAllowed(ext);
     }
 
     public Task DeleteAsync(string relativePath, CancellationToken ct = default)
@@ -60,7 +58,7 @@ public sealed class WorkspaceService(IVirtualFileSystem vfs) : IWorkspaceService
         if (string.IsNullOrWhiteSpace(relativePath))
             throw new ArgumentException("Path is required.", nameof(relativePath));
         if (!IsDeletableFile(relativePath))
-            throw new InvalidOperationException("Only files with allowed extensions can be deleted: " + string.Join(", ", AllowedExtensions));
+            throw new InvalidOperationException("Only files with allowed extensions can be deleted: " + AllowedFileExtensions.List);
         var fullPath = ResolveAndValidate(relativePath, mustExist: true);
         if (fullPath == null)
             throw new InvalidOperationException("Path must be under the workspace.");

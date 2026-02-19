@@ -1,3 +1,4 @@
+using SmallEBot.Core;
 using SmallEBot.Models;
 using SmallEBot.Services.Skills;
 using SmallEBot.Services.Terminal;
@@ -52,7 +53,7 @@ public sealed class AgentContextFactory(ISkillsConfigService skillsConfig, ITerm
     {
         if (skills.Count == 0) return "";
         var sb = new System.Text.StringBuilder();
-        sb.AppendLine("You have access to the following skills. Each has an id and a short description. To read a skill's main instructions: ReadSkill(skillId) for SKILL.md. To read other files inside a skill (scripts, references, etc.): ReadSkillFile(skillId, relativePath) with path relative to the skill folder (e.g. references/guide.md or script.py). To list contents of a skill folder: ListSkillFiles(skillId) or ListSkillFiles(skillId, \"references\"). Skills live in system and user directories; these tools look in both. To read or write files in the workspace (not inside skills), use ReadFile or WriteFile with a path relative to the workspace root. Allowed text extensions: .md, .cs, .py, .txt, .json, .yml, .yaml.");
+        sb.AppendLine("You have access to the following skills. Each has an id and a short description. To read a skill's main instructions: ReadSkill(skillId) for SKILL.md. To read other files inside a skill (scripts, references, etc.): ReadSkillFile(skillId, relativePath) with path relative to the skill folder (e.g. references/guide.md or script.py). To list contents of a skill folder: ListSkillFiles(skillId) or ListSkillFiles(skillId, \"references\"). Skills live in system and user directories; these tools look in both. To read or write files in the workspace (not inside skills), use ReadFile or WriteFile with a path relative to the workspace root. Allowed text extensions: " + AllowedFileExtensions.List + ".");
         sb.AppendLine();
         foreach (var s in skills)
             sb.AppendLine($"- {s.Id}: {s.Name} — {s.Description}");

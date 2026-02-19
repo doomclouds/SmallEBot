@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.AI;
 using SmallEBot.Application.Conversation;
+using SmallEBot.Core;
 using SmallEBot.Services.Terminal;
 using SmallEBot.Services.Workspace;
 
@@ -22,11 +23,6 @@ public sealed class BuiltInToolFactory(
     IVirtualFileSystem vfs,
     IConversationTaskContext conversationTaskContext) : IBuiltInToolFactory
 {
-    private static readonly HashSet<string> AllowedExtensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".md", ".cs", ".py", ".txt", ".json", ".yml", ".yaml"
-    };
-
     private static readonly JsonSerializerOptions TaskFileJsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -171,8 +167,8 @@ public sealed class BuiltInToolFactory(
         if (!fullPath.StartsWith(baseDir, StringComparison.OrdinalIgnoreCase))
             return "Error: path must be under the workspace.";
         var ext = Path.GetExtension(fullPath);
-        if (string.IsNullOrEmpty(ext) || !AllowedExtensions.Contains(ext))
-            return "Error: file type not allowed. Allowed: " + string.Join(", ", AllowedExtensions);
+        if (!AllowedFileExtensions.IsAllowed(ext))
+            return "Error: file type not allowed. Allowed: " + AllowedFileExtensions.List;
         if (!File.Exists(fullPath))
             return "Error: file not found.";
         try
@@ -194,8 +190,8 @@ public sealed class BuiltInToolFactory(
         if (!fullPath.StartsWith(baseDir, StringComparison.OrdinalIgnoreCase))
             return "Error: path must be under the workspace.";
         var ext = Path.GetExtension(fullPath);
-        if (string.IsNullOrEmpty(ext) || !AllowedExtensions.Contains(ext))
-            return "Error: file type not allowed. Allowed: " + string.Join(", ", AllowedExtensions);
+        if (!AllowedFileExtensions.IsAllowed(ext))
+            return "Error: file type not allowed. Allowed: " + AllowedFileExtensions.List;
         try
         {
             var dir = Path.GetDirectoryName(fullPath);
@@ -293,8 +289,8 @@ public sealed class BuiltInToolFactory(
         if (fullPath == null)
             return "Error: file not found in skill. Check skill id and relative path (e.g. references/foo.md or script.py).";
         var ext = Path.GetExtension(fullPath);
-        if (string.IsNullOrEmpty(ext) || !AllowedExtensions.Contains(ext))
-            return "Error: file type not allowed. Allowed: " + string.Join(", ", AllowedExtensions);
+        if (!AllowedFileExtensions.IsAllowed(ext))
+            return "Error: file type not allowed. Allowed: " + AllowedFileExtensions.List;
         try
         {
             var content = File.ReadAllText(fullPath);
