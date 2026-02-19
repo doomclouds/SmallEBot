@@ -78,6 +78,8 @@ ReadFile, WriteFile, ListFiles, and ExecuteCommand (working directory) are scope
 | `ReadFile(path)` | Read file in workspace (path relative to workspace root) |
 | `WriteFile(path, content)` | Write file in workspace |
 | `ListFiles(path?)` | List files/dirs in workspace |
+| `GrepFiles(pattern, mode?, path?, maxDepth?)` | Search file names by glob (default) or regex pattern; returns JSON with file paths relative to workspace root |
+| `GrepContent(pattern, ...)` | Search file content with regex; supports ignoreCase, contextLines, filesOnly, countOnly, invertMatch, filePattern, maxResults; returns JSON with matches |
 | `ReadSkill(skillName)` | Load SKILL.md from sys.skills or skills (not workspace) |
 | `ReadSkillFile(skillId, relativePath)` | Read a file inside a skill folder; returns JSON `{ "path", "content" }` |
 | `ListSkillFiles(skillId, path?)` | List files/dirs inside a skill folder |
