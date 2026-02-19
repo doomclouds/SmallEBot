@@ -31,7 +31,9 @@ public sealed class AgentConversationService(
         string userName,
         string userMessage,
         bool useThinking,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IReadOnlyList<string>? attachedPaths = null,
+        IReadOnlyList<string>? requestedSkillIds = null)
     {
         var count = await repository.GetMessageCountAsync(conversationId, cancellationToken);
         var newTitle = count == 0 ? await agentRunner.GenerateTitleAsync(userMessage, cancellationToken) : null;
@@ -45,14 +47,16 @@ public sealed class AgentConversationService(
         bool useThinking,
         IStreamSink sink,
         CancellationToken cancellationToken = default,
-        string? commandConfirmationContextId = null)
+        string? commandConfirmationContextId = null,
+        IReadOnlyList<string>? attachedPaths = null,
+        IReadOnlyList<string>? requestedSkillIds = null)
     {
         commandConfirmationContext.SetCurrentId(commandConfirmationContextId);
         conversationTaskContext.SetConversationId(conversationId);
         try
         {
             var updates = new List<StreamUpdate>();
-            await foreach (var update in agentRunner.RunStreamingAsync(conversationId, userMessage, useThinking, cancellationToken))
+            await foreach (var update in agentRunner.RunStreamingAsync(conversationId, userMessage, useThinking, cancellationToken, attachedPaths, requestedSkillIds))
             {
                 updates.Add(update);
                 await sink.OnNextAsync(update, cancellationToken);
