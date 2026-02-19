@@ -1,5 +1,6 @@
 @using SmallEBot.Application.Conversation
 @using SmallEBot.Core.Models
+@using SmallEBot.Services.Conversation
 @using SmallEBot.Services.Circuit
 @inject IAgentConversationService ConversationPipeline
 @inject ICurrentCircuitAccessor CircuitAccessor
@@ -164,18 +165,20 @@
             return;
         }
 
-        var turnId = await ConversationPipeline.CreateTurnAndUserMessageAsync(ConversationId!.Value, userName, msg, UseThinkingMode, _sendCts!.Token);
-        _ = RunStreamingLoopAsync(turnId, msg);
+        var attachedPaths = AttachmentInputParser.ParseAttachedPaths(msg);
+        var requestedSkillIds = AttachmentInputParser.ParseRequestedSkillIds(msg);
+        var turnId = await ConversationPipeline.CreateTurnAndUserMessageAsync(ConversationId!.Value, userName, msg, UseThinkingMode, _sendCts!.Token, attachedPaths, requestedSkillIds);
+        _ = RunStreamingLoopAsync(turnId, msg, attachedPaths, requestedSkillIds);
     }
 
-    private async Task RunStreamingLoopAsync(Guid turnId, string msg)
+    private async Task RunStreamingLoopAsync(Guid turnId, string msg, IReadOnlyList<string> attachedPaths, IReadOnlyList<string> requestedSkillIds)
     {
         var persisted = false;
         var channel = System.Threading.Channels.Channel.CreateUnbounded<StreamUpdate>();
         var sink = new ChannelStreamSink(channel.Writer);
         var contextId = CircuitAccessor.CurrentCircuit?.Id;
         var runTask = ConversationPipeline
-            .StreamResponseAndCompleteAsync(ConversationId!.Value, turnId, msg, UseThinkingMode, sink, _sendCts!.Token, contextId)
+            .StreamResponseAndCompleteAsync(ConversationId!.Value, turnId, msg, UseThinkingMode, sink, _sendCts!.Token, contextId, attachedPaths, requestedSkillIds)
             .ContinueWith(_ => channel.Writer.Complete());
 
         try
