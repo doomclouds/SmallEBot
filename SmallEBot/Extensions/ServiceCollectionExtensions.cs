@@ -52,6 +52,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAgentBuilder, AgentBuilder>();
         services.AddScoped<IAgentConversationService, AgentConversationService>();
         services.AddScoped<IAgentRunner, AgentRunnerAdapter>();
+        services.AddScoped<ITurnContextFragmentBuilder, TurnContextFragmentBuilder>();
         services.AddScoped<ConversationService>();
         services.AddScoped<AgentCacheService>();
         services.AddScoped<UserNameService>();
