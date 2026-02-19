@@ -238,4 +238,8 @@ dotnet ef migrations add <MigrationName> --project SmallEBot.Infrastructure --st
 
 ## License
 
-MIT License
+Apache License 2.0
+
+Copyright 2024-2025 PALINK
+
+Contact: 1006282023@qq.com
