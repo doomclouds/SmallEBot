@@ -24,7 +24,11 @@ public sealed class AgentContextFactory(ISkillsConfigService skillsConfig, ITerm
             [Time] When the user asks for the current time or date, use the GetCurrentTime tool.
             [MCP] Use any other available MCP tools when they help answer the user.
             [Shell] You can run shell commands with the ExecuteCommand tool (command and optional working directory relative to the workspace). For Python scripts: ExecuteCommand (e.g. python script.py) with the workspace as working directory.
-            [Workspace files] Use ReadFile, WriteFile, ListFiles for files in the workspace (paths relative to the workspace root). Use GrepFiles(pattern, mode?, path?, maxDepth?) to search file names by glob (default) or regex. Use GrepContent(pattern, ...) to search file content with regex (supports ignoreCase, contextLines, filesOnly, countOnly, invertMatch, filePattern).
+            [Workspace files] Paths are relative to the workspace root. Prefer the right tool for the goal:
+            - ListFiles(path?): Only when you need the direct contents of one directory (e.g. "what is in src/?"). Do not use ListFiles to find files by name across the tree.
+            - GrepFiles(pattern, mode?, path?, maxDepth?): Use when finding files by name or extension (e.g. all *.cs, files named *test*.py, glob or regex on file paths). Prefer GrepFiles over walking directories with ListFiles.
+            - GrepContent(pattern, ...): Use when searching inside file content (e.g. where is class X defined, find "TODO", references to a symbol). Supports ignoreCase, contextLines, filesOnly, countOnly, invertMatch, filePattern.
+            - ReadFile(path), WriteFile(path, content): Read or write a known file.
             [Skills] ReadSkill(skillId) reads a skill's SKILL.md; ReadSkillFile(skillId, relativePath) reads other files inside a skill; ListSkillFiles(skillId, path?) lists files and folders in a skill.
             [Task list] You have ListTasks, SetTaskList, CompleteTask, ClearTasks scoped to this conversation.
             - When starting a new task breakdown: call ClearTasks first, then SetTaskList with a JSON array of { "title", "description"? } objects; use ListTasks to see progress; call CompleteTask(taskId) when a task is done.
