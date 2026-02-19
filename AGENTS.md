@@ -92,6 +92,7 @@ ReadFile, WriteFile, ListFiles, and ExecuteCommand (working directory) are scope
 In the chat input, typing `@` opens a popover listing workspace files (allowed extensions from `AllowedFileExtensions`). Typing `/` opens a popover listing available skills. Selected items appear in the input as `@path` and `/skillId`. On send:
 - **@path** — The file contents are injected into the turn context (per-turn synthetic user message) so the model sees them before the real user message.
 - **/skillId** — A directive is injected instructing the model to call `ReadSkill(skillId)` (and related tools) to learn and apply the skill. Full skill content is not injected; the model fetches it via tools. Multiple @ and / per message are supported.
+- **Drag-and-drop** — Users can also drag files onto the chat; allowed files are uploaded to workspace temp/, deduplicated by hash (path↔hash index), and appear as @-style chips. Uploads show as loading chips; send is disabled until all complete; closing a chip cancels that upload.
 
 ### Configuration
 
