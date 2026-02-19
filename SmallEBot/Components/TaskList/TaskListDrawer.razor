@@ -1,4 +1,3 @@
-@using SmallEBot.Services.Conversation
 @implements IDisposable
 @inject ICurrentConversationService CurrentConversation
 @inject ITaskListService TaskListService
@@ -53,7 +52,7 @@
                        Color="Color.Error"
                        Size="Size.Small"
                        StartIcon="@Icons.Material.Filled.DeleteSweep"
-                       OnClick="ClearAllTasksAsync">
+                       OnClick="@ClearAllTasksAsync">
                 Delete all
             </MudButton>
         </div>

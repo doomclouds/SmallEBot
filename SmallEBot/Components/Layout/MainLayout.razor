@@ -1,7 +1,6 @@
 @inherits LayoutComponentBase
 @using SmallEBot.Components.Mcp
 @using SmallEBot.Components.Terminal
-@using SmallEBot.Components.Workspace
 @using SmallEBot.Components.TaskList
 @implements IDisposable
 @inject UserNameService UserNameSvc
@@ -81,13 +80,13 @@
             @if (_workspaceDrawerOpen)
             {
                 <div class="smallebot-workspace-drawer-panel">
-                    <WorkspaceDrawer Open="_workspaceDrawerOpen" OnClose="CloseWorkspaceDrawer" />
+                    <WorkspaceDrawer Open="_workspaceDrawerOpen" OnClose="@CloseWorkspaceDrawer" />
                 </div>
             }
             @if (_taskListDrawerOpen)
             {
                 <div class="smallebot-workspace-drawer-panel">
-                    <TaskListDrawer Open="_taskListDrawerOpen" OnClose="CloseTaskListDrawer" />
+                    <TaskListDrawer Open="_taskListDrawerOpen" OnClose="@CloseTaskListDrawer" />
                 </div>
             }
         </div>

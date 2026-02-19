@@ -148,7 +148,7 @@ public sealed class BuiltInToolFactory(
             return "Error: pattern is required.";
 
         var baseDir = Path.GetFullPath(vfs.GetRootPath());
-        var searchDir = string.IsNullOrWhiteSpace(path) || path!.Trim() == "."
+        var searchDir = string.IsNullOrWhiteSpace(path) || path.Trim() == "."
             ? baseDir
             : Path.GetFullPath(Path.Combine(baseDir, path.Trim().Replace('\\', Path.DirectorySeparatorChar)));
 
@@ -158,11 +158,11 @@ public sealed class BuiltInToolFactory(
             return "Error: directory not found.";
 
         var effectiveDepth = maxDepth <= 0 ? int.MaxValue : maxDepth;
-        var files = new List<string>();
         var matchMode = (mode ?? "glob").ToLowerInvariant();
 
         try
         {
+            List<string> files;
             if (matchMode == "glob")
             {
                 var matcher = new Matcher(StringComparison.OrdinalIgnoreCase);
@@ -196,7 +196,7 @@ public sealed class BuiltInToolFactory(
                     var relativePath = Path.GetRelativePath(searchDir, f);
                     return regex.IsMatch(relativePath);
                 })
-                .Select(f => string.IsNullOrEmpty(path) || path!.Trim() == "."
+                .Select(f => string.IsNullOrEmpty(path) || path.Trim() == "."
                     ? Path.GetRelativePath(baseDir, f)
                     : Path.GetRelativePath(searchDir, f))
                 .ToList();
@@ -256,7 +256,7 @@ public sealed class BuiltInToolFactory(
         }
 
         var baseDir = Path.GetFullPath(vfs.GetRootPath());
-        var searchDir = string.IsNullOrWhiteSpace(path) || path!.Trim() == "."
+        var searchDir = string.IsNullOrWhiteSpace(path) || path.Trim() == "."
             ? baseDir
             : Path.GetFullPath(Path.Combine(baseDir, path.Trim().Replace('\\', Path.DirectorySeparatorChar)));
 
@@ -567,7 +567,7 @@ public sealed class BuiltInToolFactory(
         var id = skillId.Trim();
         if (id.IndexOfAny(['/', '\\']) >= 0 || id.Contains("..", StringComparison.Ordinal))
             return "Error: skill id must not contain path separators or '..'.";
-        var rel = string.IsNullOrWhiteSpace(path) || path!.Trim() == "."
+        var rel = string.IsNullOrWhiteSpace(path) || path.Trim() == "."
             ? "."
             : path.Trim().Replace('\\', Path.DirectorySeparatorChar);
         if (rel.Contains("..", StringComparison.Ordinal))

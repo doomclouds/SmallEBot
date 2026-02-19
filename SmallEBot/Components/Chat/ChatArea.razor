@@ -3,9 +3,6 @@
 @using SmallEBot.Core
 @using SmallEBot.Core.Models
 @using SmallEBot.Models
-@using SmallEBot.Services.Conversation
-@using SmallEBot.Services.Workspace
-@using SmallEBot.Services.Skills
 @using SmallEBot.Services.Circuit
 @inject IAgentConversationService ConversationPipeline
 @inject IWorkspaceUploadService UploadService
@@ -113,7 +110,7 @@
                           Filter="@_popoverFilter"
                           FilePaths="@_filePaths"
                           Skills="@_skills"
-                          OnSelect="OnAttachmentSelected" />
+                          OnSelect="@OnAttachmentSelected" />
         @if (_attachmentItems.Count > 0 || _requestedSkillIds.Count > 0)
         {
             <div class="d-flex flex-wrap align-items-center gap-1 mb-2">
@@ -179,7 +176,7 @@
     private string _popoverKind = "file";
     private string _popoverFilter = "";
     private IReadOnlyList<string> _filePaths = [];
-    private IReadOnlyList<SmallEBot.Models.SkillMetadata> _skills = [];
+    private IReadOnlyList<SkillMetadata> _skills = [];
     private bool _moveCursorToEnd;
     private readonly List<AttachmentItem> _attachmentItems = [];
     private readonly List<string> _requestedSkillIds = [];
@@ -231,7 +228,7 @@
     {
         if (_popoverKind == "file")
         {
-            if (!_attachmentItems.OfType<ResolvedPathAttachment>().Any(x => x.Path == value))
+            if (_attachmentItems.OfType<ResolvedPathAttachment>().All(x => x.Path != value))
                 _attachmentItems.Add(new ResolvedPathAttachment(value));
             var lastAt = _input.LastIndexOf('@');
             _input = lastAt >= 0 ? _input[..lastAt].TrimEnd() : _input;
@@ -506,7 +503,7 @@
             return null;
         }
         var uploadId = await UploadService.StartUploadAsync(fileName, contentLength);
-        _attachmentItems.Add(new PendingUploadAttachment(uploadId, fileName, 0));
+        _attachmentItems.Add(new PendingUploadAttachment(uploadId, fileName));
         await InvokeAsync(StateHasChanged);
         return uploadId;
     }
@@ -540,7 +537,7 @@
         {
             if (result.ReplacedOldPath != null)
                 _attachmentItems.RemoveAll(x => x is ResolvedPathAttachment r && r.Path == result.ReplacedOldPath);
-            if (!_attachmentItems.OfType<ResolvedPathAttachment>().Any(r => r.Path == result.Path))
+            if (_attachmentItems.OfType<ResolvedPathAttachment>().All(r => r.Path != result.Path))
                 _attachmentItems.Add(new ResolvedPathAttachment(result.Path));
         }
         else

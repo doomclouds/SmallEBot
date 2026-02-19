@@ -1,4 +1,5 @@
 using SmallEBot.Application.Streaming;
+using SmallEBot.Core.Models;
 using ConversationEntity = SmallEBot.Core.Entities.Conversation;
 
 namespace SmallEBot.Application.Conversation;
@@ -38,7 +39,7 @@ public interface IAgentConversationService
     Task CompleteTurnWithAssistantAsync(
         Guid conversationId,
         Guid turnId,
-        IReadOnlyList<Core.Models.AssistantSegment> segments,
+        IReadOnlyList<AssistantSegment> segments,
         CancellationToken cancellationToken = default);
 
     /// <summary>Persist error as assistant reply for the turn.</summary>

@@ -7,7 +7,7 @@ namespace SmallEBot.Core;
 public static class ConversationBubbleHelper
 {
     /// <summary>Returns conversation timeline (messages, tool calls, think blocks) sorted by CreatedAt.</summary>
-    public static List<TimelineItem> GetTimeline(IEnumerable<ChatMessage> messages, IEnumerable<ToolCall> toolCalls, IEnumerable<ThinkBlock> thinkBlocks)
+    private static List<TimelineItem> GetTimeline(IEnumerable<ChatMessage> messages, IEnumerable<ToolCall> toolCalls, IEnumerable<ThinkBlock> thinkBlocks)
     {
         var list = messages.Select(m => new TimelineItem(m, null, null))
             .Concat(toolCalls.Select(t => new TimelineItem(null, t, null)))

@@ -1,4 +1,3 @@
-using System.Linq;
 using SmallEBot.Core;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -6,20 +5,14 @@ using System.Text.Json;
 namespace SmallEBot.Services.Workspace;
 
 /// <summary>Temp folder and hash index helpers for chunked upload staging. Implements IWorkspaceUploadService.</summary>
-public sealed class WorkspaceUploadService : IWorkspaceUploadService
+public sealed class WorkspaceUploadService(IVirtualFileSystem vfs) : IWorkspaceUploadService
 {
     private const string TempRelativeFolder = "temp";
     private const string HashIndexFileName = ".hash-index.json";
-    private readonly IVirtualFileSystem _vfs;
-    private readonly object _indexLock = new();
+    private readonly Lock _indexLock = new();
     private readonly Dictionary<string, (string StagingPath, string FileName, long ContentLength, FileStream? Stream)> _uploads = [];
-    private readonly object _uploadsLock = new();
+    private readonly Lock _uploadsLock = new();
     private bool _cleanedOrphans;
-
-    public WorkspaceUploadService(IVirtualFileSystem vfs)
-    {
-        _vfs = vfs;
-    }
 
     /// <inheritdoc />
     public Task<string> StartUploadAsync(string fileName, long contentLength, CancellationToken cancellationToken = default)
@@ -76,7 +69,7 @@ public sealed class WorkspaceUploadService : IWorkspaceUploadService
 
         var sanitizedFileName = Path.GetFileName(record.FileName);
         var targetRelativePath = "temp/" + sanitizedFileName;
-        var rootPath = _vfs.GetRootPath();
+        var rootPath = vfs.GetRootPath();
         var targetFullPath = ResolveFullPath(rootPath, targetRelativePath);
 
         string hash;
@@ -185,7 +178,7 @@ public sealed class WorkspaceUploadService : IWorkspaceUploadService
     /// <summary>Returns the absolute path to the temp folder under workspace root. Ensures the directory exists.</summary>
     public string GetTempDirectoryPath()
     {
-        var path = Path.Combine(_vfs.GetRootPath(), TempRelativeFolder);
+        var path = Path.Combine(vfs.GetRootPath(), TempRelativeFolder);
         Directory.CreateDirectory(path);
         return path;
     }

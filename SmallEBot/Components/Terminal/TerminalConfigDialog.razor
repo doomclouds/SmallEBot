@@ -35,7 +35,7 @@
                 <MudButton Variant="Variant.Filled"
                            Color="Color.Primary"
                            StartIcon="@Icons.Material.Filled.Add"
-                           OnClick="AddEntry"
+                           OnClick="@AddEntry"
                            Disabled="@string.IsNullOrWhiteSpace(_newEntry)">
                     Add
                 </MudButton>
@@ -89,7 +89,7 @@
         }
     </DialogContent>
     <DialogActions>
-        <MudButton Variant="Variant.Text" OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Text" OnClick="@Cancel">Cancel</MudButton>
         <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Save">Save</MudButton>
     </DialogActions>
 </MudDialog>
@@ -129,7 +129,7 @@
 
     private void AddEntry()
     {
-        var trimmed = _newEntry?.Trim() ?? "";
+        var trimmed = _newEntry.Trim();
         if (string.IsNullOrEmpty(trimmed))
             return;
         if (_entries.Contains(trimmed, StringComparer.OrdinalIgnoreCase))
@@ -157,7 +157,7 @@
         var parameters = new DialogParameters { [nameof(DeleteBlacklistEntryConfirmDialog.Entry)] = entry };
         var dialog = await DialogService.ShowAsync<DeleteBlacklistEntryConfirmDialog>("Remove blacklist entry", parameters);
         var result = await dialog.Result;
-        if (result?.Canceled == false && result.Data is true)
+        if (result is { Canceled: false, Data: true })
             _entries.Remove(entry);
     }
 

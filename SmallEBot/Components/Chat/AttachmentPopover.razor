@@ -1,5 +1,5 @@
+@using SmallEBot.Models
 @* Popover for @ (workspace files) or / (skills) selection. Shown above the input to avoid covering text. *@
-@using Microsoft.AspNetCore.Components.Web
 @inject IJSRuntime JS
 <MudMenu Open="@Open" OpenChanged="@OpenChanged"
          AnchorOrigin="Origin.TopCenter"
@@ -12,7 +12,6 @@
     <ChildContent>
         <MudPaper Outlined="true" Class="pa-1" Style="min-width: 220px;">
             <div id="smallebot-attachment-popover-scroll"
-                 @ref="_scrollRef"
                  tabindex="0"
                  role="listbox"
                  aria-label="@(Kind == "file" ? "Workspace files" : "Skills")"
@@ -27,9 +26,8 @@
                     else
                     {
                         <MudList T="string" Dense="true" SelectedValue="@GetSelectedValue()" Style="overflow: visible;">
-                            @for (var i = 0; i < FilteredPaths.Count; i++)
+                            @foreach (var path in FilteredPaths)
                             {
-                                var path = FilteredPaths[i];
                                 <MudListItem T="string" Value="@path" OnClick="@(() => SelectItem(path))">
                                     <MudIcon Icon="@Icons.Material.Filled.InsertDriveFile" Size="Size.Small" Class="me-2" />
                                     @path
@@ -47,9 +45,8 @@
                     else
                     {
                         <MudList T="string" Dense="true" SelectedValue="@GetSelectedValue()" Style="overflow: visible;">
-                            @for (var i = 0; i < FilteredSkills.Count; i++)
+                            @foreach (var skill in FilteredSkills)
                             {
-                                var skill = FilteredSkills[i];
                                 <MudListItem T="string" Value="@skill.Id" OnClick="@(() => SelectItem(skill.Id))">
                                     <MudText Typo="Typo.body2">@skill.Name</MudText>
                                     <MudText Typo="Typo.caption" Class="text-secondary ms-1">@skill.Id</MudText>
@@ -69,11 +66,10 @@
     [Parameter] public string Kind { get; set; } = "file";
     [Parameter] public string Filter { get; set; } = "";
     [Parameter] public IReadOnlyList<string> FilePaths { get; set; } = [];
-    [Parameter] public IReadOnlyList<SmallEBot.Models.SkillMetadata> Skills { get; set; } = [];
+    [Parameter] public IReadOnlyList<SkillMetadata> Skills { get; set; } = [];
     [Parameter] public EventCallback<string> OnSelect { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
 
-    private ElementReference _scrollRef;
     private int _selectedIndex;
     private bool _openPrev;
 
@@ -136,7 +132,7 @@
         ? FilePaths
         : FilePaths.Where(p => p.Contains(Filter, StringComparison.OrdinalIgnoreCase)).ToList();
 
-    private IReadOnlyList<SmallEBot.Models.SkillMetadata> FilteredSkills => string.IsNullOrEmpty(Filter)
+    private IReadOnlyList<SkillMetadata> FilteredSkills => string.IsNullOrEmpty(Filter)
         ? Skills
         : Skills.Where(s => s.Id.Contains(Filter, StringComparison.OrdinalIgnoreCase) || s.Name.Contains(Filter, StringComparison.OrdinalIgnoreCase)).ToList();
 

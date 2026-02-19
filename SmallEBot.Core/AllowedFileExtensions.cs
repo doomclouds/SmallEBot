@@ -4,7 +4,7 @@ namespace SmallEBot.Core;
 public static class AllowedFileExtensions
 {
     /// <summary>Set of allowed extensions (e.g. ".md", ".cs"), case-insensitive.</summary>
-    public static IReadOnlySet<string> Set { get; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    private static IReadOnlySet<string> Set { get; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
         ".md", ".cs", ".py", ".txt", ".json", ".yml", ".yaml"
     };

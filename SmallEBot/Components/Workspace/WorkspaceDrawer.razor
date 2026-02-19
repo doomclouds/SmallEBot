@@ -2,7 +2,6 @@
 @implements IDisposable
 @inject IWorkspaceService WorkspaceService
 @inject IDialogService DialogService
-@inject ISnackbar Snackbar
 
 <div class="workspace-drawer">
     <div class="workspace-drawer-header">
@@ -23,7 +22,7 @@
             <div class="workspace-tree-root">
                 @foreach (var node in _tree)
                 {
-                    <WorkspaceTreeItem Node="@node" OnFileSelected="@(path => SelectFile(path))" OnDeleteRequested="ShowDeleteConfirmAsync" />
+                    <WorkspaceTreeItem Node="@node" OnFileSelected="@(path => SelectFile(path))" OnDeleteRequested="@ShowDeleteConfirmAsync" />
                 }
             </div>
         }
@@ -122,9 +121,8 @@
                         await LoadTreeAsync();
                         if (!string.IsNullOrEmpty(_selectedPath))
                         {
-                            var newContent = await WorkspaceService.ReadFileContentAsync(_selectedPath);
-                            if (newContent != _viewerContent)
-                                _viewerContent = newContent;
+                            var newContent = await WorkspaceService.ReadFileContentAsync(_selectedPath, token);
+                            _viewerContent = newContent;
                         }
                         StateHasChanged();
                     });

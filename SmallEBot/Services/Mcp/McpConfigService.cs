@@ -3,13 +3,6 @@ using SmallEBot.Models;
 
 namespace SmallEBot.Services.Mcp;
 
-/// <summary>User MCP config file: servers plus disabled system MCP IDs (single file, same path as .mcp.json).</summary>
-internal sealed class UserMcpFile
-{
-    public List<string> DisabledSystemIds { get; set; } = [];
-    public Dictionary<string, McpServerEntry> Servers { get; set; } = new();
-}
-
 public record McpEntryWithSource(string Id, McpServerEntry Entry, bool IsSystem, bool IsEnabled);
 
 public interface IMcpConfigService
@@ -139,5 +132,12 @@ public class McpConfigService(ILogger<McpConfigService> log) : IMcpConfigService
             log.LogWarning(ex, "Failed to load MCP config from {Path}", path);
             return new Dictionary<string, McpServerEntry>();
         }
+    }
+    
+    /// <summary>User MCP config file: servers plus disabled system MCP IDs (single file, same path as .mcp.json).</summary>
+    private sealed class UserMcpFile
+    {
+        public List<string> DisabledSystemIds { get; set; } = [];
+        public Dictionary<string, McpServerEntry> Servers { get; set; } = new();
     }
 }
