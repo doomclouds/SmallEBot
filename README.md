@@ -240,6 +240,6 @@ dotnet ef migrations add <MigrationName> --project SmallEBot.Infrastructure --st
 
 Apache License 2.0
 
-Copyright 2024-2025 PALINK
+Copyright 2025-2026 PALINK
 
 联系邮箱：1006282023@qq.com
