@@ -13,8 +13,9 @@
 @inject IJSRuntime JS
 @inject ISnackbar Snackbar
 @inject ILogger<ChatArea> Log
+@implements IDisposable
 
-<MudPaper Class="pa-4 smallebot-chat-paper" Elevation="0">
+<MudPaper Class="pa-4 pb-1 smallebot-chat-paper" Elevation="0">
     <div @ref="_chatScrollRef" class="smallebot-chat-scroll">
     @if (Bubbles.Any())
     {
@@ -101,7 +102,32 @@
     </div>
 
     <div class="position-relative mt-2">
-        <ChatInputBar Value="_input"
+        @* Chips for @ (files) and / (skills); different colors, closable. Input does not show path or skill text. *@
+        <AttachmentPopover @ref="_attachmentPopoverRef"
+                          @bind-Open="_popoverOpen"
+                          Kind="@_popoverKind"
+                          Filter="@_popoverFilter"
+                          FilePaths="@_filePaths"
+                          Skills="@_skills"
+                          OnSelect="OnAttachmentSelected" />
+        @if (_attachedPaths.Count > 0 || _requestedSkillIds.Count > 0)
+        {
+            <div class="d-flex flex-wrap align-items-center gap-1 mb-2">
+                @foreach (var path in _attachedPaths)
+                {
+                    <MudChip T="object" Color="Color.Primary" Variant="Variant.Filled" OnClose="@(() => RemoveAttachedPath(path))" CloseIcon="@Icons.Material.Filled.Cancel">
+                        @path
+                    </MudChip>
+                }
+                @foreach (var skillId in _requestedSkillIds)
+                {
+                    <MudChip T="object" Color="Color.Secondary" Variant="Variant.Filled" OnClose="@(() => RemoveRequestedSkill(skillId))" CloseIcon="@Icons.Material.Filled.Cancel">
+                        /@skillId
+                    </MudChip>
+                }
+            </div>
+        }
+        <ChatInputBar Value="@_input"
                       ValueChanged="HandleInputChanged"
                       Streaming="_streaming"
                       ContextPercentText="@_contextPercentText"
@@ -110,11 +136,6 @@
                       OnStop="StopSend"
                       Disabled="@string.IsNullOrWhiteSpace(_input)"
                       Class="" />
-        <AttachmentPopover @bind-Open="_popoverOpen"
-                          Kind="@_popoverKind"
-                          FilePaths="@_filePaths"
-                          Skills="@_skills"
-                          OnSelect="OnAttachmentSelected" />
     </div>
 </MudPaper>
 
@@ -142,23 +163,42 @@
     private string? _contextUsageTooltip;
     private bool _popoverOpen;
     private string _popoverKind = "file";
+    private string _popoverFilter = "";
     private IReadOnlyList<string> _filePaths = [];
     private IReadOnlyList<SmallEBot.Models.SkillMetadata> _skills = [];
+    private bool _moveCursorToEnd;
+    private readonly List<string> _attachedPaths = [];
+    private readonly List<string> _requestedSkillIds = [];
+    private AttachmentPopover? _attachmentPopoverRef;
+    private bool _suggestionKeysAttached;
+    private DotNetObjectReference<ChatArea>? _suggestionKeysDotNetRef;
+    private bool _justSelectedAttachment;
 
     private async Task HandleInputChanged(string v)
     {
-        _input = v;
-        if (v.EndsWith('@'))
+        if (_justSelectedAttachment)
         {
-            _popoverKind = "file";
-            _popoverOpen = true;
-            _filePaths = await WorkspaceService.GetAllowedFilePathsAsync();
+            _justSelectedAttachment = false;
+            return;
         }
-        else if (v.EndsWith('/'))
+        _input = v;
+        var lastAt = v.LastIndexOf('@');
+        var lastSlash = v.LastIndexOf('/');
+        if (lastSlash > lastAt)
         {
             _popoverKind = "skill";
             _popoverOpen = true;
-            _skills = await SkillsConfigService.GetMetadataForAgentAsync();
+            _popoverFilter = lastSlash + 1 < v.Length ? v[(lastSlash + 1)..] : "";
+            if (_skills.Count == 0)
+                _skills = await SkillsConfigService.GetMetadataForAgentAsync();
+        }
+        else if (lastAt >= 0)
+        {
+            _popoverKind = "file";
+            _popoverOpen = true;
+            _popoverFilter = lastAt + 1 < v.Length ? v[(lastAt + 1)..] : "";
+            if (_filePaths.Count == 0)
+                _filePaths = await WorkspaceService.GetAllowedFilePathsAsync();
         }
         else
         {
@@ -175,11 +215,37 @@
     private async Task OnAttachmentSelected(string value)
     {
         if (_popoverKind == "file")
-            _input = _input.TrimEnd('@') + "@" + value;
+        {
+            if (!_attachedPaths.Contains(value))
+                _attachedPaths.Add(value);
+            var lastAt = _input.LastIndexOf('@');
+            _input = lastAt >= 0 ? _input[..lastAt].TrimEnd() : _input;
+        }
         else
-            _input = _input.TrimEnd('/') + "/" + value;
+        {
+            if (!_requestedSkillIds.Any(s => string.Equals(s, value, StringComparison.OrdinalIgnoreCase)))
+                _requestedSkillIds.Add(value);
+            var lastSlash = _input.LastIndexOf('/');
+            _input = lastSlash >= 0 ? _input[..lastSlash].TrimEnd() : _input;
+        }
+        if (_input.Length > 0 && !_input.EndsWith(' '))
+            _input += " ";
+        _justSelectedAttachment = true;
         ClosePopover();
+        _moveCursorToEnd = true;
         await InvokeAsync(StateHasChanged);
+    }
+
+    private void RemoveAttachedPath(string path)
+    {
+        _attachedPaths.Remove(path);
+        StateHasChanged();
+    }
+
+    private void RemoveRequestedSkill(string skillId)
+    {
+        _requestedSkillIds.Remove(skillId);
+        StateHasChanged();
     }
 
     private void StopSend()
@@ -218,8 +284,10 @@
             return;
         }
 
-        var attachedPaths = AttachmentInputParser.ParseAttachedPaths(msg);
-        var requestedSkillIds = AttachmentInputParser.ParseRequestedSkillIds(msg);
+        var attachedPaths = _attachedPaths.ToList();
+        var requestedSkillIds = _requestedSkillIds.ToList();
+        _attachedPaths.Clear();
+        _requestedSkillIds.Clear();
         var turnId = await ConversationPipeline.CreateTurnAndUserMessageAsync(ConversationId!.Value, userName, msg, UseThinkingMode, _sendCts!.Token, attachedPaths, requestedSkillIds);
         _ = RunStreamingLoopAsync(turnId, msg, attachedPaths, requestedSkillIds);
     }
@@ -364,6 +432,44 @@
             }
             catch { /* ignore if JS not loaded or disconnected */ }
         }
+        if (_moveCursorToEnd)
+        {
+            _moveCursorToEnd = false;
+            try
+            {
+                await JS.InvokeVoidAsync("SmallEBot.setChatInputValueAndCursorToEnd", "smallebot-chat-input-wrap", _input);
+            }
+            catch { /* ignore if JS not loaded or disconnected */ }
+        }
+        if (_popoverOpen && !_suggestionKeysAttached)
+        {
+            _suggestionKeysAttached = true;
+            _suggestionKeysDotNetRef = DotNetObjectReference.Create(this);
+            try
+            {
+                await JS.InvokeVoidAsync("SmallEBot.attachChatInputSuggestionKeys", "smallebot-chat-input-wrap", _suggestionKeysDotNetRef);
+            }
+            catch
+            {
+                _suggestionKeysAttached = false;
+                _suggestionKeysDotNetRef?.Dispose();
+                _suggestionKeysDotNetRef = null;
+            }
+        }
+        else if (!_popoverOpen && _suggestionKeysAttached)
+        {
+            _suggestionKeysAttached = false;
+            try { await JS.InvokeVoidAsync("SmallEBot.detachChatInputSuggestionKeys", "smallebot-chat-input-wrap"); } catch { /* ignore */ }
+            _suggestionKeysDotNetRef?.Dispose();
+            _suggestionKeysDotNetRef = null;
+        }
+    }
+
+    [JSInvokable]
+    public async Task OnSuggestionKeyDown(string key)
+    {
+        if (_attachmentPopoverRef != null)
+            await _attachmentPopoverRef.HandleKeyFromInputAsync(key);
     }
 
     /// <summary>True if the last user message in Bubbles has the same content as _pendingUserMessage (avoids duplicate bubble when refresh and pending overlap).</summary>
@@ -381,4 +487,6 @@
         var item = items[0];
         return item.Message is { Role: "assistant" } msg && msg.Content.StartsWith("Error: ", StringComparison.Ordinal);
     }
+
+    public void Dispose() => _suggestionKeysDotNetRef?.Dispose();
 }

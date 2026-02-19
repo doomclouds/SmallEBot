@@ -27,6 +27,29 @@ window.SmallEBot.setTheme = function (id) {
     } catch (e) {}
 };
 
+// Set chat input cursor to end (e.g. after inserting @path or /skillId)
+window.SmallEBot.setChatInputCursorToEnd = function (wrapperId) {
+    var wrap = document.getElementById(wrapperId);
+    if (!wrap) return;
+    var input = wrap.querySelector('textarea, input');
+    if (!input) return;
+    var len = input.value.length;
+    input.setSelectionRange(len, len);
+    input.focus();
+};
+
+// Set chat input value and cursor to end (after @ or / completion so DOM is in sync)
+window.SmallEBot.setChatInputValueAndCursorToEnd = function (wrapperId, value) {
+    var wrap = document.getElementById(wrapperId);
+    if (!wrap) return;
+    var input = wrap.querySelector('textarea, input');
+    if (!input) return;
+    if (value !== undefined && value !== null) input.value = value;
+    var len = input.value.length;
+    input.setSelectionRange(len, len);
+    input.focus();
+};
+
 // Chat input: Enter sends, Shift+Enter newline (preventDefault only for Enter)
 window.SmallEBot.attachChatInputSend = function (wrapperId, dotNetRef) {
     var wrap = document.getElementById(wrapperId);
@@ -39,6 +62,37 @@ window.SmallEBot.attachChatInputSend = function (wrapperId, dotNetRef) {
             dotNetRef.invokeMethodAsync('InvokeSend');
         }
     });
+};
+
+// Suggestion popover: when open, intercept ArrowUp/ArrowDown/Enter/Escape on input so user can navigate and select without leaving input
+var _suggestionKeyHandler = null;
+var _suggestionKeyWrapperId = null;
+window.SmallEBot.attachChatInputSuggestionKeys = function (wrapperId, dotNetRef) {
+    var wrap = document.getElementById(wrapperId);
+    if (!wrap) return;
+    var input = wrap.querySelector('textarea, input');
+    if (!input) return;
+    window.SmallEBot.detachChatInputSuggestionKeys(wrapperId);
+    var keys = ['ArrowDown', 'ArrowUp', 'Enter', 'Escape'];
+    _suggestionKeyHandler = function (e) {
+        if (keys.indexOf(e.key) !== -1) {
+            e.preventDefault();
+            e.stopPropagation();
+            dotNetRef.invokeMethodAsync('OnSuggestionKeyDown', e.key);
+        }
+    };
+    _suggestionKeyWrapperId = wrapperId;
+    input.addEventListener('keydown', _suggestionKeyHandler, true);
+};
+window.SmallEBot.detachChatInputSuggestionKeys = function (wrapperId) {
+    if (!_suggestionKeyHandler || _suggestionKeyWrapperId !== wrapperId) return;
+    var wrap = document.getElementById(wrapperId);
+    if (wrap) {
+        var input = wrap.querySelector('textarea, input');
+        if (input) input.removeEventListener('keydown', _suggestionKeyHandler, true);
+    }
+    _suggestionKeyHandler = null;
+    _suggestionKeyWrapperId = null;
 };
 
 // Expose for Blazor JSInvoke (cannot call SmallEBot.getTheme directly)

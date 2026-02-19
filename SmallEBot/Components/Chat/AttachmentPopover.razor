@@ -1,52 +1,62 @@
-@* Popover for @ (workspace files) or / (skills) selection. Anchored below the input. *@
+@* Popover for @ (workspace files) or / (skills) selection. Shown above the input to avoid covering text. *@
+@using Microsoft.AspNetCore.Components.Web
 <MudMenu Open="@Open" OpenChanged="@OpenChanged"
-         AnchorOrigin="Origin.BottomCenter"
-         TransformOrigin="Origin.TopCenter"
+         AnchorOrigin="Origin.TopCenter"
+         TransformOrigin="Origin.BottomCenter"
          Dense="true"
-         Style="margin-top: 4px;">
+         Style="margin-bottom: 4px;">
     <ActivatorContent>
-        <div style="position: absolute; bottom: 0; left: 0; right: 0; height: 1px;"></div>
+        <div style="position: absolute; top: 0; left: 0; right: 0; height: 1px;"></div>
     </ActivatorContent>
     <ChildContent>
-        <MudPaper Outlined="true" Class="pa-1" Style="max-height: 240px; overflow-y: auto; min-width: 220px;">
-            @if (Kind == "file")
-            {
-                @if (FilePaths.Count == 0)
+        <MudPaper Outlined="true" Class="pa-1" Style="min-width: 220px;">
+            <div @ref="_scrollRef"
+                 tabindex="0"
+                 role="listbox"
+                 aria-label="@(Kind == "file" ? "Workspace files" : "Skills")"
+                 style="max-height: 240px; overflow-y: auto; outline: none;"
+                 @onkeydown="HandleKeyDown">
+                @if (Kind == "file")
                 {
-                    <MudText Typo="Typo.body2" Class="pa-3 text-secondary">No files with allowed extensions.</MudText>
+                    @if (FilteredPaths.Count == 0)
+                    {
+                        <MudText Typo="Typo.body2" Class="pa-3 text-secondary">@(FilePaths.Count == 0 ? "No files with allowed extensions." : "No matching files.")</MudText>
+                    }
+                    else
+                    {
+                        <MudList T="string" Dense="true" SelectedValue="@GetSelectedValue()" Style="overflow: visible;">
+                            @for (var i = 0; i < FilteredPaths.Count; i++)
+                            {
+                                var path = FilteredPaths[i];
+                                <MudListItem T="string" Value="@path" OnClick="@(() => SelectItem(path))">
+                                    <MudIcon Icon="@Icons.Material.Filled.InsertDriveFile" Size="Size.Small" Class="me-2" />
+                                    @path
+                                </MudListItem>
+                            }
+                        </MudList>
+                    }
                 }
                 else
                 {
-                    <MudList T="string" Dense="true">
-                        @foreach (var path in FilePaths)
-                        {
-                            <MudListItem T="string" Value="@path" OnClick="@(() => OnSelect.InvokeAsync(path))">
-                                <MudIcon Icon="@Icons.Material.Filled.InsertDriveFile" Size="Size.Small" Class="me-2" />
-                                @path
-                            </MudListItem>
-                        }
-                    </MudList>
+                    @if (FilteredSkills.Count == 0)
+                    {
+                        <MudText Typo="Typo.body2" Class="pa-3 text-secondary">@(Skills.Count == 0 ? "No skills available." : "No matching skills.")</MudText>
+                    }
+                    else
+                    {
+                        <MudList T="string" Dense="true" SelectedValue="@GetSelectedValue()" Style="overflow: visible;">
+                            @for (var i = 0; i < FilteredSkills.Count; i++)
+                            {
+                                var skill = FilteredSkills[i];
+                                <MudListItem T="string" Value="@skill.Id" OnClick="@(() => SelectItem(skill.Id))">
+                                    <MudText Typo="Typo.body2">@skill.Name</MudText>
+                                    <MudText Typo="Typo.caption" Class="text-secondary ms-1">@skill.Id</MudText>
+                                </MudListItem>
+                            }
+                        </MudList>
+                    }
                 }
-            }
-            else
-            {
-                @if (Skills.Count == 0)
-                {
-                    <MudText Typo="Typo.body2" Class="pa-3 text-secondary">No skills available.</MudText>
-                }
-                else
-                {
-                    <MudList T="string" Dense="true">
-                        @foreach (var skill in Skills)
-                        {
-                            <MudListItem T="string" Value="@skill.Id" OnClick="@(() => OnSelect.InvokeAsync(skill.Id))">
-                                <MudText Typo="Typo.body2">@skill.Name</MudText>
-                                <MudText Typo="Typo.caption" Class="text-secondary ms-1">@skill.Id</MudText>
-                            </MudListItem>
-                        }
-                    </MudList>
-                }
-            }
+            </div>
         </MudPaper>
     </ChildContent>
 </MudMenu>
@@ -55,8 +65,105 @@
     [Parameter] public bool Open { get; set; }
     [Parameter] public EventCallback<bool> OpenChanged { get; set; }
     [Parameter] public string Kind { get; set; } = "file";
+    [Parameter] public string Filter { get; set; } = "";
     [Parameter] public IReadOnlyList<string> FilePaths { get; set; } = [];
     [Parameter] public IReadOnlyList<SmallEBot.Models.SkillMetadata> Skills { get; set; } = [];
     [Parameter] public EventCallback<string> OnSelect { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
+
+    private ElementReference _scrollRef;
+    private int _selectedIndex;
+    private bool _openPrev;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Open && !_openPrev)
+        {
+            _selectedIndex = 0;
+        }
+        if (Open && ItemCount > 0)
+        {
+            _selectedIndex = Math.Clamp(_selectedIndex, 0, ItemCount - 1);
+        }
+        _openPrev = Open;
+        await base.OnParametersSetAsync();
+    }
+
+    /// <summary>Handle key from input (focus stays in input so user can keep typing to filter). Called by parent when popover is open.</summary>
+    public async Task HandleKeyFromInputAsync(string key)
+    {
+        if (ItemCount == 0) return;
+        if (key == "ArrowDown")
+        {
+            _selectedIndex = Math.Min(ItemCount - 1, _selectedIndex + 1);
+            StateHasChanged();
+            return;
+        }
+        if (key == "ArrowUp")
+        {
+            _selectedIndex = Math.Max(0, _selectedIndex - 1);
+            StateHasChanged();
+            return;
+        }
+        if (key == "Enter")
+        {
+            var value = GetSelectedValue();
+            if (value != null)
+                await OnSelect.InvokeAsync(value);
+            return;
+        }
+        if (key == "Escape")
+        {
+            await OpenChanged.InvokeAsync(false);
+        }
+    }
+
+    private IReadOnlyList<string> FilteredPaths => string.IsNullOrEmpty(Filter)
+        ? FilePaths
+        : FilePaths.Where(p => p.Contains(Filter, StringComparison.OrdinalIgnoreCase)).ToList();
+
+    private IReadOnlyList<SmallEBot.Models.SkillMetadata> FilteredSkills => string.IsNullOrEmpty(Filter)
+        ? Skills
+        : Skills.Where(s => s.Id.Contains(Filter, StringComparison.OrdinalIgnoreCase) || s.Name.Contains(Filter, StringComparison.OrdinalIgnoreCase)).ToList();
+
+    private int ItemCount => Kind == "file" ? FilteredPaths.Count : FilteredSkills.Count;
+
+    private string? GetSelectedValue()
+    {
+        if (_selectedIndex < 0 || _selectedIndex >= ItemCount) return null;
+        return Kind == "file" ? FilteredPaths[_selectedIndex] : FilteredSkills[_selectedIndex].Id;
+    }
+
+    private async Task SelectItem(string value)
+    {
+        await OnSelect.InvokeAsync(value);
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (ItemCount == 0) return;
+        if (e.Key == "ArrowDown")
+        {
+            _selectedIndex = Math.Min(ItemCount - 1, _selectedIndex + 1);
+            StateHasChanged();
+            return;
+        }
+        if (e.Key == "ArrowUp")
+        {
+            _selectedIndex = Math.Max(0, _selectedIndex - 1);
+            StateHasChanged();
+            return;
+        }
+        if (e.Key == "Enter")
+        {
+            var value = GetSelectedValue();
+            if (value != null)
+                await OnSelect.InvokeAsync(value);
+            return;
+        }
+        if (e.Key == "Escape")
+        {
+            await OpenChanged.InvokeAsync(false);
+        }
+    }
 }
