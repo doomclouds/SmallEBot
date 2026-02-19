@@ -1,5 +1,6 @@
 @* Popover for @ (workspace files) or / (skills) selection. Shown above the input to avoid covering text. *@
 @using Microsoft.AspNetCore.Components.Web
+@inject IJSRuntime JS
 <MudMenu Open="@Open" OpenChanged="@OpenChanged"
          AnchorOrigin="Origin.TopCenter"
          TransformOrigin="Origin.BottomCenter"
@@ -10,7 +11,8 @@
     </ActivatorContent>
     <ChildContent>
         <MudPaper Outlined="true" Class="pa-1" Style="min-width: 220px;">
-            <div @ref="_scrollRef"
+            <div id="smallebot-attachment-popover-scroll"
+                 @ref="_scrollRef"
                  tabindex="0"
                  role="listbox"
                  aria-label="@(Kind == "file" ? "Workspace files" : "Skills")"
@@ -87,6 +89,18 @@
         }
         _openPrev = Open;
         await base.OnParametersSetAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (Open && ItemCount > 0)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("SmallEBot.scrollAttachmentPopoverToIndex", "smallebot-attachment-popover-scroll", _selectedIndex);
+            }
+            catch { /* ignore if JS not loaded or disconnected */ }
+        }
     }
 
     /// <summary>Handle key from input (focus stays in input so user can keep typing to filter). Called by parent when popover is open.</summary>

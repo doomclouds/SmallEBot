@@ -38,6 +38,16 @@ window.SmallEBot.setChatInputCursorToEnd = function (wrapperId) {
     input.focus();
 };
 
+// Scroll attachment popover list so the selected index is in view (for arrow key nav)
+window.SmallEBot.scrollAttachmentPopoverToIndex = function (scrollContainerId, selectedIndex) {
+    var container = document.getElementById(scrollContainerId);
+    if (!container) return;
+    var list = container.querySelector('.mud-list');
+    if (!list) return;
+    var item = list.children[selectedIndex];
+    if (item) item.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+};
+
 // Set chat input value and cursor to end (after @ or / completion so DOM is in sync)
 window.SmallEBot.setChatInputValueAndCursorToEnd = function (wrapperId, value) {
     var wrap = document.getElementById(wrapperId);
