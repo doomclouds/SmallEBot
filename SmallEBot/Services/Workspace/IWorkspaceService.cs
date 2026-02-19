@@ -12,6 +12,8 @@ public sealed class WorkspaceNode
 /// <summary>Service for the Workspace UI: list tree, read file content, delete (files with allowed extensions only).</summary>
 public interface IWorkspaceService
 {
+    /// <summary>Returns a flat list of relative paths for files with allowed extensions, for the @ popover.</summary>
+    Task<IReadOnlyList<string>> GetAllowedFilePathsAsync(CancellationToken ct = default);
     Task<IReadOnlyList<WorkspaceNode>> GetTreeAsync(CancellationToken ct = default);
     Task<string?> ReadFileContentAsync(string relativePath, CancellationToken ct = default);
     bool IsDeletableFile(string relativePath);

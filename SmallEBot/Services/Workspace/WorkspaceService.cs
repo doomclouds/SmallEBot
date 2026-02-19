@@ -6,6 +6,17 @@ public sealed class WorkspaceService(IVirtualFileSystem vfs) : IWorkspaceService
 {
     private const int MaxViewFileBytes = 512 * 1024;
 
+    public Task<IReadOnlyList<string>> GetAllowedFilePathsAsync(CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+        var root = Path.GetFullPath(vfs.GetRootPath());
+        if (!Directory.Exists(root))
+            return Task.FromResult<IReadOnlyList<string>>([]);
+        var paths = new List<string>();
+        CollectAllowedFilePaths(root, "", paths, ct);
+        return Task.FromResult<IReadOnlyList<string>>(paths);
+    }
+
     public Task<IReadOnlyList<WorkspaceNode>> GetTreeAsync(CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
@@ -65,6 +76,28 @@ public sealed class WorkspaceService(IVirtualFileSystem vfs) : IWorkspaceService
         if (File.Exists(fullPath))
             File.Delete(fullPath);
         return Task.CompletedTask;
+    }
+
+    private static void CollectAllowedFilePaths(string fullDirPath, string relativePath, List<string> paths, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        try
+        {
+            foreach (var entry in Directory.GetFileSystemEntries(fullDirPath)
+                         .OrderBy(p => !Directory.Exists(p))
+                         .ThenBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase))
+            {
+                var name = Path.GetFileName(entry)!;
+                if (!Directory.Exists(entry) && string.Equals(name, "python.exe", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                var rel = string.IsNullOrEmpty(relativePath) ? name : relativePath + Path.DirectorySeparatorChar + name;
+                if (Directory.Exists(entry))
+                    CollectAllowedFilePaths(entry, rel, paths, ct);
+                else if (AllowedFileExtensions.IsAllowed(Path.GetExtension(entry)))
+                    paths.Add(rel);
+            }
+        }
+        catch { /* return what we have */ }
     }
 
     private static List<WorkspaceNode> WalkDirectory(string fullDirPath, string relativePath)
