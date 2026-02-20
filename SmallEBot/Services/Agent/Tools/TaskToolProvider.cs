@@ -72,7 +72,7 @@ public sealed class TaskToolProvider(
         return JsonSerializer.Serialize(new { tasks }, JsonOptions);
     }
 
-    [Description("Mark a task as done by id. Returns { \"ok\": true, \"task\": { ... } } or { \"ok\": false, \"error\": \"Task not found\" }.")]
+    [Description("Mark a task as done by id. Returns { \"ok\": true, \"task\": { ... }, \"nextTask\": { ... } | null, \"remaining\": N }. nextTask is the next undone task (null if all done) — use nextTask.id directly for the next CompleteTask call without calling ListTasks again. remaining is the count of undone tasks after this completion.")]
     private string CompleteTask(string taskId)
     {
         var conversationId = taskContext.GetConversationId();
@@ -84,7 +84,9 @@ public sealed class TaskToolProvider(
             return JsonSerializer.Serialize(new { ok = false, error = "Task not found" });
         task.Done = true;
         taskCache.Update(conversationId.Value, data);
-        return JsonSerializer.Serialize(new { ok = true, task }, JsonOptions);
+        var nextTask = data.Tasks.FirstOrDefault(t => !t.Done);
+        var remaining = data.Tasks.Count(t => !t.Done);
+        return JsonSerializer.Serialize(new { ok = true, task, nextTask, remaining }, JsonOptions);
     }
 
     [Description("Clear all tasks for the current conversation. Call this before SetTaskList when starting a new task breakdown to remove old tasks. Returns { \"ok\": true }.")]

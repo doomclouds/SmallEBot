@@ -66,6 +66,10 @@ public sealed class ShellToolProvider(
         }
 
         var timeout = GetTimeout("ExecuteCommand");
-        return commandRunner.Run(normalized, workDir, timeout);
+        var output = commandRunner.Run(normalized, workDir, timeout);
+        const int maxOutputChars = 50_000;
+        if (output.Length > maxOutputChars)
+            output = output[..maxOutputChars] + $"\n\n[Output truncated: {output.Length} total chars, showing first {maxOutputChars}]";
+        return output;
     }
 }

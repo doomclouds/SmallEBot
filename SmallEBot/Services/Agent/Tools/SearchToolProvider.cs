@@ -60,9 +60,15 @@ public sealed class SearchToolProvider(IVirtualFileSystem vfs) : IToolProvider
             {
                 var matcher = new Matcher(StringComparison.OrdinalIgnoreCase);
                 matcher.AddInclude(pattern);
-                var result = matcher.Execute(new DirectoryInfoWrapper(new DirectoryInfo(searchDir)));
-                files = result.Files
-                    .Select(f => f.Path.Replace('/', Path.DirectorySeparatorChar))
+                var matchResult = matcher.Execute(new DirectoryInfoWrapper(new DirectoryInfo(searchDir)));
+                files = matchResult.Files
+                    .Where(f => effectiveDepth == int.MaxValue || f.Path.Count(c => c == '/') < effectiveDepth)
+                    .Select(f =>
+                    {
+                        var relFromSearch = f.Path.Replace('/', Path.DirectorySeparatorChar);
+                        var absolute = Path.GetFullPath(Path.Combine(searchDir, relFromSearch));
+                        return Path.GetRelativePath(baseDir, absolute);
+                    })
                     .Where(f => AllowedFileExtensions.IsAllowed(Path.GetExtension(f)))
                     .ToList();
             }
@@ -89,9 +95,7 @@ public sealed class SearchToolProvider(IVirtualFileSystem vfs) : IToolProvider
                     var relativePath = Path.GetRelativePath(searchDir, f);
                     return regex.IsMatch(relativePath);
                 })
-                .Select(f => string.IsNullOrEmpty(path) || path.Trim() == "."
-                    ? Path.GetRelativePath(baseDir, f)
-                    : Path.GetRelativePath(searchDir, f))
+                .Select(f => Path.GetRelativePath(baseDir, f))
                 .ToList();
             }
             else
@@ -119,7 +123,7 @@ public sealed class SearchToolProvider(IVirtualFileSystem vfs) : IToolProvider
         }
     }
 
-    [Description("Find text INSIDE files (search file content). Use this when the user wants to find WHERE something is defined, which files CONTAIN a string, or search within file bodies. pattern: regex to match line content. path: subdirectory (default root). filePattern: restrict to file types (e.g. '*.cs'). ignoreCase: case-insensitive. filesOnly=true: list matching files only. countOnly=true: match counts per file. contextLines/beforeLines/afterLines: show surrounding lines. maxResults: limit (default 100).")]
+    [Description("Find text INSIDE files (search file content). Use when you want to find WHERE something is defined, which files CONTAIN a string, or search within file bodies. pattern: regex matched against each line. path: subdirectory to search (default root). filePattern: restrict to file types (e.g. '*.cs'). ignoreCase: case-insensitive match. filesOnly=true: list matching files only (cheapest; use first to locate files). countOnly=true: match counts per file. contextLines/beforeLines/afterLines: surrounding lines. maxResults: result limit (default 100). maxDepth: directory recursion limit (default 0 = unlimited).")]
     private string GrepContent(
         string pattern,
         string? path = null,
@@ -131,7 +135,8 @@ public sealed class SearchToolProvider(IVirtualFileSystem vfs) : IToolProvider
         bool filesOnly = false,
         bool countOnly = false,
         bool invertMatch = false,
-        int maxResults = 100)
+        int maxResults = 100,
+        int maxDepth = 0)
     {
         if (string.IsNullOrWhiteSpace(pattern))
             return "Error: pattern is required.";
@@ -161,20 +166,25 @@ public sealed class SearchToolProvider(IVirtualFileSystem vfs) : IToolProvider
         var preContext = contextLines > 0 ? contextLines : beforeLines;
         var postContext = contextLines > 0 ? contextLines : afterLines;
         const long maxFileSize = 1024 * 1024; // 1MB
+        var effectiveDepth = maxDepth <= 0 ? int.MaxValue : maxDepth;
 
         IEnumerable<string> files;
         if (!string.IsNullOrWhiteSpace(filePattern))
         {
             var matcher = new Matcher(StringComparison.OrdinalIgnoreCase);
             matcher.AddInclude(filePattern);
-            var result = matcher.Execute(new DirectoryInfoWrapper(new DirectoryInfo(searchDir)));
-            files = result.Files
+            var matchResult = matcher.Execute(new DirectoryInfoWrapper(new DirectoryInfo(searchDir)));
+            files = matchResult.Files
+                .Where(f => effectiveDepth == int.MaxValue || f.Path.Count(c => c == '/') < effectiveDepth)
                 .Select(f => Path.Combine(searchDir, f.Path.Replace('/', Path.DirectorySeparatorChar)))
                 .Where(f => AllowedFileExtensions.IsAllowed(Path.GetExtension(f)));
         }
         else
         {
-            files = Directory.EnumerateFiles(searchDir, "*", SearchOption.AllDirectories)
+            var enumOptions = effectiveDepth == int.MaxValue
+                ? new EnumerationOptions { RecurseSubdirectories = true }
+                : new EnumerationOptions { RecurseSubdirectories = true, MaxRecursionDepth = effectiveDepth };
+            files = Directory.EnumerateFiles(searchDir, "*", enumOptions)
                 .Where(f => AllowedFileExtensions.IsAllowed(Path.GetExtension(f)));
         }
 
