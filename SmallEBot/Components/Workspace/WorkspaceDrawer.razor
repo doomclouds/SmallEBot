@@ -1,6 +1,7 @@
 @using System.IO
 @implements IDisposable
 @inject IWorkspaceService WorkspaceService
+@inject IWorkspaceWatcher WorkspaceWatcher
 @inject IDialogService DialogService
 
 <div class="workspace-drawer">
@@ -49,8 +50,6 @@
 </div>
 
 @code {
-    private const int PollIntervalMs = 2000;
-
     [Parameter] public bool Open { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
 
@@ -58,23 +57,51 @@
     private string? _selectedPath;
     private string? _viewerContent;
     private bool _viewerLoaded;
-    private CancellationTokenSource? _pollCts;
 
     protected override async Task OnParametersSetAsync()
     {
         if (Open)
         {
             await LoadTreeAsync();
-            StartPolling();
+            SubscribeToChanges();
         }
         else
-            StopPolling();
+        {
+            UnsubscribeFromChanges();
+        }
     }
 
     public async Task LoadTreeAsync()
     {
         _tree = await WorkspaceService.GetTreeAsync();
         StateHasChanged();
+    }
+
+    private void SubscribeToChanges()
+    {
+        WorkspaceWatcher.OnChange += HandleChange;
+        WorkspaceWatcher.Start();
+    }
+
+    private void UnsubscribeFromChanges()
+    {
+        WorkspaceWatcher.OnChange -= HandleChange;
+        WorkspaceWatcher.Stop();
+    }
+
+    private async void HandleChange(WorkspaceChangeEvent e)
+    {
+        await InvokeAsync(async () =>
+        {
+            await LoadTreeAsync();
+            if (!string.IsNullOrEmpty(_selectedPath) &&
+                (e.RelativePath == _selectedPath ||
+                 _selectedPath.StartsWith(e.RelativePath + "/", StringComparison.Ordinal)))
+            {
+                _viewerContent = await WorkspaceService.ReadFileContentAsync(_selectedPath);
+            }
+            StateHasChanged();
+        });
     }
 
     private async Task SelectFile(string relativePath)
@@ -103,41 +130,5 @@
             await LoadTreeAsync();
     }
 
-    private void StartPolling()
-    {
-        if (_pollCts != null) return;
-        _pollCts = new CancellationTokenSource();
-        var token = _pollCts.Token;
-        _ = Task.Run(async () =>
-        {
-            using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(PollIntervalMs));
-            try
-            {
-                while (await timer.WaitForNextTickAsync(token))
-                {
-                    await InvokeAsync(async () =>
-                    {
-                        if (!Open) return;
-                        await LoadTreeAsync();
-                        if (!string.IsNullOrEmpty(_selectedPath))
-                        {
-                            var newContent = await WorkspaceService.ReadFileContentAsync(_selectedPath, token);
-                            _viewerContent = newContent;
-                        }
-                        StateHasChanged();
-                    });
-                }
-            }
-            catch (OperationCanceledException) { }
-        }, token);
-    }
-
-    private void StopPolling()
-    {
-        _pollCts?.Cancel();
-        _pollCts?.Dispose();
-        _pollCts = null;
-    }
-
-    public void Dispose() => StopPolling();
+    public void Dispose() => UnsubscribeFromChanges();
 }
