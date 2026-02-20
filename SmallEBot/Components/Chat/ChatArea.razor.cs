@@ -37,7 +37,7 @@ public partial class ChatArea
         if (item.ThinkBlock is { } tb)
             return new ReasoningStepView { IsThink = true, Text = tb.Content ?? "" };
         if (item.ToolCall is { } tc)
-            return new ReasoningStepView { IsThink = false, ToolName = tc.ToolName, ToolArguments = tc.Arguments, ToolResult = tc.Result };
+            return new ReasoningStepView { IsThink = false, ToolName = tc.ToolName, ToolArguments = tc.Arguments, ToolResult = tc.Result, Phase = ToolCallPhase.Completed };
         return null;
     }
 

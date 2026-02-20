@@ -15,7 +15,7 @@
     else if (ShowToolCalls)
     {
         <div class="smallebot-reasoning-step">
-            <ToolCallView ToolName="@step.ToolName" ToolArguments="@step.ToolArguments" ToolResult="@step.ToolResult" ShowToolCalls="@ShowToolCalls" WrapperClass="" />
+            <ToolCallView ToolName="@step.ToolName" ToolArguments="@step.ToolArguments" ToolResult="@step.ToolResult" Phase="@step.Phase" Elapsed="@step.Elapsed" ShowToolCalls="@ShowToolCalls" WrapperClass="" />
         </div>
     }
 }

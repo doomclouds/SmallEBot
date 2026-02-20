@@ -444,6 +444,23 @@ h1:focus {
     margin-left: auto;
 }
 
+/* Tool call view phases */
+.tool-call-paper { border-left: 3px solid var(--seb-border); }
+.tool-call-paper-active { border-left-color: var(--seb-primary); }
+.tool-call-paper-done { border-left-color: var(--seb-success, #2e7d32); }
+.tool-call-paper-error { border-left-color: var(--seb-error, #c62828); }
+.tool-call-paper-cancelled { border-left-color: var(--seb-warning, #ed6c02); }
+.tool-call-pre {
+    margin: 4px 0;
+    padding: 6px 10px;
+    font-size: 12px;
+    white-space: pre-wrap;
+    word-break: break-all;
+    background: var(--seb-surface-variant, rgba(0,0,0,0.04));
+    border-radius: 4px;
+    font-family: ui-monospace, monospace;
+}
+
 /* Main layout with optional right workspace drawer */
 .smallebot-main-with-drawer {
     display: flex;

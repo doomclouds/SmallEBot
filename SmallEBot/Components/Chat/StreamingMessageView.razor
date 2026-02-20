@@ -1,4 +1,5 @@
 @* Streaming assistant message bubble: reasoning blocks, text segments, tool calls, and fallback text. *@
+@using SmallEBot.Core.Models
 <MudChat ChatPosition="ChatBubblePosition.Start" ArrowPosition="ChatArrowPosition.Top" Class="mb-3 smallebot-bubble">
     <MudChatBubble>
         <MudText Typo="Typo.caption">SmallEBot · @Timestamp.ToString("g")</MudText>
@@ -24,7 +25,13 @@
                 }
                 else if (item.IsReplyTool && ShowToolCalls)
                 {
-                    <ToolCallView ToolName="@item.ToolName" ToolArguments="@item.ToolArguments" ToolResult="@item.ToolResult" ShowToolCalls="@ShowToolCalls" />
+                    <ToolCallView ToolName="@item.ToolName"
+                                  ToolArguments="@item.ToolArguments"
+                                  ToolResult="@item.ToolResult"
+                                  Phase="@item.Phase"
+                                  Elapsed="@item.Elapsed"
+                                  ShowToolCalls="@ShowToolCalls"
+                                  OnCancel="@(CanShowCancel(item.Phase) ? OnCancel : EventCallback.Empty)" />
                 }
             }
         }
@@ -39,7 +46,11 @@
     [Parameter] public IReadOnlyList<StreamingDisplayItemView>? Items { get; set; }
     [Parameter] public string? FallbackText { get; set; }
     [Parameter] public DateTime Timestamp { get; set; } = DateTime.Now;
+    [Parameter] public EventCallback OnCancel { get; set; }
     [CascadingParameter(Name = "ShowToolCalls")] public bool ShowToolCalls { get; set; } = true;
 
     private bool ShowFallbackText => (Items is null || Items.Count == 0) && !string.IsNullOrEmpty(FallbackText);
+
+    private static bool CanShowCancel(ToolCallPhase phase) =>
+        phase is ToolCallPhase.Started or ToolCallPhase.ArgsReceived or ToolCallPhase.Executing;
 }

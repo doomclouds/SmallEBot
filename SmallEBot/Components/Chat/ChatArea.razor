@@ -82,7 +82,7 @@
                                     }
                                     else if (item.ToolCall is { } tc && ShowToolCalls)
                                     {
-                                        <ToolCallView ToolName="@tc.ToolName" ToolArguments="@tc.Arguments" ToolResult="@tc.Result" ShowToolCalls="@ShowToolCalls" />
+                                        <ToolCallView ToolName="@tc.ToolName" ToolArguments="@tc.Arguments" ToolResult="@tc.Result" Phase="ToolCallPhase.Completed" ShowToolCalls="@ShowToolCalls" />
                                     }
                                 }
                             }
@@ -113,7 +113,8 @@
     {
         <StreamingMessageView Items="@GetStreamingDisplayItemViews()"
                               FallbackText="@_streamingText"
-                              Timestamp="@DateTime.Now" />
+                              Timestamp="@DateTime.Now"
+                              OnCancel="StopSend" />
     }
     </div>
 
