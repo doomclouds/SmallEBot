@@ -23,6 +23,21 @@ public class ConversationRepository(SmallEBotDbContext db) : IConversationReposi
             .OrderByDescending(x => x.UpdatedAt)
             .ToListAsync(ct);
 
+    public async Task<List<Conversation>> SearchAsync(
+        string userName,
+        string query,
+        bool includeContent = false,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+            return await GetListAsync(userName, ct);
+
+        return await db.Conversations
+            .Where(c => c.UserName == userName && EF.Functions.Like(c.Title, $"%{query}%"))
+            .OrderByDescending(c => c.UpdatedAt)
+            .ToListAsync(ct);
+    }
+
     public async Task<List<ChatMessage>> GetMessagesForConversationAsync(Guid conversationId, CancellationToken ct = default) =>
         await db.ChatMessages
             .Where(x => x.ConversationId == conversationId)

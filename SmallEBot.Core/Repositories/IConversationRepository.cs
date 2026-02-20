@@ -7,6 +7,11 @@ public interface IConversationRepository
 {
     Task<Conversation?> GetByIdAsync(Guid id, string userName, CancellationToken ct = default);
     Task<List<Conversation>> GetListAsync(string userName, CancellationToken ct = default);
+    Task<List<Conversation>> SearchAsync(
+        string userName,
+        string query,
+        bool includeContent = false,
+        CancellationToken ct = default);
     Task<List<ChatMessage>> GetMessagesForConversationAsync(Guid conversationId, CancellationToken ct = default);
     Task<int> GetMessageCountAsync(Guid conversationId, CancellationToken ct = default);
     Task<Conversation> CreateAsync(string userName, string title, CancellationToken ct = default);
