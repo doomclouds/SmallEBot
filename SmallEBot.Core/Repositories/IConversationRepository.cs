@@ -13,6 +13,8 @@ public interface IConversationRepository
         bool includeContent = false,
         CancellationToken ct = default);
     Task<List<ChatMessage>> GetMessagesForConversationAsync(Guid conversationId, CancellationToken ct = default);
+    Task<List<ToolCall>> GetToolCallsForConversationAsync(Guid conversationId, CancellationToken ct = default);
+    Task<List<ThinkBlock>> GetThinkBlocksForConversationAsync(Guid conversationId, CancellationToken ct = default);
     Task<int> GetMessageCountAsync(Guid conversationId, CancellationToken ct = default);
     Task<Conversation> CreateAsync(string userName, string title, CancellationToken ct = default);
     Task<bool> DeleteAsync(Guid id, string userName, CancellationToken ct = default);

@@ -1,8 +1,8 @@
-@* Shown when 2s pass with no new think/text/tool output while streaming — indicates LLM is passing tool args. Style matches ToolCallView. *@
+@* Shown when 2s pass with no new think/text/tool output while streaming — indicates waiting for tool args. Style matches ToolCallView. *@
 <div class="@WrapperClass tool-call-view">
     <MudPaper Class="tool-call-paper tool-call-paper-active" Elevation="0">
         <div class="waiting-tool-params-row">
-            <span class="mud-typography-body2 font-weight-medium">Passing tool args...</span>
+            <span class="mud-typography-body2 font-weight-medium">Waiting…</span>
             <div class="waiting-tool-params-center">
                 <span class="waiting-tool-params-time tool-call-status-text mud-typography-caption mud-secondary-text">@FormatElapsed(Elapsed)</span>
             </div>
@@ -19,13 +19,70 @@
                 <span class="waiting-tool-params-right-placeholder"></span>
             }
         </div>
+        <div class="waiting-tool-params-danmaku mud-typography-caption mud-secondary-text">
+            @_currentLine
+        </div>
     </MudPaper>
 </div>
 
+@implements IDisposable
 @code {
     [Parameter] public TimeSpan Elapsed { get; set; }
     [Parameter] public EventCallback OnCancel { get; set; }
     [Parameter] public string WrapperClass { get; set; } = "mt-2";
+
+    private static readonly string[] DanmakuLines =
+    {
+        "Thinking…",
+        "Almost there…",
+        "Preparing tools…",
+        "One moment…",
+        "Loading…",
+        "Working on it…",
+        "Hang tight…",
+        "Fetching…",
+        "Getting ready…",
+        "Just a sec…",
+        "Building the request…",
+        "Almost ready…",
+    };
+
+    private string _currentLine = "";
+    private int _currentIndex;
+    private Timer? _rotateTimer;
+    private readonly Random _rnd = new();
+    private readonly object _rndLock = new();
+
+    protected override void OnInitialized()
+    {
+        PickRandomLine();
+        _rotateTimer = new Timer(_ => RotateLine(), null, TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(3));
+    }
+
+    private void PickRandomLine()
+    {
+        if (DanmakuLines.Length == 0) return;
+        lock (_rndLock)
+        {
+            _currentIndex = _rnd.Next(DanmakuLines.Length);
+            _currentLine = DanmakuLines[_currentIndex];
+        }
+    }
+
+    private void RotateLine()
+    {
+        if (DanmakuLines.Length <= 1) return;
+        lock (_rndLock)
+        {
+            var next = _rnd.Next(DanmakuLines.Length);
+            if (next == _currentIndex) next = (next + 1) % DanmakuLines.Length;
+            _currentIndex = next;
+            _currentLine = DanmakuLines[_currentIndex];
+        }
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose() => _rotateTimer?.Dispose();
 
     private static string FormatElapsed(TimeSpan e)
     {

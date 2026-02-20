@@ -43,7 +43,7 @@ else
     [Inject] private IWorkspaceService WorkspaceService { get; set; } = null!;
     [Inject] private IDialogService DialogService { get; set; } = null!;
 
-    private bool Expanded { get; set; } = true;
+    private bool Expanded { get; set; } = false;
 
     private bool IsMarkdown => Node.RelativePath.EndsWith(".md", StringComparison.OrdinalIgnoreCase);
     private bool IsDeletable => WorkspaceService.IsDeletableFile(Node.RelativePath);

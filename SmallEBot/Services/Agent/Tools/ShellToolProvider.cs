@@ -18,7 +18,7 @@ public sealed class ShellToolProvider(
 
     public TimeSpan? GetTimeout(string toolName) => toolName switch
     {
-        "ExecuteCommand" => TimeSpan.FromMinutes(10),
+        BuiltInToolNames.ExecuteCommand => TimeSpan.FromMinutes(10),
         _ => null
     };
 

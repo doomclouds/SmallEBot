@@ -50,6 +50,7 @@ public sealed class TaskListCache : ITaskListCache, IDisposable
     {
         _cache[conversationId] = data;
         _dirty[conversationId] = true;
+        FlushOne(conversationId);
     }
 
     public void Remove(Guid conversationId)
@@ -60,17 +61,43 @@ public sealed class TaskListCache : ITaskListCache, IDisposable
         if (File.Exists(path)) File.Delete(path);
     }
 
+    /// <summary>Flush a single conversation to disk immediately (so TaskListWatcher + drawer see the change).</summary>
+    private void FlushOne(Guid conversationId)
+    {
+        if (!_cache.TryGetValue(conversationId, out var data)) return;
+        try
+        {
+            var path = GetPath(conversationId);
+            var dir = Path.GetDirectoryName(path);
+            if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+            var json = JsonSerializer.Serialize(data, JsonOptions);
+            File.WriteAllText(path, json);
+            _dirty.TryRemove(conversationId, out _);
+        }
+        catch
+        {
+            // Keep dirty so the 5-second timer will retry
+        }
+    }
+
     private void FlushDirty()
     {
         foreach (var id in _dirty.Keys.ToList())
         {
             if (_dirty.TryRemove(id, out _) && _cache.TryGetValue(id, out var data))
             {
-                var path = GetPath(id);
-                var dir = Path.GetDirectoryName(path);
-                if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
-                var json = JsonSerializer.Serialize(data, JsonOptions);
-                File.WriteAllText(path, json);
+                try
+                {
+                    var path = GetPath(id);
+                    var dir = Path.GetDirectoryName(path);
+                    if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+                    var json = JsonSerializer.Serialize(data, JsonOptions);
+                    File.WriteAllText(path, json);
+                }
+                catch
+                {
+                    _dirty[id] = true;
+                }
             }
         }
     }

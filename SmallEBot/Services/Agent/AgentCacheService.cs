@@ -16,12 +16,14 @@ public class AgentCacheService(
 
     public async Task InvalidateAgentAsync() => await agentBuilder.InvalidateAsync();
 
-    /// <summary>Estimated context usage for UI: ratio and token counts (e.g. for tooltip "8% · 10k/128k").</summary>
+    /// <summary>Estimated context usage for UI: ratio and token counts (e.g. for tooltip "8% · 10k/128k"). Includes system, messages, tool calls (name + arguments + result), and think blocks.</summary>
     public async Task<ContextUsageEstimate?> GetEstimatedContextUsageDetailAsync(Guid conversationId, CancellationToken ct = default)
     {
         var messages = await conversationRepository.GetMessagesForConversationAsync(conversationId, ct);
+        // var toolCalls = await conversationRepository.GetToolCallsForConversationAsync(conversationId, ct);
+        // var thinkBlocks = await conversationRepository.GetThinkBlocksForConversationAsync(conversationId, ct);
         var systemPrompt = agentBuilder.GetCachedSystemPromptForTokenCount() ?? FallbackSystemPromptForTokenCount;
-        var json = SerializeRequestJsonForTokenCount(systemPrompt, messages);
+        var json = SerializeRequestJsonForTokenCount(systemPrompt, messages, [], []);
         var rawTokens = tokenizer.CountTokens(json);
         var usedTokens = (int)Math.Ceiling(rawTokens * 1.05);
         var contextWindow = agentBuilder.GetContextWindowTokens();
@@ -44,12 +46,23 @@ public class AgentCacheService(
         return $"{k:F1}k";
     }
 
-    private static string SerializeRequestJsonForTokenCount(string systemPrompt, List<Core.Entities.ChatMessage> messages)
+    private static string SerializeRequestJsonForTokenCount(
+        string systemPrompt,
+        List<Core.Entities.ChatMessage> messages,
+        List<Core.Entities.ToolCall> toolCalls,
+        List<Core.Entities.ThinkBlock> thinkBlocks)
     {
         var payload = new RequestPayloadForTokenCount
         {
             System = systemPrompt,
-            Messages = messages.Select(m => new MessageItemForTokenCount { Role = m.Role, Content = m.Content }).ToList()
+            Messages = messages.Select(m => new MessageItemForTokenCount { Role = m.Role, Content = m.Content ?? "" }).ToList(),
+            ToolCalls = toolCalls.Select(t => new ToolCallItemForTokenCount
+            {
+                ToolName = t.ToolName ?? "",
+                Arguments = t.Arguments ?? "",
+                Result = t.Result ?? ""
+            }).ToList(),
+            ThinkBlocks = thinkBlocks.Select(b => new ThinkBlockItemForTokenCount { Content = b.Content ?? "" }).ToList()
         };
         return System.Text.Json.JsonSerializer.Serialize(payload);
     }
@@ -67,6 +80,12 @@ public class AgentCacheService(
 
         [JsonPropertyName("messages")]
         public List<MessageItemForTokenCount> Messages { get; set; } = [];
+
+        [JsonPropertyName("toolCalls")]
+        public List<ToolCallItemForTokenCount> ToolCalls { get; set; } = [];
+
+        [JsonPropertyName("thinkBlocks")]
+        public List<ThinkBlockItemForTokenCount> ThinkBlocks { get; set; } = [];
     }
 
     private sealed class MessageItemForTokenCount
@@ -74,6 +93,24 @@ public class AgentCacheService(
         [JsonPropertyName("role")]
         public string Role { get; set; } = "";
 
+        [JsonPropertyName("content")]
+        public string Content { get; set; } = "";
+    }
+
+    private sealed class ToolCallItemForTokenCount
+    {
+        [JsonPropertyName("toolName")]
+        public string ToolName { get; set; } = "";
+
+        [JsonPropertyName("arguments")]
+        public string Arguments { get; set; } = "";
+
+        [JsonPropertyName("result")]
+        public string Result { get; set; } = "";
+    }
+
+    private sealed class ThinkBlockItemForTokenCount
+    {
         [JsonPropertyName("content")]
         public string Content { get; set; } = "";
     }

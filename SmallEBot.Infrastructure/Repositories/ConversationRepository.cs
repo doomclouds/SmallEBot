@@ -46,6 +46,20 @@ public class ConversationRepository(SmallEBotDbContext db) : IConversationReposi
             .OrderBy(x => x.CreatedAt)
             .ToListAsync(ct);
 
+    public async Task<List<ToolCall>> GetToolCallsForConversationAsync(Guid conversationId, CancellationToken ct = default) =>
+        await db.ToolCalls
+            .AsNoTracking()
+            .Where(x => x.ConversationId == conversationId)
+            .OrderBy(x => x.CreatedAt)
+            .ToListAsync(ct);
+
+    public async Task<List<ThinkBlock>> GetThinkBlocksForConversationAsync(Guid conversationId, CancellationToken ct = default) =>
+        await db.ThinkBlocks
+            .AsNoTracking()
+            .Where(x => x.ConversationId == conversationId)
+            .OrderBy(x => x.CreatedAt)
+            .ToListAsync(ct);
+
     public async Task<int> GetMessageCountAsync(Guid conversationId, CancellationToken ct = default) =>
         await db.ChatMessages.CountAsync(x => x.ConversationId == conversationId, ct);
 

@@ -4,9 +4,10 @@ using SmallEBot.Services.Agent;
 
 namespace SmallEBot.Services.Context;
 
-/// <summary>Manages context window using tokenizer for estimation.</summary>
+/// <summary>Manages context window using tokenizer for estimation. Note: EstimateTokens and TrimToFit count only message Content (and a small role overhead); they do not include tool calls (name, arguments, result) or think blocks. The UI context-usage estimate in AgentCacheService includes those via a separate payload.</summary>
 public sealed class ContextWindowManager(ITokenizer tokenizer) : IContextWindowManager
 {
+    /// <summary>Estimates tokens for the given messages. Counts only each message's Content plus role overhead; tool calls and think blocks are not included.</summary>
     public int EstimateTokens(IReadOnlyList<ChatMessage> messages)
     {
         if (messages.Count == 0) return 0;
@@ -19,6 +20,7 @@ public sealed class ContextWindowManager(ITokenizer tokenizer) : IContextWindowM
         return total;
     }
 
+    /// <summary>Trims messages to fit within maxTokens. Only message Content is considered; tool/think tokens are not part of this budget.</summary>
     public TrimResult TrimToFit(IReadOnlyList<ChatMessage> messages, int maxTokens)
     {
         if (messages.Count == 0)
