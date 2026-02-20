@@ -12,6 +12,8 @@ public class ChatMessage : ICreateTime
     public string Role { get; set; } = string.Empty;
     public string Content { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
+    public Guid? ReplacedByMessageId { get; set; }
+    public bool IsEdited { get; set; }
 
     public Conversation Conversation { get; set; } = null!;
     public ConversationTurn? Turn { get; set; }
