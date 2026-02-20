@@ -47,7 +47,7 @@ SmallEBot (Host)        → Core, Application, Infrastructure — Blazor UI, Sig
 | Agent runner | `SmallEBot/Services/Agent/AgentRunnerAdapter.cs` |
 | Agent builder | `SmallEBot/Services/Agent/AgentBuilder.cs` |
 | System prompt | `SmallEBot/Services/Agent/AgentContextFactory.cs` |
-| Built-in tools | `SmallEBot/Services/Agent/BuiltInToolFactory.cs` |
+| Built-in tools | `SmallEBot/Services/Agent/Tools/` (IToolProvider, ToolProviderAggregator, *ToolProvider) |
 | Allowed file extensions | `SmallEBot.Core/AllowedFileExtensions.cs` — single source for workspace and agent file tools (ReadFile, WriteFile, ReadSkillFile, workspace delete/preview). |
 | Workspace (VFS + UI) | `SmallEBot/Services/Workspace/` (IVirtualFileSystem, IWorkspaceService); drawer in `Components/Workspace/`. Drawer: file tree + preview only; delete button not shown for temp/ files; delete allowed only for extensions in `AllowedFileExtensions`; no new file/folder. Polls every 2s when open to refresh tree and open-file preview. |
 | Command confirmation | `ICommandConfirmationService` (pending requests); bottom-right strip `Components/Terminal/CommandConfirmationStrip.razor` in MainLayout; context id from Blazor Circuit via `ICurrentCircuitAccessor` and `CircuitContextHandler`. |
@@ -66,7 +66,7 @@ Blazor UI → SignalR → ConversationService → IAgentConversationService
                            IStreamSink (ChannelStreamSink) → UI updates
 ```
 
-**AgentBuilder** composes: `IAgentContextFactory` (system prompt + skills) + `IBuiltInToolFactory` + `IMcpToolFactory` → caches `AIAgent`. Single cached agent (reasoner model); thinking on/off per request via ChatOptions.Reasoning in run options.
+**AgentBuilder** composes: `IAgentContextFactory` (system prompt + skills) + `IToolProviderAggregator` + `IMcpToolFactory` → caches `AIAgent`. Single cached agent (reasoner model); thinking on/off per request via ChatOptions.Reasoning in run options.
 
 ### Built-in tools
 

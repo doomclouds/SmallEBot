@@ -16,6 +16,7 @@ using SmallEBot.Services.User;
 using SmallEBot.Services.Workspace;
 using SmallEBot.Application.Context;
 using SmallEBot.Services.Context;
+using SmallEBot.Services.Agent.Tools;
 
 namespace SmallEBot.Extensions;
 
@@ -50,7 +51,14 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IWorkspaceUploadService, WorkspaceUploadService>();
         services.AddScoped<IMcpToolsLoaderService, McpToolsLoaderService>();
         services.AddScoped<IAgentContextFactory, AgentContextFactory>();
-        services.AddSingleton<IBuiltInToolFactory, BuiltInToolFactory>();
+        services.AddSingleton<IToolProvider, TimeToolProvider>();
+        services.AddSingleton<IToolProvider, FileToolProvider>();
+        services.AddSingleton<IToolProvider, SearchToolProvider>();
+        services.AddSingleton<IToolProvider, ShellToolProvider>();
+        services.AddSingleton<IToolProvider, TaskToolProvider>();
+        services.AddSingleton<IToolProvider, SkillToolProvider>();
+        services.AddSingleton<IToolProviderAggregator, ToolProviderAggregator>();
+        services.AddSingleton<ITaskListCache, TaskListCache>();
         services.AddScoped<IMcpToolFactory, McpToolFactory>();
         services.AddScoped<IAgentBuilder, AgentBuilder>();
         services.AddScoped<IAgentConversationService, AgentConversationService>();

@@ -2,6 +2,7 @@ using Anthropic;
 using Anthropic.Core;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
+using SmallEBot.Services.Agent.Tools;
 
 namespace SmallEBot.Services.Agent;
 
@@ -17,7 +18,7 @@ public interface IAgentBuilder
 
 public sealed class AgentBuilder(
     IAgentContextFactory contextFactory,
-    IBuiltInToolFactory builtInToolFactory,
+    IToolProviderAggregator toolAggregator,
     IMcpToolFactory mcpToolFactory,
     IConfiguration config,
     ILogger<AgentBuilder> log) : IAgentBuilder
@@ -36,7 +37,7 @@ public sealed class AgentBuilder(
 
         if (_allTools == null)
         {
-            var builtIn = builtInToolFactory.CreateTools();
+            var builtIn = await toolAggregator.GetAllToolsAsync(ct);
             var (mcpTools, clients) = await mcpToolFactory.LoadAsync(ct);
             _mcpClients = clients.Count > 0 ? [.. clients] : null;
             var combined = new List<AITool>(builtIn.Length + mcpTools.Length);
