@@ -10,8 +10,11 @@ public class ConversationService(IAgentConversationService pipeline, ITaskListSe
     public async Task<ConversationEntity> CreateAsync(string userName, CancellationToken ct = default) =>
         await pipeline.CreateConversationAsync(userName, ct);
 
-    public async Task<List<ConversationEntity>> GetListAsync(string userName, CancellationToken ct = default) =>
-        await pipeline.GetConversationsAsync(userName, ct);
+    public Task<List<ConversationEntity>> GetListAsync(string userName, CancellationToken ct = default) =>
+        pipeline.GetConversationsAsync(userName, ct);
+
+    public Task<List<ConversationEntity>> SearchAsync(string userName, string query, CancellationToken ct = default) =>
+        pipeline.SearchConversationsAsync(userName, query, ct);
 
     public async Task<ConversationEntity?> GetByIdAsync(Guid id, string userName, CancellationToken ct = default) =>
         await pipeline.GetConversationAsync(id, userName, ct);

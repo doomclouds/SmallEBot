@@ -9,6 +9,8 @@ public interface IAgentConversationService
 {
     Task<ConversationEntity> CreateConversationAsync(string userName, CancellationToken cancellationToken = default);
     Task<List<ConversationEntity>> GetConversationsAsync(string userName, CancellationToken cancellationToken = default);
+    /// <summary>Search conversations by title. Returns GetConversationsAsync when query is empty.</summary>
+    Task<List<ConversationEntity>> SearchConversationsAsync(string userName, string query, CancellationToken cancellationToken = default);
     Task<ConversationEntity?> GetConversationAsync(Guid id, string userName, CancellationToken cancellationToken = default);
     Task<bool> DeleteConversationAsync(Guid id, string userName, CancellationToken cancellationToken = default);
     Task<int> GetMessageCountAsync(Guid conversationId, CancellationToken cancellationToken = default);

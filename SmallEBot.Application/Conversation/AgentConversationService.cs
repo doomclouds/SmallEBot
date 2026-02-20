@@ -17,6 +17,9 @@ public sealed class AgentConversationService(
     public Task<List<ConversationEntity>> GetConversationsAsync(string userName, CancellationToken cancellationToken = default) =>
         repository.GetListAsync(userName, cancellationToken);
 
+    public Task<List<ConversationEntity>> SearchConversationsAsync(string userName, string query, CancellationToken cancellationToken = default) =>
+        repository.SearchAsync(userName, query, false, cancellationToken);
+
     public Task<ConversationEntity?> GetConversationAsync(Guid id, string userName, CancellationToken cancellationToken = default) =>
         repository.GetByIdAsync(id, userName, cancellationToken);
 

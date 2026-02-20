@@ -16,9 +16,11 @@ else
         <ConversationSidebar Conversations="_conversations"
                              UserName="_userName"
                              SelectedId="_selectedId"
+                             SearchQuery="@_searchQuery"
                              OnSelect="@OnSelectConversation"
                              OnCreate="@OnCreateConversation"
                              OnDelete="@OnDeleteConversation"
+                             OnSearchQueryChanged="@OnSearchQueryChanged"
                              Open="true" />
         <MudMainContent Class="smallebot-main">
             @if (_selectedConversation != null)
@@ -48,6 +50,7 @@ else
     private Guid? _selectedId;
     private Conversation? _selectedConversation;
     private List<Conversation> _conversations = [];
+    private string? _searchQuery;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -71,9 +74,17 @@ else
     private async Task LoadConversations()
     {
         if (string.IsNullOrEmpty(_userName)) return;
-        _conversations = await ConvSvc.GetListAsync(_userName);
+        _conversations = string.IsNullOrWhiteSpace(_searchQuery)
+            ? await ConvSvc.GetListAsync(_userName)
+            : await ConvSvc.SearchAsync(_userName, _searchQuery.Trim());
         if (_conversations.Count > 0 && !_selectedId.HasValue)
             await OnSelectConversation(_conversations[0].Id);
+    }
+
+    private async Task OnSearchQueryChanged(string? query)
+    {
+        _searchQuery = string.IsNullOrWhiteSpace(query) ? null : query;
+        await LoadConversations();
     }
 
     private async Task OnSelectConversation(Guid id)
@@ -86,8 +97,9 @@ else
 
     private async Task OnCreateConversation()
     {
+        _searchQuery = null;
         var c = await ConvSvc.CreateAsync(_userName!);
-        _conversations.Insert(0, c);
+        await LoadConversations();
         _selectedId = c.Id;
         _selectedConversation = c;
         CurrentConversation.SetCurrentConversationId(c.Id);
@@ -107,7 +119,9 @@ else
 
     private async Task RefreshSidebar()
     {
-        _conversations = await ConvSvc.GetListAsync(_userName!);
+        _conversations = string.IsNullOrWhiteSpace(_searchQuery)
+            ? await ConvSvc.GetListAsync(_userName!)
+            : await ConvSvc.SearchAsync(_userName!, _searchQuery.Trim());
         if (_selectedId.HasValue)
             _selectedConversation = await ConvSvc.GetByIdAsync(_selectedId.Value, _userName!);
         await InvokeAsync(StateHasChanged);

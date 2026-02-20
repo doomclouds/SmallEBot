@@ -1,4 +1,5 @@
 @using SmallEBot.Core.Entities
+@implements IDisposable
 @inject ConversationService ConvSvc
 @inject UserNameService UserNameSvc
 @inject IDialogService DialogSvc
@@ -8,6 +9,19 @@
     <MudDrawerHeader>
         <MudText Typo="Typo.h6">Conversations</MudText>
     </MudDrawerHeader>
+    <div class="pa-2">
+        <MudTextField T="string"
+                     Value="@_searchText"
+                     ValueChanged="@((string? v) => OnSearchTextChanged(v))"
+                     Placeholder="Search by title..."
+                     Variant="Variant.Outlined"
+                     Margin="Margin.Dense"
+                     Adornment="Adornment.Start"
+                     AdornmentIcon="@Icons.Material.Filled.Search"
+                     IconSize="Size.Small"
+                     Clearable="true"
+                     Immediate="true" />
+    </div>
     <MudNavMenu>
         <MudMenuItem Icon="@Icons.Material.Filled.Add" OnClick="@CreateNew">New</MudMenuItem>
         <MudList T="Conversation" Dense="true"
@@ -41,8 +55,25 @@
     [Parameter] public EventCallback OnCreate { get; set; }
     [Parameter] public string UserName { get; set; } = "";
     [Parameter] public bool Open { get; set; } = true;
+    [Parameter] public string? SearchQuery { get; set; }
+    [Parameter] public EventCallback<string?> OnSearchQueryChanged { get; set; }
 
     private bool _open = true;
+    private string? _searchText;
+    private Timer? _searchDebounce;
+    private const int DebounceMs = 300;
+
+    private void OnSearchTextChanged(string? value)
+    {
+        _searchText = value;
+        _searchDebounce?.Dispose();
+        _searchDebounce = new Timer(_ =>
+        {
+            _searchDebounce?.Dispose();
+            _searchDebounce = null;
+            InvokeAsync(async () => await OnSearchQueryChanged.InvokeAsync(value));
+        }, null, DebounceMs, Timeout.Infinite);
+    }
     private Conversation? SelectedConversation => Conversations.FirstOrDefault(c => c.Id == SelectedId);
 
     private async Task HandleSelectionChanged(Conversation? c)
@@ -53,9 +84,13 @@
     protected override void OnParametersSet()
     {
         _open = Open;
+        if (SearchQuery != _searchText)
+            _searchText = SearchQuery;
     }
 
     private async Task CreateNew() => await OnCreate.InvokeAsync();
+
+    public void Dispose() => _searchDebounce?.Dispose();
 
     private async Task DeleteConversation(Guid id)
     {
