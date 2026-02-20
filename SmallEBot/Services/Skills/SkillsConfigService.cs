@@ -1,4 +1,5 @@
 using SmallEBot.Models;
+using SmallEBot.Services.Workspace;
 
 namespace SmallEBot.Services.Skills;
 
@@ -13,13 +14,13 @@ public interface ISkillsConfigService
     Task<string?> GetSkillContentAsync(string id, CancellationToken ct = default);
 }
 
-public class SkillsConfigService(ILogger<SkillsConfigService> log) : ISkillsConfigService
+public class SkillsConfigService(ILogger<SkillsConfigService> log, IVirtualFileSystem vfs) : ISkillsConfigService
 {
     private const string SysSkillsDir = "sys.skills";
     private const string UserSkillsDir = "skills";
     private const string SkillFileName = "SKILL.md";
 
-    private string AgentsDirectoryPath { get; } = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, ".agents");
+    private string VfsRoot => Path.GetFullPath(vfs.GetRootPath());
 
     public Task<IReadOnlyList<SkillMetadata>> GetAllAsync(CancellationToken ct = default) =>
         GetMetadataInternalAsync(includeSystem: true, includeUser: true, ct);
@@ -29,18 +30,47 @@ public class SkillsConfigService(ILogger<SkillsConfigService> log) : ISkillsConf
 
     private async Task<IReadOnlyList<SkillMetadata>> GetMetadataInternalAsync(bool includeSystem, bool includeUser, CancellationToken ct)
     {
+        EnsureSkillsDirectoriesAndMigrate();
         var list = new List<SkillMetadata>();
         if (includeSystem)
         {
-            var sysPath = Path.Combine(AgentsDirectoryPath, SysSkillsDir);
+            var sysPath = Path.Combine(VfsRoot, SysSkillsDir);
             await AddSkillsFromDirectoryAsync(sysPath, isSystem: true, list, ct);
         }
         if (includeUser)
         {
-            var userPath = Path.Combine(AgentsDirectoryPath, UserSkillsDir);
+            var userPath = Path.Combine(VfsRoot, UserSkillsDir);
             await AddSkillsFromDirectoryAsync(userPath, isSystem: false, list, ct);
         }
         return list;
+    }
+
+    /// <summary>Ensures sys.skills and skills exist under VFS; migrates from legacy .agents/sys.skills and .agents/skills if present.</summary>
+    private void EnsureSkillsDirectoriesAndMigrate()
+    {
+        var legacyAgents = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, ".agents");
+        var legacySys = Path.Combine(legacyAgents, SysSkillsDir);
+        var legacyUser = Path.Combine(legacyAgents, UserSkillsDir);
+        var vfsSys = Path.Combine(VfsRoot, SysSkillsDir);
+        var vfsUser = Path.Combine(VfsRoot, UserSkillsDir);
+
+        if (Directory.Exists(legacySys) && (!Directory.Exists(vfsSys) || !Directory.EnumerateFileSystemEntries(vfsSys).Any()))
+        {
+            Directory.CreateDirectory(vfsSys);
+            CopyDirectory(legacySys, vfsSys);
+            log.LogInformation("Migrated system skills from {Legacy} to VFS {Vfs}", legacySys, vfsSys);
+        }
+        else if (!Directory.Exists(vfsSys))
+            Directory.CreateDirectory(vfsSys);
+
+        if (Directory.Exists(legacyUser) && (!Directory.Exists(vfsUser) || !Directory.EnumerateFileSystemEntries(vfsUser).Any()))
+        {
+            Directory.CreateDirectory(vfsUser);
+            CopyDirectory(legacyUser, vfsUser);
+            log.LogInformation("Migrated user skills from {Legacy} to VFS {Vfs}", legacyUser, vfsUser);
+        }
+        else if (!Directory.Exists(vfsUser))
+            Directory.CreateDirectory(vfsUser);
     }
 
     private async Task AddSkillsFromDirectoryAsync(string parentDir, bool isSystem, List<SkillMetadata> list, CancellationToken ct)
@@ -70,7 +100,7 @@ public class SkillsConfigService(ILogger<SkillsConfigService> log) : ISkillsConf
     public async Task AddUserSkillAsync(string id, string name, string description, string? body = null, CancellationToken ct = default)
     {
         var safeId = SanitizeSkillId(id);
-        var userPath = Path.Combine(AgentsDirectoryPath, UserSkillsDir);
+        var userPath = Path.Combine(VfsRoot, UserSkillsDir);
         Directory.CreateDirectory(userPath);
         var skillDir = Path.Combine(userPath, safeId);
         if (Directory.Exists(skillDir))
@@ -89,7 +119,7 @@ public class SkillsConfigService(ILogger<SkillsConfigService> log) : ISkillsConf
 
     public async Task DeleteUserSkillAsync(string id, CancellationToken ct = default)
     {
-        var userPath = Path.Combine(AgentsDirectoryPath, UserSkillsDir);
+        var userPath = Path.Combine(VfsRoot, UserSkillsDir);
         var skillDir = Path.GetFullPath(Path.Combine(userPath, id));
         var userRoot = Path.GetFullPath(userPath);
         if (!skillDir.StartsWith(userRoot, StringComparison.OrdinalIgnoreCase) || skillDir.Length <= userRoot.Length)
@@ -106,7 +136,7 @@ public class SkillsConfigService(ILogger<SkillsConfigService> log) : ISkillsConf
             throw new DirectoryNotFoundException($"Source folder not found: {src}");
         var skillId = id ?? Path.GetFileName(src.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
         var safeId = SanitizeSkillId(skillId);
-        var userPath = Path.Combine(AgentsDirectoryPath, UserSkillsDir);
+        var userPath = Path.Combine(VfsRoot, UserSkillsDir);
         Directory.CreateDirectory(userPath);
         var destDir = Path.Combine(userPath, safeId);
         if (Directory.Exists(destDir))
@@ -135,7 +165,7 @@ public class SkillsConfigService(ILogger<SkillsConfigService> log) : ISkillsConf
         if (!normalized.ContainsKey(SkillFileName))
             throw new InvalidOperationException("Source folder must contain SKILL.md.");
         var safeId = SanitizeSkillId(id ?? "imported-skill");
-        var userPath = Path.Combine(AgentsDirectoryPath, UserSkillsDir);
+        var userPath = Path.Combine(VfsRoot, UserSkillsDir);
         Directory.CreateDirectory(userPath);
         var destDir = Path.Combine(userPath, safeId);
         if (Directory.Exists(destDir))
@@ -157,10 +187,10 @@ public class SkillsConfigService(ILogger<SkillsConfigService> log) : ISkillsConf
     public async Task<string?> GetSkillContentAsync(string id, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(id)) return null;
-        var sysPath = Path.Combine(AgentsDirectoryPath, SysSkillsDir, id.Trim(), SkillFileName);
+        var sysPath = Path.Combine(VfsRoot, SysSkillsDir, id.Trim(), SkillFileName);
         if (File.Exists(sysPath))
             return await File.ReadAllTextAsync(sysPath, ct);
-        var userPath = Path.Combine(AgentsDirectoryPath, UserSkillsDir, id.Trim(), SkillFileName);
+        var userPath = Path.Combine(VfsRoot, UserSkillsDir, id.Trim(), SkillFileName);
         if (File.Exists(userPath))
             return await File.ReadAllTextAsync(userPath, ct);
         return null;

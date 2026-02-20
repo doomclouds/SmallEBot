@@ -11,7 +11,7 @@ A local AI assistant built with ASP.NET Core Blazor Server. **Runs locally on yo
 - **Edit & regenerate**: Edit a user message and resend (discards later turns); or regenerate an AI reply (discards that reply and all later content).
 - **Thinking mode**: Toggle extended reasoning (e.g. DeepSeek Reasoner) via Anthropic thinking support.
 - **MCP tools**: Connect to Model Context Protocol servers for extended capabilities (filesystem, web search, databases, etc.).
-- **Skills**: File-based skills system — create custom skills in `.agents/skills/` with YAML frontmatter.
+- **Skills**: File-based skills under workspace `.agents/vfs/sys.skills/` and `.agents/vfs/skills/` (read-only in workspace); create custom skills via app UI or add to `skills/` with YAML frontmatter.
 - **Terminal**: Execute shell commands via `ExecuteCommand` tool. Configurable command blacklist. Optional command confirmation and whitelist.
 - **Workspace**: Agent file tools and ExecuteCommand scoped to `.agents/vfs/`. Browse files via the Workspace drawer (refreshes via FileSystemWatcher).
 - **Task list**: Assistant can manage a task list per conversation via tools; Task List drawer stays in sync.
@@ -64,8 +64,8 @@ SmallEBot/
 │
 ├── .agents/                      # Runtime data directory (auto-created)
 │   ├── vfs/                      # Workspace (Agent file operations scope)
-│   ├── skills/                   # User custom skills
-│   ├── sys.skills/               # System skills
+│   │   ├── sys.skills/           # System skills (read-only in workspace)
+│   │   └── skills/               # User custom skills (read-only in workspace)
 │   ├── .mcp.json                 # MCP configuration
 │   ├── .sys.mcp.json             # System MCP configuration
 │   ├── terminal.json             # Terminal configuration
@@ -150,8 +150,8 @@ All runtime data is stored in the application directory:
 | `smallebot.db` | SQLite database |
 | `smallebot-settings.json` | User preferences |
 | `.agents/vfs/` | Workspace (Agent file operations scope) |
-| `.agents/skills/` | User skills |
-| `.agents/sys.skills/` | System skills |
+| `.agents/vfs/sys.skills/` | System skills (view only in workspace; no delete/write) |
+| `.agents/vfs/skills/` | User skills (view only in workspace; no delete/write) |
 | `.agents/.mcp.json` | MCP server configuration |
 | `.agents/terminal.json` | Terminal security configuration |
 | `.agents/models.json` | Model configurations (switch via Settings or AppBar) |
@@ -196,7 +196,7 @@ Click the "Workspace" button in the app bar to open the sidebar:
 Click the "Skills" button in the app bar:
 
 - View installed skills
-- Create new skills (in `.agents/skills/` directory)
+- Create new skills (under workspace `.agents/vfs/skills/`; view-only in workspace)
 - Skills are `SKILL.md` files with YAML frontmatter
 
 ### MCP Servers

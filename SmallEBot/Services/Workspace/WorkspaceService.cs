@@ -52,13 +52,15 @@ public sealed class WorkspaceService(IVirtualFileSystem vfs) : IWorkspaceService
         }
     }
 
-    /// <summary>True if the path is a file (not a directory) with an allowed extension (.cs, .yml, .md, etc.). Only such files can be deleted from the UI. Files under temp/ are not deletable (no delete button shown).</summary>
+    /// <summary>True if the path is a file (not a directory) with an allowed extension (.cs, .yml, .md, etc.). Only such files can be deleted from the UI. Files under temp/ and under skills (sys.skills/, skills/) are not deletable (read-only).</summary>
     public bool IsDeletableFile(string relativePath)
     {
         if (string.IsNullOrWhiteSpace(relativePath))
             return false;
         var norm = relativePath.Trim().Replace('\\', '/').TrimStart('/');
         if (norm.Equals("temp", StringComparison.OrdinalIgnoreCase) || norm.StartsWith("temp/", StringComparison.OrdinalIgnoreCase))
+            return false;
+        if (WorkspaceReadOnly.IsUnder(relativePath))
             return false;
         var fullPath = ResolveAndValidate(relativePath, mustExist: true);
         if (fullPath == null || Directory.Exists(fullPath))

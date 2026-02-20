@@ -409,14 +409,14 @@ h1:focus {
     border-bottom: 1px solid var(--seb-border);
 }
 .workspace-drawer-tree {
-    flex: 1;
+    flex: 0 1 auto;
+    max-height: 50%;
     overflow-y: auto;
     padding: 8px;
 }
 .workspace-drawer-viewer {
-    flex: 0 0 40%;
-    min-height: 120px;
-    max-height: 280px;
+    flex: 1 1 0;
+    min-height: 80px;
     overflow: auto;
     border-top: 1px solid var(--seb-border);
 }

@@ -90,10 +90,13 @@ public sealed class FileToolProvider(IVirtualFileSystem vfs) : IToolProvider
         }
     }
 
-    [Description("Write a text file in the workspace. Pass path relative to the workspace root (e.g. notes.txt or src/foo.py) and the content to write. Only allowed extensions: .md, .cs, .py, .txt, .json, .yml, .yaml. Parent directories are created if missing. Overwrites existing files.")]
+    [Description("Write a text file in the workspace. Pass path relative to the workspace root (e.g. notes.txt or src/foo.py) and the content to write. Only allowed extensions: .md, .cs, .py, .txt, .json, .yml, .yaml. Parent directories are created if missing. Overwrites existing files. Paths under sys.skills/ or skills/ are read-only and cannot be written.")]
     private string WriteFile(string path, string content)
     {
         if (string.IsNullOrWhiteSpace(path)) return "Error: path is required.";
+        var norm = path.Trim().Replace('\\', '/').TrimStart('/');
+        if (WorkspaceReadOnly.IsUnder(norm))
+            return "Error: path is under the read-only skills area (sys.skills or skills). View only.";
         var baseDir = Path.GetFullPath(vfs.GetRootPath());
         var fullPath = Path.GetFullPath(Path.Combine(baseDir, path.Trim().Replace('\\', Path.DirectorySeparatorChar)));
         if (!fullPath.StartsWith(baseDir, StringComparison.OrdinalIgnoreCase))
@@ -115,10 +118,13 @@ public sealed class FileToolProvider(IVirtualFileSystem vfs) : IToolProvider
         }
     }
 
-    [Description("Append content to a file in the workspace. path: relative to workspace root (e.g. log.md or results/output.txt). content: text to append; a newline separator is inserted before the new content if the file already has content. Creates the file if it does not exist. Allowed extensions: .md, .cs, .py, .txt, .json, .yml, .yaml. Use for logs, accumulating results, or building a file incrementally across multiple steps.")]
+    [Description("Append content to a file in the workspace. path: relative to workspace root (e.g. log.md or results/output.txt). content: text to append; a newline separator is inserted before the new content if the file already has content. Creates the file if it does not exist. Allowed extensions: .md, .cs, .py, .txt, .json, .yml, .yaml. Paths under sys.skills/ or skills/ are read-only and cannot be modified.")]
     private string AppendFile(string path, string content)
     {
         if (string.IsNullOrWhiteSpace(path)) return "Error: path is required.";
+        var norm = path.Trim().Replace('\\', '/').TrimStart('/');
+        if (WorkspaceReadOnly.IsUnder(norm))
+            return "Error: path is under the read-only skills area (sys.skills or skills). View only.";
         var baseDir = Path.GetFullPath(vfs.GetRootPath());
         var fullPath = Path.GetFullPath(Path.Combine(baseDir, path.Trim().Replace('\\', Path.DirectorySeparatorChar)));
         if (!fullPath.StartsWith(baseDir, StringComparison.OrdinalIgnoreCase))
@@ -149,11 +155,14 @@ public sealed class FileToolProvider(IVirtualFileSystem vfs) : IToolProvider
         }
     }
 
-    [Description("Copy a directory from one path to another within the workspace. sourcePath: directory to copy (relative to workspace root, e.g. docs or backup/2024). destPath: destination directory (relative to workspace root); created if missing. Copies all files and subdirectories recursively. Both paths must be under the workspace. Fails if source does not exist, is not a directory, or if dest is inside source (to avoid infinite copy).")]
+    [Description("Copy a directory from one path to another within the workspace. sourcePath: directory to copy (relative to workspace root, e.g. docs or backup/2024). destPath: destination directory (relative to workspace root); created if missing. Copies all files and subdirectories recursively. Both paths must be under the workspace. Destination cannot be under sys.skills or skills (read-only). Fails if source does not exist, is not a directory, or if dest is inside source (to avoid infinite copy).")]
     private string CopyDirectory(string sourcePath, string destPath)
     {
         if (string.IsNullOrWhiteSpace(sourcePath)) return "Error: sourcePath is required.";
         if (string.IsNullOrWhiteSpace(destPath)) return "Error: destPath is required.";
+        var destNorm = destPath.Trim().Replace('\\', '/').TrimStart('/');
+        if (WorkspaceReadOnly.IsUnder(destNorm))
+            return "Error: destination cannot be under the read-only skills area (sys.skills or skills).";
         var baseDir = Path.GetFullPath(vfs.GetRootPath());
         var sourceFull = Path.GetFullPath(Path.Combine(baseDir, sourcePath.Trim().Replace('\\', Path.DirectorySeparatorChar)));
         var destFull = Path.GetFullPath(Path.Combine(baseDir, destPath.Trim().Replace('\\', Path.DirectorySeparatorChar)));

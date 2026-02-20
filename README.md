@@ -11,7 +11,7 @@
 - **消息编辑与重新生成**：可编辑用户消息后重新发送（会丢弃该轮之后的对话）；可对某条 AI 回复点「重新生成」（同样丢弃后续内容）
 - **思考模式**：支持 DeepSeek Reasoner 等推理模型的扩展思考功能
 - **MCP 工具**：连接 Model Context Protocol 服务器，扩展文件系统、网络搜索、数据库等能力
-- **技能系统**：基于文件的技能扩展，在 `.agents/skills/` 目录中创建自定义技能
+- **技能系统**：基于文件的技能扩展，技能位于工作区 `.agents/vfs/sys.skills/` 与 `.agents/vfs/skills/`（工作区内只读）
 - **终端执行**：通过 `ExecuteCommand` 工具执行 shell 命令，支持命令黑名单、确认机制和白名单
 - **工作区**：文件操作和命令执行限定在 `.agents/vfs/` 工作区，通过侧边栏浏览文件（支持 FileSystemWatcher 刷新）
 - **任务列表**：助手可通过工具维护当前对话的任务列表，侧边栏任务抽屉实时同步
@@ -64,8 +64,8 @@ SmallEBot/
 │
 ├── .agents/                      # 运行时数据目录 (自动创建)
 │   ├── vfs/                      # 工作区 (Agent 文件操作范围)
-│   ├── skills/                   # 用户自定义技能
-│   ├── sys.skills/               # 系统技能
+│   │   ├── sys.skills/           # 系统技能 (工作区内只读)
+│   │   └── skills/               # 用户自定义技能 (工作区内只读)
 │   ├── .mcp.json                 # MCP 配置
 │   ├── .sys.mcp.json             # 系统 MCP 配置
 │   ├── terminal.json             # 终端配置
@@ -150,8 +150,8 @@ dotnet user-secrets set "Anthropic:ApiKey" "your-api-key"
 | `smallebot.db` | SQLite 数据库 |
 | `smallebot-settings.json` | 用户偏好设置 |
 | `.agents/vfs/` | 工作区 (Agent 文件操作范围) |
-| `.agents/skills/` | 用户技能 |
-| `.agents/sys.skills/` | 系统技能 |
+| `.agents/vfs/sys.skills/` | 系统技能（工作区内仅可查看，不可删除/写入） |
+| `.agents/vfs/skills/` | 用户技能（工作区内仅可查看，不可删除/写入） |
 | `.agents/.mcp.json` | MCP 服务器配置 |
 | `.agents/terminal.json` | 终端安全配置 |
 | `.agents/models.json` | 模型配置（可在设置或 AppBar 中切换） |
@@ -196,7 +196,7 @@ dotnet user-secrets set "Anthropic:ApiKey" "your-api-key"
 点击顶部工具栏的"技能"按钮：
 
 - 查看已安装的技能
-- 创建新技能（在 `.agents/skills/` 目录下）
+- 创建新技能（位于工作区 `.agents/vfs/skills/`，工作区中仅可查看不可删除）
 - 技能格式为包含 YAML frontmatter 的 `SKILL.md` 文件
 
 ### MCP 服务器

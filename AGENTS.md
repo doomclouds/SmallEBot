@@ -72,7 +72,7 @@ Blazor UI → SignalR → ConversationService → IAgentConversationService
 
 ### Built-in tools
 
-ReadFile, WriteFile, ListFiles, and ExecuteCommand (working directory) are scoped to the **workspace root** (`.agents/vfs/`). ReadSkill is unchanged (reads from `.agents/sys.skills/` and `.agents/skills/`).
+ReadFile, WriteFile, ListFiles, and ExecuteCommand (working directory) are scoped to the **workspace root** (`.agents/vfs/`). Skills live under the same VFS: `.agents/vfs/sys.skills/` and `.agents/vfs/skills/` — **read-only** in the workspace (view/list only; no delete, WriteFile, or CopyDirectory into them).
 
 | Tool | Purpose |
 |------|---------|
@@ -85,7 +85,7 @@ ReadFile, WriteFile, ListFiles, and ExecuteCommand (working directory) are scope
 | `CopyDirectory(sourcePath, destPath)` | Copy a directory and all contents recursively to another path (both relative to workspace root); dest created if missing |
 | `GrepFiles(pattern, mode?, path?, maxDepth?)` | Search file names by glob (default) or regex pattern; returns JSON with file paths relative to workspace root |
 | `GrepContent(pattern, ...)` | Search file content with regex; supports ignoreCase, contextLines, filesOnly, countOnly, invertMatch, filePattern, maxResults, maxDepth; returns JSON with matches |
-| `ReadSkill(skillName)` | Load SKILL.md from sys.skills or skills (not workspace) |
+| `ReadSkill(skillName)` | Load SKILL.md from workspace sys.skills/ or skills/ (VFS, read-only) |
 | `ReadSkillFile(skillId, relativePath)` | Read a file inside a skill folder; returns JSON `{ "path", "content" }` |
 | `ListSkillFiles(skillId, path?)` | List files/dirs inside a skill folder |
 | `ExecuteCommand(command)` | Run shell command; working dir defaults to workspace root. Use for Python scripts (e.g. python script.py). Optional user confirmation and whitelist (prefix match) when enabled in Terminal config. |
@@ -112,7 +112,7 @@ In the chat input, typing `@` opens a popover listing workspace files (allowed e
   - `.agents/.sys.mcp.json` (system MCP)
   - `.agents/.mcp.json` (user MCP + disabled system IDs)
   - `.agents/terminal.json` (command blacklist, require-confirmation flag, confirmation timeout, whitelist). When confirmation is enabled, a bottom-right strip appears for Allow/Reject; approved commands are added to the whitelist (prefix match).
-  - `.agents/sys.skills/` and `.agents/skills/` (skill folders)
+  - `.agents/vfs/sys.skills/` and `.agents/vfs/skills/` (skill folders; read-only in workspace)
   - `.agents/tasks/` (per-conversation task list JSON files)
   - `.agents/models.json` (model configurations; add/edit/delete/switch via Settings or AppBar model selector)
 
