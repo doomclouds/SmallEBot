@@ -1,4 +1,5 @@
 using SmallEBot.Application.Conversation;
+using SmallEBot.Application.Streaming;
 using SmallEBot.Core;
 using SmallEBot.Core.Models;
 using ConversationEntity = SmallEBot.Core.Entities.Conversation;
@@ -32,4 +33,44 @@ public class ConversationService(IAgentConversationService pipeline, ITaskListSe
 
     public async Task<int> GetMessageCountAsync(Guid conversationId, CancellationToken ct = default) =>
         await pipeline.GetMessageCountAsync(conversationId, ct);
+
+    public Task<(Guid TurnId, string UserMessage)?> ReplaceUserMessageAsync(
+        Guid conversationId,
+        string userName,
+        Guid messageId,
+        string newContent,
+        bool useThinking,
+        CancellationToken ct = default) =>
+        pipeline.ReplaceUserMessageAsync(conversationId, userName, messageId, newContent, useThinking, ct);
+
+    public Task<(Guid TurnId, string UserMessage, bool UseThinking)?> PrepareTurnForRegenerateAsync(
+        Guid conversationId,
+        string userName,
+        Guid turnId,
+        CancellationToken ct = default) =>
+        pipeline.PrepareTurnForRegenerateAsync(conversationId, userName, turnId, ct);
+
+    public Task ReplaceMessageAndRegenerateAsync(
+        Guid conversationId,
+        string userName,
+        Guid messageId,
+        string newContent,
+        bool useThinking,
+        IStreamSink sink,
+        CancellationToken ct = default,
+        string? commandConfirmationContextId = null,
+        IReadOnlyList<string>? attachedPaths = null,
+        IReadOnlyList<string>? requestedSkillIds = null) =>
+        pipeline.ReplaceMessageAndRegenerateAsync(conversationId, userName, messageId, newContent, useThinking, sink, ct, commandConfirmationContextId, attachedPaths, requestedSkillIds);
+
+    public Task RegenerateAsync(
+        Guid conversationId,
+        string userName,
+        Guid turnId,
+        IStreamSink sink,
+        CancellationToken ct = default,
+        string? commandConfirmationContextId = null,
+        IReadOnlyList<string>? attachedPaths = null,
+        IReadOnlyList<string>? requestedSkillIds = null) =>
+        pipeline.RegenerateAsync(conversationId, userName, turnId, sink, ct, commandConfirmationContextId, attachedPaths, requestedSkillIds);
 }

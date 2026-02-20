@@ -1,0 +1,32 @@
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">Edit message</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_content"
+                     Label="Message"
+                     Variant="Variant.Outlined"
+                     Lines="4"
+                     Style="min-width: 400px" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@Save" Disabled="@string.IsNullOrWhiteSpace(_content)">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public string InitialContent { get; set; } = "";
+
+    private string _content = "";
+
+    protected override void OnParametersSet()
+    {
+        _content = InitialContent;
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private void Save() => MudDialog.Close(DialogResult.Ok(_content.Trim()));
+}

@@ -19,4 +19,20 @@ public interface IConversationRepository
     Task<Guid> AddTurnAndUserMessageAsync(Guid conversationId, string userName, string userMessage, bool useThinking, string? newTitle, CancellationToken ct = default);
     Task CompleteTurnWithAssistantAsync(Guid conversationId, Guid turnId, IReadOnlyList<AssistantSegment> segments, CancellationToken ct = default);
     Task CompleteTurnWithErrorAsync(Guid conversationId, Guid turnId, string errorMessage, CancellationToken ct = default);
+
+    /// <summary>Replace user message with new content, mark original as replaced, delete assistant and subsequent turns, create new turn. Returns (turnId, userMessage) for streaming.</summary>
+    Task<(Guid TurnId, string UserMessage)?> ReplaceUserMessageAsync(
+        Guid conversationId,
+        string userName,
+        Guid messageId,
+        string newContent,
+        bool useThinking,
+        CancellationToken ct = default);
+
+    /// <summary>Delete assistant content of turn and all subsequent turns; return user message for regenerate. Returns null if not found.</summary>
+    Task<(Guid TurnId, string UserMessage, bool UseThinking)?> GetTurnForRegenerateAsync(
+        Guid conversationId,
+        string userName,
+        Guid turnId,
+        CancellationToken ct = default);
 }

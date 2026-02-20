@@ -1,10 +1,12 @@
 @using System.IO
 @using SmallEBot.Application.Conversation
+@using SmallEBot.Application.Streaming
 @using SmallEBot.Core
 @using SmallEBot.Core.Models
 @using SmallEBot.Models
 @using SmallEBot.Services.Circuit
 @inject IAgentConversationService ConversationPipeline
+@inject IDialogService DialogSvc
 @inject IWorkspaceUploadService UploadService
 @inject ICurrentCircuitAccessor CircuitAccessor
 @inject AgentCacheService AgentCache
@@ -27,11 +29,16 @@
                 var msg = userBubble.Message;
                 <MudChat ChatPosition="ChatBubblePosition.End" ArrowPosition="ChatArrowPosition.Top" Class="mb-3 smallebot-bubble">
                     <MudChatBubble>
-                        <MudText Typo="Typo.caption">You · @msg.CreatedAt.ToString("g")</MudText>
-                        @if (!string.IsNullOrEmpty(msg.Content))
-                        {
-                            <MarkdownContentView Content="@msg.Content" />
-                        }
+                        <div class="d-flex justify-space-between align-start gap-1">
+                            <div style="flex: 1">
+                                <MudText Typo="Typo.caption">You · @msg.CreatedAt.ToString("g")@(msg.IsEdited ? " (edited)" : "")</MudText>
+                                @if (!string.IsNullOrEmpty(msg.Content))
+                                {
+                                    <MarkdownContentView Content="@msg.Content" />
+                                }
+                            </div>
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => EditUserMessage(msg))" title="Edit" />
+                        </div>
                     </MudChatBubble>
                 </MudChat>
             }
@@ -43,7 +50,9 @@
                 var bubbleClass = isError ? "mb-3 smallebot-bubble smallebot-assistant-error" : "mb-3 smallebot-bubble";
                 <MudChat ChatPosition="ChatBubblePosition.Start" ArrowPosition="ChatArrowPosition.Top" Class="@bubbleClass">
                     <MudChatBubble>
-                        <MudText Typo="Typo.caption">SmallEBot · @firstCreatedAt.ToString("g")</MudText>
+                        <div class="d-flex justify-space-between align-start gap-1">
+                            <div style="flex: 1">
+                                <MudText Typo="Typo.caption">SmallEBot · @firstCreatedAt.ToString("g")</MudText>
                         @foreach (var block in blocks)
                         {
                             @if (block.IsThinkBlock)
@@ -78,6 +87,12 @@
                                 }
                             }
                         }
+                            </div>
+                            @if (asstBubble.TurnId != Guid.Empty)
+                            {
+                                <MudIconButton Icon="@Icons.Material.Filled.Refresh" Size="Size.Small" OnClick="@(() => RegenerateReply(asstBubble.TurnId))" title="Regenerate" />
+                            }
+                        </div>
                     </MudChatBubble>
                 </MudChat>
             }
@@ -261,6 +276,118 @@
         _requestedSkillIds.Remove(skillId);
         StateHasChanged();
     }
+
+    private async Task EditUserMessage(SmallEBot.Core.Entities.ChatMessage msg)
+    {
+        if (_streaming || !ConversationId.HasValue) return;
+        var parameters = new DialogParameters { [nameof(EditMessageDialog.InitialContent)] = msg.Content };
+        var dialog = await DialogSvc.ShowAsync<EditMessageDialog>("Edit message", parameters);
+        var result = await dialog.Result;
+        if (result == null || result.Canceled || result.Data is not string newContent || string.IsNullOrWhiteSpace(newContent)) return;
+        _userNameForAction = await UserNameSvc.GetAsync() ?? UserName;
+        if (string.IsNullOrWhiteSpace(_userNameForAction)) { Snackbar.Add("Username is missing.", Severity.Warning); return; }
+        _streaming = true;
+        _streamingText = "";
+        _streamingUpdates.Clear();
+        _sendCts = new CancellationTokenSource();
+        _scrollToBottomRequested = true;
+        _bubbleCountBeforeSend = Bubbles.Count;
+        StateHasChanged();
+        await OnBeforeSend.InvokeAsync();
+        _ = RunReplaceStreamingLoopAsync(msg.Id, newContent.Trim());
+    }
+
+    private async Task RegenerateReply(Guid turnId)
+    {
+        if (_streaming || !ConversationId.HasValue) return;
+        _userNameForAction = await UserNameSvc.GetAsync() ?? UserName;
+        if (string.IsNullOrWhiteSpace(_userNameForAction)) { Snackbar.Add("Username is missing.", Severity.Warning); return; }
+        _streaming = true;
+        _streamingText = "";
+        _streamingUpdates.Clear();
+        _sendCts = new CancellationTokenSource();
+        _scrollToBottomRequested = true;
+        _bubbleCountBeforeSend = Bubbles.Count;
+        StateHasChanged();
+        await OnBeforeSend.InvokeAsync();
+        _ = RunRegenerateStreamingLoopAsync(turnId);
+    }
+
+    private async Task RunReplaceStreamingLoopAsync(Guid messageId, string newContent)
+    {
+        var result = await ConversationPipeline.ReplaceUserMessageAsync(ConversationId!.Value, _userNameForAction!, messageId, newContent, UseThinkingMode, _sendCts!.Token);
+        if (result == null) { _streaming = false; await InvokeAsync(StateHasChanged); return; }
+        await OnMessageSent.InvokeAsync();
+        await RunStreamingLoopForTurnAsync(result.Value.TurnId, result.Value.UserMessage, UseThinkingMode);
+    }
+
+    private async Task RunRegenerateStreamingLoopAsync(Guid turnId)
+    {
+        var result = await ConversationPipeline.PrepareTurnForRegenerateAsync(ConversationId!.Value, _userNameForAction!, turnId, _sendCts!.Token);
+        if (result == null) { _streaming = false; await InvokeAsync(StateHasChanged); return; }
+        await OnMessageSent.InvokeAsync();
+        await RunStreamingLoopForTurnAsync(result.Value.TurnId, result.Value.UserMessage, result.Value.UseThinking);
+    }
+
+    private async Task RunStreamingLoopForTurnAsync(Guid turnId, string userMessage, bool useThinking)
+    {
+        var persisted = false;
+        var channel = System.Threading.Channels.Channel.CreateUnbounded<StreamUpdate>();
+        var sink = new ChannelStreamSink(channel.Writer);
+        var runTask = ConversationPipeline
+            .StreamResponseAndCompleteAsync(ConversationId!.Value, turnId, userMessage, useThinking, sink, _sendCts!.Token, CircuitAccessor.CurrentCircuit?.Id, null, null)
+            .ContinueWith(_ => channel.Writer.Complete());
+
+        try
+        {
+            await foreach (var update in channel.Reader.ReadAllAsync(_sendCts!.Token))
+            {
+                _sendCts.Token.ThrowIfCancellationRequested();
+                switch (update)
+                {
+                    case TextStreamUpdate t:
+                        _streamingText += t.Text;
+                        _streamingUpdates.Add(update);
+                        break;
+                    case ThinkStreamUpdate:
+                    case ToolCallStreamUpdate:
+                        _streamingUpdates.Add(update);
+                        break;
+                }
+                await InvokeAsync(StateHasChanged);
+            }
+            await runTask;
+            persisted = true;
+        }
+        catch (OperationCanceledException)
+        {
+            try { await ConversationPipeline.CompleteTurnWithErrorAsync(ConversationId!.Value, turnId, "Stopped by user.", CancellationToken.None); persisted = true; } catch { /* ignore */ }
+            channel.Writer.Complete();
+        }
+        catch (Exception ex)
+        {
+            await InvokeAsync(() => Snackbar.Add($"Error: {ex.Message}", Severity.Error));
+            try { await ConversationPipeline.CompleteTurnWithErrorAsync(ConversationId!.Value, turnId, ex.Message, CancellationToken.None); persisted = true; } catch { /* ignore */ }
+            channel.Writer.Complete();
+        }
+        finally
+        {
+            _sendCts?.Dispose();
+            _sendCts = null;
+            if (persisted)
+            {
+                _scrollToBottomRequested = true;
+                _contextRefreshRequested = true;
+                await OnMessageSent.InvokeAsync();
+            }
+            _streaming = false;
+            _streamingUpdates.Clear();
+            _scrollToBottomRequested = true;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private string? _userNameForAction;
 
     private void StopSend()
     {

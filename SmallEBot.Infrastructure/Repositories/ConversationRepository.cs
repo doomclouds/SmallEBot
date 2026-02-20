@@ -10,6 +10,7 @@ public class ConversationRepository(SmallEBotDbContext db) : IConversationReposi
 {
     public async Task<Conversation?> GetByIdAsync(Guid id, string userName, CancellationToken ct = default) =>
         await db.Conversations
+            .AsNoTracking()
             .AsSplitQuery()
             .Include(c => c.Turns.OrderBy(t => t.CreatedAt))
             .Include(x => x.Messages.OrderBy(m => m.CreatedAt))
@@ -40,7 +41,7 @@ public class ConversationRepository(SmallEBotDbContext db) : IConversationReposi
 
     public async Task<List<ChatMessage>> GetMessagesForConversationAsync(Guid conversationId, CancellationToken ct = default) =>
         await db.ChatMessages
-            .Where(x => x.ConversationId == conversationId)
+            .Where(x => x.ConversationId == conversationId && x.ReplacedByMessageId == null)
             .OrderBy(x => x.CreatedAt)
             .ToListAsync(ct);
 
@@ -192,5 +193,128 @@ public class ConversationRepository(SmallEBotDbContext db) : IConversationReposi
 
         conv.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
+    }
+
+    public async Task<(Guid TurnId, string UserMessage)?> ReplaceUserMessageAsync(
+        Guid conversationId,
+        string userName,
+        Guid messageId,
+        string newContent,
+        bool useThinking,
+        CancellationToken ct = default)
+    {
+        var conv = await db.Conversations
+            .Include(c => c.Turns.OrderBy(t => t.CreatedAt))
+            .FirstOrDefaultAsync(x => x.Id == conversationId && x.UserName == userName, ct);
+        if (conv == null) return null;
+
+        var oldMsg = await db.ChatMessages
+            .FirstOrDefaultAsync(m => m.Id == messageId && m.ConversationId == conversationId && m.Role == "user" && m.ReplacedByMessageId == null, ct);
+        if (oldMsg == null) return null;
+
+        var turns = conv.Turns.OrderBy(t => t.CreatedAt).ToList();
+        var turnIndex = turns.FindIndex(t => t.Id == oldMsg.TurnId);
+        if (turnIndex < 0) return null;
+
+        var baseTime = DateTime.UtcNow;
+        var newTurn = new ConversationTurn
+        {
+            Id = Guid.NewGuid(),
+            ConversationId = conversationId,
+            IsThinkingMode = useThinking,
+            CreatedAt = baseTime
+        };
+        db.ConversationTurns.Add(newTurn);
+
+        var newMsg = new ChatMessage
+        {
+            Id = Guid.NewGuid(),
+            ConversationId = conversationId,
+            TurnId = newTurn.Id,
+            Role = "user",
+            Content = newContent.Trim(),
+            CreatedAt = baseTime.AddMilliseconds(1),
+            IsEdited = true
+        };
+        db.ChatMessages.Add(newMsg);
+        oldMsg.ReplacedByMessageId = newMsg.Id;
+
+        var turnToClear = oldMsg.TurnId;
+        var assistantMessages = await db.ChatMessages
+            .Where(m => m.ConversationId == conversationId && m.TurnId == turnToClear && m.Role == "assistant")
+            .ToListAsync(ct);
+        db.ChatMessages.RemoveRange(assistantMessages);
+
+        var toolCalls = await db.ToolCalls.Where(t => t.ConversationId == conversationId && t.TurnId == turnToClear).ToListAsync(ct);
+        db.ToolCalls.RemoveRange(toolCalls);
+
+        var thinkBlocks = await db.ThinkBlocks.Where(b => b.ConversationId == conversationId && b.TurnId == turnToClear).ToListAsync(ct);
+        db.ThinkBlocks.RemoveRange(thinkBlocks);
+
+        for (var i = turnIndex + 1; i < turns.Count; i++)
+        {
+            var t = turns[i];
+            var msgs = await db.ChatMessages.Where(m => m.ConversationId == conversationId && m.TurnId == t.Id).ToListAsync(ct);
+            db.ChatMessages.RemoveRange(msgs);
+            var tc = await db.ToolCalls.Where(x => x.ConversationId == conversationId && x.TurnId == t.Id).ToListAsync(ct);
+            db.ToolCalls.RemoveRange(tc);
+            var tb = await db.ThinkBlocks.Where(x => x.ConversationId == conversationId && x.TurnId == t.Id).ToListAsync(ct);
+            db.ThinkBlocks.RemoveRange(tb);
+            db.ConversationTurns.Remove(t);
+        }
+
+        conv.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync(ct);
+        return (newTurn.Id, newMsg.Content);
+    }
+
+    public async Task<(Guid TurnId, string UserMessage, bool UseThinking)?> GetTurnForRegenerateAsync(
+        Guid conversationId,
+        string userName,
+        Guid turnId,
+        CancellationToken ct = default)
+    {
+        var conv = await db.Conversations
+            .Include(c => c.Turns.OrderBy(t => t.CreatedAt))
+            .FirstOrDefaultAsync(x => x.Id == conversationId && x.UserName == userName, ct);
+        if (conv == null) return null;
+
+        var turn = conv.Turns.FirstOrDefault(t => t.Id == turnId);
+        if (turn == null) return null;
+
+        var userMsg = await db.ChatMessages
+            .FirstOrDefaultAsync(m => m.ConversationId == conversationId && m.TurnId == turnId && m.Role == "user" && m.ReplacedByMessageId == null, ct);
+        if (userMsg == null) return null;
+
+        var turns = conv.Turns.OrderBy(t => t.CreatedAt).ToList();
+        var turnIndex = turns.IndexOf(turn);
+        if (turnIndex < 0) return null;
+
+        var assistantMessages = await db.ChatMessages
+            .Where(m => m.ConversationId == conversationId && m.TurnId == turnId && m.Role == "assistant")
+            .ToListAsync(ct);
+        db.ChatMessages.RemoveRange(assistantMessages);
+
+        var toolCalls = await db.ToolCalls.Where(t => t.ConversationId == conversationId && t.TurnId == turnId).ToListAsync(ct);
+        db.ToolCalls.RemoveRange(toolCalls);
+
+        var thinkBlocks = await db.ThinkBlocks.Where(b => b.ConversationId == conversationId && b.TurnId == turnId).ToListAsync(ct);
+        db.ThinkBlocks.RemoveRange(thinkBlocks);
+
+        for (var i = turnIndex + 1; i < turns.Count; i++)
+        {
+            var t = turns[i];
+            var msgs = await db.ChatMessages.Where(m => m.ConversationId == conversationId && m.TurnId == t.Id).ToListAsync(ct);
+            db.ChatMessages.RemoveRange(msgs);
+            var tc = await db.ToolCalls.Where(x => x.ConversationId == conversationId && x.TurnId == t.Id).ToListAsync(ct);
+            db.ToolCalls.RemoveRange(tc);
+            var tb = await db.ThinkBlocks.Where(x => x.ConversationId == conversationId && x.TurnId == t.Id).ToListAsync(ct);
+            db.ThinkBlocks.RemoveRange(tb);
+            db.ConversationTurns.Remove(t);
+        }
+
+        conv.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync(ct);
+        return (turn.Id, userMsg.Content, turn.IsThinkingMode);
     }
 }

@@ -50,4 +50,44 @@ public interface IAgentConversationService
         Guid turnId,
         string errorMessage,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Replace user message with new content, delete subsequent turns, create new turn. Call before streaming. Returns (turnId, userMessage) or null.</summary>
+    Task<(Guid TurnId, string UserMessage)?> ReplaceUserMessageAsync(
+        Guid conversationId,
+        string userName,
+        Guid messageId,
+        string newContent,
+        bool useThinking,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Delete assistant content of turn for regenerate. Call before streaming. Returns (turnId, userMessage, useThinking) or null.</summary>
+    Task<(Guid TurnId, string UserMessage, bool UseThinking)?> PrepareTurnForRegenerateAsync(
+        Guid conversationId,
+        string userName,
+        Guid turnId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Replace user message with new content, delete subsequent turns, create new turn, and stream AI response.</summary>
+    Task ReplaceMessageAndRegenerateAsync(
+        Guid conversationId,
+        string userName,
+        Guid messageId,
+        string newContent,
+        bool useThinking,
+        IStreamSink sink,
+        CancellationToken cancellationToken = default,
+        string? commandConfirmationContextId = null,
+        IReadOnlyList<string>? attachedPaths = null,
+        IReadOnlyList<string>? requestedSkillIds = null);
+
+    /// <summary>Delete assistant reply for turn and stream new AI response with same user message.</summary>
+    Task RegenerateAsync(
+        Guid conversationId,
+        string userName,
+        Guid turnId,
+        IStreamSink sink,
+        CancellationToken cancellationToken = default,
+        string? commandConfirmationContextId = null,
+        IReadOnlyList<string>? attachedPaths = null,
+        IReadOnlyList<string>? requestedSkillIds = null);
 }

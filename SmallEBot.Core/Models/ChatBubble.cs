@@ -9,4 +9,4 @@ public abstract record ChatBubble;
 public sealed record UserBubble(ChatMessage Message) : ChatBubble;
 
 /// <summary>Assistant bubble containing one AI reply (text, tool calls, reasoning in order).</summary>
-public sealed record AssistantBubble(IReadOnlyList<TimelineItem> Items, bool IsThinkingMode) : ChatBubble;
+public sealed record AssistantBubble(IReadOnlyList<TimelineItem> Items, bool IsThinkingMode, Guid TurnId) : ChatBubble;
