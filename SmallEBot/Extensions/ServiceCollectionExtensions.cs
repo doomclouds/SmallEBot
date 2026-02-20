@@ -47,6 +47,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ICommandConfirmationService, CommandConfirmationService>();
         services.AddSingleton<ICommandRunner, CommandRunner>();
         services.AddSingleton<IVirtualFileSystem, VirtualFileSystem>();
+        services.AddSingleton<IWorkspaceWatcher, WorkspaceWatcher>();
         services.AddScoped<IWorkspaceService, WorkspaceService>();
         services.AddScoped<IWorkspaceUploadService, WorkspaceUploadService>();
         services.AddScoped<IMcpToolsLoaderService, McpToolsLoaderService>();
@@ -70,6 +71,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ICurrentCircuitAccessor, CurrentCircuitAccessor>();
         services.AddScoped<CircuitHandler, CircuitContextHandler>();
         services.AddSingleton<MarkdownService>();
+        services.AddScoped<KeyboardShortcutService>();
         services.AddSingleton<IContextWindowManager, ContextWindowManager>();
         services.AddSingleton<ITokenizer>(sp =>
         {
