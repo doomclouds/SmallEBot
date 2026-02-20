@@ -1,5 +1,7 @@
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Threading.Channels;
 
 namespace SmallEBot.Services.Terminal;
 
@@ -59,5 +61,103 @@ public sealed class CommandRunner(ITerminalConfigService terminalConfig) : IComm
         {
             return "Error: " + ex.Message;
         }
+    }
+
+    /// <inheritdoc />
+    public async IAsyncEnumerable<CommandOutput> RunStreamingAsync(
+        string command,
+        string workingDirectory,
+        TimeSpan? timeout = null,
+        IReadOnlyDictionary<string, string>? environmentOverrides = null,
+        [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        var normalized = command.Trim();
+        var effectiveTimeout = timeout ?? TimeSpan.FromSeconds(Math.Clamp(terminalConfig.GetCommandTimeoutSeconds(), 5, 600));
+        var isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+        var shell = isWindows ? "cmd.exe" : "/bin/sh";
+        var shellArg = isWindows ? "/c" : "-c";
+        var args = isWindows ? $"{shellArg} \"{normalized.Replace("\"", "\"\"")}\"" : $"{shellArg} \"{normalized.Replace("\\", "\\\\").Replace("\"", "\\\"")}\"";
+
+        var psi = new ProcessStartInfo
+        {
+            FileName = shell,
+            Arguments = args,
+            WorkingDirectory = workingDirectory,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        if (environmentOverrides != null)
+        {
+            foreach (var (key, value) in environmentOverrides)
+                psi.Environment[key] = value;
+        }
+
+        using var process = new Process { StartInfo = psi };
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(effectiveTimeout);
+
+        process.Start();
+
+        var stdoutStream = ReadStreamAsync(process.StandardOutput, OutputType.Stdout, cts.Token);
+        var stderrStream = ReadStreamAsync(process.StandardError, OutputType.Stderr, cts.Token);
+
+        await foreach (var output in MergeStreamsAsync(stdoutStream, stderrStream, cts.Token))
+        {
+            yield return output;
+        }
+
+        var exitCode = await WaitForExitOrKillAsync(process, cts.Token);
+        yield return new CommandOutput(OutputType.ExitCode, exitCode.ToString());
+    }
+
+    private static async Task<int> WaitForExitOrKillAsync(Process process, CancellationToken ct)
+    {
+        try
+        {
+            await process.WaitForExitAsync(ct);
+            return process.ExitCode;
+        }
+        catch (OperationCanceledException)
+        {
+            try { process.Kill(entireProcessTree: true); } catch { /* ignore */ }
+            return -1;
+        }
+    }
+
+    private static async IAsyncEnumerable<CommandOutput> ReadStreamAsync(
+        StreamReader reader,
+        OutputType type,
+        [EnumeratorCancellation] CancellationToken ct)
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            var line = await reader.ReadLineAsync(ct);
+            if (line == null) break;
+            yield return new CommandOutput(type, line);
+        }
+    }
+
+    private static async IAsyncEnumerable<CommandOutput> MergeStreamsAsync(
+        IAsyncEnumerable<CommandOutput> stream1,
+        IAsyncEnumerable<CommandOutput> stream2,
+        [EnumeratorCancellation] CancellationToken ct)
+    {
+        var channel = Channel.CreateUnbounded<CommandOutput>();
+
+        async Task ReadToChannel(IAsyncEnumerable<CommandOutput> source)
+        {
+            await foreach (var item in source.WithCancellation(ct))
+                await channel.Writer.WriteAsync(item, ct);
+        }
+
+        var t1 = ReadToChannel(stream1);
+        var t2 = ReadToChannel(stream2);
+        _ = Task.WhenAll(t1, t2).ContinueWith(_ => channel.Writer.Complete(), ct);
+
+        await foreach (var item in channel.Reader.ReadAllAsync(ct))
+            yield return item;
     }
 }
