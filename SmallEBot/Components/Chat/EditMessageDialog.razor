@@ -1,14 +1,17 @@
 @using SmallEBot.Models
+@implements IDisposable
 @inject IWorkspaceService WorkspaceService
 @inject ISkillsConfigService SkillsConfigService
+@inject IJSRuntime JS
 
 <MudDialog>
     <TitleContent>
         <MudText Typo="Typo.h6">Edit message</MudText>
     </TitleContent>
     <DialogContent>
-        <div class="position-relative">
-            <AttachmentPopover @bind-Open="_popoverOpen"
+        <div id="edit-message-dialog-input-wrap" class="position-relative">
+            <AttachmentPopover @ref="_attachmentPopoverRef"
+                              @bind-Open="_popoverOpen"
                               Kind="@_popoverKind"
                               Filter="@_popoverFilter"
                               FilePaths="@_filePaths"
@@ -35,7 +38,9 @@
             }
             <MudTextField Value="_content"
                          ValueChanged="@((string v) => _ = HandleInputChanged(v))"
+                         Immediate="true"
                          Label="Message"
+                         Placeholder="@("Use @ for files, / for skills")"
                          Variant="Variant.Outlined"
                          Lines="4"
                          Style="min-width: 400px" />
@@ -62,6 +67,10 @@
     private List<string> _filePaths = [];
     private List<SkillMetadata> _skills = [];
     private bool _justSelectedAttachment;
+    private bool _syncInputValueInNextRender;
+    private bool _suggestionKeysAttached;
+    private DotNetObjectReference<EditMessageDialog>? _suggestionKeysDotNetRef;
+    private AttachmentPopover? _attachmentPopoverRef;
 
     protected override void OnParametersSet()
     {
@@ -70,6 +79,49 @@
         _attachmentPaths.AddRange(InitialAttachedPaths);
         _requestedSkillIds.Clear();
         _requestedSkillIds.AddRange(InitialRequestedSkillIds);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_syncInputValueInNextRender)
+        {
+            _syncInputValueInNextRender = false;
+            try
+            {
+                await JS.InvokeVoidAsync("SmallEBot.setChatInputValueAndCursorToEnd", "edit-message-dialog-input-wrap", _content);
+            }
+            catch { /* ignore if JS not loaded */ }
+        }
+
+        if (_popoverOpen && !_suggestionKeysAttached)
+        {
+            _suggestionKeysAttached = true;
+            _suggestionKeysDotNetRef = DotNetObjectReference.Create(this);
+            try
+            {
+                await JS.InvokeVoidAsync("SmallEBot.attachChatInputSuggestionKeys", "edit-message-dialog-input-wrap", _suggestionKeysDotNetRef);
+            }
+            catch
+            {
+                _suggestionKeysAttached = false;
+                _suggestionKeysDotNetRef?.Dispose();
+                _suggestionKeysDotNetRef = null;
+            }
+        }
+        else if (!_popoverOpen && _suggestionKeysAttached)
+        {
+            _suggestionKeysAttached = false;
+            try { await JS.InvokeVoidAsync("SmallEBot.detachChatInputSuggestionKeys", "edit-message-dialog-input-wrap"); } catch { /* ignore */ }
+            _suggestionKeysDotNetRef?.Dispose();
+            _suggestionKeysDotNetRef = null;
+        }
+    }
+
+    [JSInvokable]
+    public async Task OnSuggestionKeyDown(string key)
+    {
+        if (_attachmentPopoverRef != null)
+            await _attachmentPopoverRef.HandleKeyFromInputAsync(key);
     }
 
     private async Task HandleInputChanged(string v)
@@ -124,6 +176,7 @@
         if (_content.Length > 0 && !_content.EndsWith(' '))
             _content += " ";
         _justSelectedAttachment = true;
+        _syncInputValueInNextRender = true;
         _popoverOpen = false;
         StateHasChanged();
     }
@@ -146,4 +199,11 @@
         _content.Trim(),
         new List<string>(_attachmentPaths),
         new List<string>(_requestedSkillIds))));
+
+    public void Dispose()
+    {
+        try { _ = JS.InvokeVoidAsync("SmallEBot.detachChatInputSuggestionKeys", "edit-message-dialog-input-wrap"); } catch { /* ignore */ }
+        _suggestionKeysDotNetRef?.Dispose();
+        _suggestionKeysDotNetRef = null;
+    }
 }
