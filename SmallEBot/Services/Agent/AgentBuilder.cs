@@ -20,13 +20,13 @@ public sealed class AgentBuilder(
     IAgentContextFactory contextFactory,
     IToolProviderAggregator toolAggregator,
     IMcpToolFactory mcpToolFactory,
-    IConfiguration config,
+    IModelConfigService modelConfig,
     ILogger<AgentBuilder> log) : IAgentBuilder
 {
     private AIAgent? _agent;
     private List<IAsyncDisposable>? _mcpClients;
     private AITool[]? _allTools;
-    private readonly int _contextWindowTokens = config.GetValue("Anthropic:ContextWindowTokens", 128000);
+    private int _contextWindowTokens;
 
     public async Task<AIAgent> GetOrCreateAgentAsync(bool useThinking, CancellationToken ct = default)
     {
@@ -34,6 +34,11 @@ public sealed class AgentBuilder(
 
         if (_agent != null)
             return _agent;
+
+        var config = await modelConfig.GetDefaultAsync(ct)
+            ?? throw new InvalidOperationException("No model configured. Add a model in Settings.");
+
+        _contextWindowTokens = config.ContextWindow;
 
         if (_allTools == null)
         {
@@ -46,18 +51,15 @@ public sealed class AgentBuilder(
             _allTools = combined.ToArray();
         }
 
-        var apiKey = GetApiKey(config);
+        var apiKey = ResolveApiKey(config.ApiKeySource);
         if (string.IsNullOrEmpty(apiKey))
-            log.LogWarning("API key not set. Set Anthropic:ApiKey in config, or ANTHROPIC_API_KEY or DeepseekKey environment variable.");
+            log.LogWarning("API key not set for model '{Model}'. ApiKeySource: {Source}", config.Model, config.ApiKeySource);
 
-        var baseUrl = config["Anthropic:BaseUrl"] ?? "https://api.deepseek.com/anthropic";
-        var model = config["Anthropic:Model"] ?? "deepseek-reasoner";
-
-        var clientOptions = new ClientOptions { ApiKey = apiKey ?? "", BaseUrl = baseUrl };
+        var clientOptions = new ClientOptions { ApiKey = apiKey ?? "", BaseUrl = config.BaseUrl };
         var anthropicClient = new AnthropicClient(clientOptions);
 
         _agent = anthropicClient.AsAIAgent(
-            model: model,
+            model: config.Model,
             name: "SmallEBot",
             instructions: instructions,
             tools: _allTools);
@@ -76,18 +78,19 @@ public sealed class AgentBuilder(
         _allTools = null;
     }
 
-    public int GetContextWindowTokens() => _contextWindowTokens;
+    public int GetContextWindowTokens() => _contextWindowTokens > 0
+        ? _contextWindowTokens
+        : 128000;
 
     public string? GetCachedSystemPromptForTokenCount() => contextFactory.GetCachedSystemPrompt();
 
-    /// <summary>Returns the first non-null, non-whitespace API key from config or environment. Empty string in config is treated as unset.</summary>
-    private static string? GetApiKey(IConfiguration config)
+    private static string? ResolveApiKey(string source)
     {
-        var a = config["Anthropic:ApiKey"];
-        if (!string.IsNullOrWhiteSpace(a)) return a;
-        var c = Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY");
-        if (!string.IsNullOrWhiteSpace(c)) return c;
-        var d = Environment.GetEnvironmentVariable("DeepseekKey");
-        return !string.IsNullOrWhiteSpace(d) ? d : null;
+        if (source.StartsWith("env:", StringComparison.OrdinalIgnoreCase))
+        {
+            var varName = source[4..];
+            return Environment.GetEnvironmentVariable(varName);
+        }
+        return string.IsNullOrWhiteSpace(source) ? null : source;
     }
 }

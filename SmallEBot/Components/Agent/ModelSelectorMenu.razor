@@ -1,0 +1,75 @@
+@* SmallEBot/Components/Agent/ModelSelectorMenu.razor *@
+@using SmallEBot.Services.Agent
+@inject IModelConfigService ModelConfig
+@inject AgentCacheService AgentCache
+@implements IDisposable
+
+<MudMenu AnchorOrigin="Origin.BottomRight"
+         TransformOrigin="Origin.TopRight"
+         Dense="true">
+    <ActivatorContent>
+        <MudButton Variant="Variant.Text"
+                   Color="Color.Default"
+                   EndIcon="@Icons.Material.Filled.ArrowDropDown"
+                   Size="Size.Small">
+            @(_currentModelName ?? "No model")
+        </MudButton>
+    </ActivatorContent>
+    <ChildContent>
+        @foreach (var m in _models)
+        {
+            var modelCopy = m;
+            <MudMenuItem OnClick="@(() => SwitchModel(modelCopy.Id))">
+                @if (modelCopy.Id == _currentModelId)
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.Check" Size="Size.Small" Class="mr-1" />
+                }
+                else
+                {
+                    <span style="width:20px;display:inline-block"></span>
+                }
+                @modelCopy.Name
+            </MudMenuItem>
+        }
+        <MudDivider />
+        <MudMenuItem OnClick="OpenModelSettings">
+            <MudIcon Icon="@Icons.Material.Filled.Settings" Size="Size.Small" Class="mr-1" />
+            Manage Models...
+        </MudMenuItem>
+    </ChildContent>
+</MudMenu>
+
+@code {
+    [Parameter] public EventCallback OnManageModels { get; set; }
+
+    private IReadOnlyList<Core.Models.ModelConfig> _models = [];
+    private string? _currentModelId;
+    private string? _currentModelName;
+
+    protected override async Task OnInitializedAsync()
+    {
+        ModelConfig.OnChanged += OnModelConfigChanged;
+        await LoadModelsAsync();
+    }
+
+    private async Task LoadModelsAsync()
+    {
+        _models = await ModelConfig.GetAllAsync();
+        _currentModelId = await ModelConfig.GetDefaultModelIdAsync();
+        _currentModelName = _models.FirstOrDefault(m => m.Id == _currentModelId)?.Name;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task SwitchModel(string modelId)
+    {
+        await ModelConfig.SetDefaultAsync(modelId);
+        await AgentCache.InvalidateAgentAsync();
+        await LoadModelsAsync();
+    }
+
+    private Task OpenModelSettings() => OnManageModels.InvokeAsync();
+
+    private void OnModelConfigChanged() => _ = InvokeAsync(LoadModelsAsync);
+
+    public void Dispose() => ModelConfig.OnChanged -= OnModelConfigChanged;
+}
