@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
+using SmallEBot.Application.Context;
 using SmallEBot.Application.Streaming;
 using SmallEBot.Core.Models;
 using SmallEBot.Core.Repositories;
@@ -14,7 +15,8 @@ namespace SmallEBot.Services.Agent;
 public sealed class AgentRunnerAdapter(
     IConversationRepository conversationRepository,
     IAgentBuilder agentBuilder,
-    ITurnContextFragmentBuilder fragmentBuilder) : IAgentRunner
+    ITurnContextFragmentBuilder fragmentBuilder,
+    IContextWindowManager contextWindowManager) : IAgentRunner
 {
     public async IAsyncEnumerable<StreamUpdate> RunStreamingAsync(
         Guid conversationId,
@@ -26,7 +28,10 @@ public sealed class AgentRunnerAdapter(
     {
         var agent = await agentBuilder.GetOrCreateAgentAsync(useThinking, cancellationToken);
         var history = await conversationRepository.GetMessagesForConversationAsync(conversationId, cancellationToken);
-        var frameworkMessages = history
+        var maxInputTokens = (int)(agentBuilder.GetContextWindowTokens() * 0.8);
+        var coreMessages = history.ToList();
+        var trimResult = contextWindowManager.TrimToFit(coreMessages, maxInputTokens);
+        var frameworkMessages = trimResult.Messages
             .Select(m => new ChatMessage(ToChatRole(m.Role), m.Content))
             .ToList();
 
