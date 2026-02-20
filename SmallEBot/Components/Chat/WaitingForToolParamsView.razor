@@ -1,0 +1,35 @@
+@* Shown when 2s pass with no new think/text/tool output while streaming — indicates LLM is passing tool args. Style matches ToolCallView. *@
+<div class="@WrapperClass tool-call-view">
+    <MudPaper Class="tool-call-paper tool-call-paper-active" Elevation="0">
+        <div class="waiting-tool-params-row">
+            <span class="mud-typography-body2 font-weight-medium">Passing tool args...</span>
+            <div class="waiting-tool-params-center">
+                <span class="waiting-tool-params-time tool-call-status-text mud-typography-caption mud-secondary-text">@FormatElapsed(Elapsed)</span>
+            </div>
+            @if (OnCancel.HasDelegate)
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.Cancel"
+                               Size="Size.Small"
+                               Color="Color.Warning"
+                               OnClick="OnCancel"
+                               title="Cancel" />
+            }
+            else
+            {
+                <span class="waiting-tool-params-right-placeholder"></span>
+            }
+        </div>
+    </MudPaper>
+</div>
+
+@code {
+    [Parameter] public TimeSpan Elapsed { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+    [Parameter] public string WrapperClass { get; set; } = "mt-2";
+
+    private static string FormatElapsed(TimeSpan e)
+    {
+        var sec = e.TotalSeconds;
+        return $"({sec:F1}s)";
+    }
+}

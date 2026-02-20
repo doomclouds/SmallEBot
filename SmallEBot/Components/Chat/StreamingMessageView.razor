@@ -13,8 +13,12 @@
                     var panelTitle = toolCount > 0 ? $"💭 Reasoning ({toolCount} tool calls)" : "💭 Reasoning";
                     <MudExpansionPanels Class="mt-2" Elevation="0">
                         <MudExpansionPanel expanded="false" Text="@panelTitle">
-                            <div class="d-flex flex-column gap-2">
+                            <div class="d-flex flex-column gap-3">
                                 <ReasoningBlockView Steps="@steps" />
+                                @if (ShowWaitingForToolParams && WaitingInReasoning)
+                                {
+                                    <WaitingForToolParamsView Elapsed="@WaitingElapsed" OnCancel="@OnCancel" WrapperClass="" />
+                                }
                             </div>
                         </MudExpansionPanel>
                     </MudExpansionPanels>
@@ -25,14 +29,20 @@
                 }
                 else if (item.IsReplyTool && ShowToolCalls)
                 {
-                    <ToolCallView ToolName="@item.ToolName"
-                                  ToolArguments="@item.ToolArguments"
-                                  ToolResult="@item.ToolResult"
-                                  Phase="@item.Phase"
-                                  Elapsed="@item.Elapsed"
-                                  ShowToolCalls="@ShowToolCalls"
-                                  OnCancel="@(CanShowCancel(item.Phase) ? OnCancel : EventCallback.Empty)" />
+                    <div class="tool-call-outer">
+                        <ToolCallView ToolName="@item.ToolName"
+                                      ToolArguments="@item.ToolArguments"
+                                      ToolResult="@item.ToolResult"
+                                      Phase="@item.Phase"
+                                      Elapsed="@item.Elapsed"
+                                      ShowToolCalls="@ShowToolCalls"
+                                      OnCancel="@(CanShowCancel(item.Phase) ? OnCancel : EventCallback.Empty)" />
+                    </div>
                 }
+            }
+            @if (ShowWaitingForToolParams && !WaitingInReasoning)
+            {
+                <WaitingForToolParamsView Elapsed="@WaitingElapsed" OnCancel="@OnCancel" WrapperClass="mt-3" />
             }
         }
         @if (ShowFallbackText)
@@ -47,7 +57,10 @@
     [Parameter] public string? FallbackText { get; set; }
     [Parameter] public DateTime Timestamp { get; set; } = DateTime.Now;
     [Parameter] public EventCallback OnCancel { get; set; }
-    [CascadingParameter(Name = "ShowToolCalls")] public bool ShowToolCalls { get; set; } = true;
+    [Parameter] public bool ShowWaitingForToolParams { get; set; }
+    [Parameter] public TimeSpan WaitingElapsed { get; set; }
+    [Parameter] public bool WaitingInReasoning { get; set; }
+    [Parameter] public bool ShowToolCalls { get; set; } = true;
 
     private bool ShowFallbackText => (Items is null || Items.Count == 0) && !string.IsNullOrEmpty(FallbackText);
 

@@ -4,47 +4,56 @@
 {
     <div class="@WrapperClass tool-call-view">
         <MudPaper Class="@EffectivePaperClass" Elevation="0">
-            <div class="d-flex align-center gap-2 pa-2">
-                <MudIcon Icon="@PhaseIcon" Size="Size.Small" Color="@PhaseColor" />
-                <span class="mud-typography-body2 font-weight-medium">@ToolName</span>
-                <span class="mud-typography-caption mud-secondary-text">@StatusText</span>
-                @if (Elapsed.HasValue)
-                {
-                    <span class="mud-typography-caption mud-secondary-text ml-auto">@FormatElapsed(Elapsed.Value)</span>
-                }
-                @if (CanCancel && OnCancel.HasDelegate)
-                {
-                    <MudIconButton Icon="@Icons.Material.Filled.Cancel"
-                                   Size="Size.Small"
-                                   Color="Color.Warning"
-                                   OnClick="OnCancel"
-                                   title="Cancel" />
-                }
-                else if (HasDetails)
-                {
-                    <MudIconButton Icon="@(_expanded ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)"
-                                   Size="Size.Small"
-                                   OnClick="@(() => _expanded = !_expanded)"
-                                   Class="ml-auto" />
-                }
+            <div class="tool-call-header-row">
+                <div class="tool-call-header-left">
+                    <MudIcon Icon="@PhaseIcon" Size="Size.Small" Color="@PhaseColor" />
+                    <span class="mud-typography-body2 font-weight-medium">@ToolName</span>
+                </div>
+                <div class="tool-call-header-center">
+                    <span class="tool-call-status-text mud-typography-caption mud-secondary-text">@StatusText</span>
+                </div>
+                <div class="tool-call-header-right">
+                    @if (Elapsed.HasValue)
+                    {
+                        <span class="mud-typography-caption mud-secondary-text">@FormatElapsed(Elapsed.Value)</span>
+                    }
+                    @if (CanCancel && OnCancel.HasDelegate)
+                    {
+                        <MudIconButton Icon="@Icons.Material.Filled.Cancel"
+                                       Size="Size.Small"
+                                       Color="Color.Warning"
+                                       OnClick="OnCancel"
+                                       title="Cancel" />
+                    }
+                    else if (HasDetails)
+                    {
+                        <MudIconButton Icon="@(_expanded ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)"
+                                       Size="Size.Small"
+                                       OnClick="@(() => _expanded = !_expanded)" />
+                    }
+                </div>
             </div>
             @if (_expanded && HasDetails)
             {
                 <MudDivider />
-                <div class="pa-2">
+                <div class="pa-3 tool-call-details">
                     @if (!string.IsNullOrEmpty(ToolArguments))
                     {
-                        <MudText Typo="Typo.caption" Color="Color.Secondary">Arguments:</MudText>
-                        <pre class="tool-call-pre">@ToolArguments</pre>
+                        <div class="mb-2">
+                            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-1">Arguments:</MudText>
+                            <pre class="tool-call-pre">@ToolArguments</pre>
+                        </div>
                     }
                     @if (!string.IsNullOrEmpty(ToolResult))
                     {
-                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">Result:</MudText>
-                        <pre class="tool-call-pre">@ToolResult</pre>
+                        <div class="mb-2">
+                            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-1">Result:</MudText>
+                            <pre class="tool-call-pre">@ToolResult</pre>
+                        </div>
                     }
                     @if (!string.IsNullOrEmpty(ErrorMessage))
                     {
-                        <MudText Typo="Typo.caption" Color="Color.Error" Class="mt-1">Error: @ErrorMessage</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Error" Class="mt-2">Error: @ErrorMessage</MudText>
                     }
                 </div>
             }
@@ -60,7 +69,7 @@
     [Parameter] public ToolCallPhase Phase { get; set; } = ToolCallPhase.Completed;
     [Parameter] public TimeSpan? Elapsed { get; set; }
     [Parameter] public bool ShowToolCalls { get; set; } = true;
-    [Parameter] public string WrapperClass { get; set; } = "mt-2";
+    [Parameter] public string WrapperClass { get; set; } = "mt-3";
     [Parameter] public string PaperClass { get; set; } = "";
     [Parameter] public EventCallback OnCancel { get; set; }
 

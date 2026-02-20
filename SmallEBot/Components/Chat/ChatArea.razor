@@ -127,7 +127,11 @@
         <StreamingMessageView Items="@GetStreamingDisplayItemViews()"
                               FallbackText="@_streamingText"
                               Timestamp="@DateTime.Now"
-                              OnCancel="StopSend" />
+                              OnCancel="StopSend"
+                              ShowWaitingForToolParams="@_showWaitingForToolParams"
+                              WaitingElapsed="@(_showWaitingForToolParams && _waitingForToolParamsSince.HasValue ? DateTime.UtcNow - _waitingForToolParamsSince.Value : TimeSpan.Zero)"
+                              WaitingInReasoning="@_waitingInReasoning"
+                              ShowToolCalls="@ShowToolCalls" />
     }
     </div>
 
@@ -191,8 +195,14 @@
     private ElementReference _chatScrollRef;
     private string _input = "";
     private bool _streaming;
+    private DateTime? _streamingStartedAt;
     private string _streamingText = "";
     private readonly List<StreamUpdate> _streamingUpdates = [];
+    private DateTime? _lastStreamActivityAt;
+    private bool _showWaitingForToolParams;
+    private DateTime? _waitingForToolParamsSince;
+    private bool _waitingInReasoning;
+    private Timer? _waitingCheckTimer;
     private string _pendingUserMessage = "";
     private DateTime _pendingUserMessageTime;
     private bool _scrollToBottomRequested;
@@ -306,11 +316,15 @@
         _userNameForAction = await UserNameSvc.GetAsync() ?? UserName;
         if (string.IsNullOrWhiteSpace(_userNameForAction)) { Snackbar.Add("Username is missing.", Severity.Warning); return; }
         _streaming = true;
+        _streamingStartedAt = DateTime.UtcNow;
         _streamingText = "";
         _streamingUpdates.Clear();
+        _lastStreamActivityAt = null;
+        _showWaitingForToolParams = false;
         _sendCts = new CancellationTokenSource();
         _scrollToBottomRequested = true;
         _bubbleCountBeforeSend = Bubbles.Count;
+        StartWaitingCheckTimer();
         StateHasChanged();
         await OnBeforeSend.InvokeAsync();
         _ = RunReplaceStreamingLoopAsync(msg.Id, editResult.Content.Trim(), editResult.AttachedPaths, editResult.RequestedSkillIds);
@@ -322,11 +336,15 @@
         _userNameForAction = await UserNameSvc.GetAsync() ?? UserName;
         if (string.IsNullOrWhiteSpace(_userNameForAction)) { Snackbar.Add("Username is missing.", Severity.Warning); return; }
         _streaming = true;
+        _streamingStartedAt = DateTime.UtcNow;
         _streamingText = "";
         _streamingUpdates.Clear();
+        _lastStreamActivityAt = null;
+        _showWaitingForToolParams = false;
         _sendCts = new CancellationTokenSource();
         _scrollToBottomRequested = true;
         _bubbleCountBeforeSend = Bubbles.Count;
+        StartWaitingCheckTimer();
         StateHasChanged();
         await OnBeforeSend.InvokeAsync();
         _ = RunRegenerateStreamingLoopAsync(turnId);
@@ -335,7 +353,7 @@
     private async Task RunReplaceStreamingLoopAsync(Guid messageId, string newContent, IReadOnlyList<string>? attachedPaths, IReadOnlyList<string>? requestedSkillIds)
     {
         var result = await ConversationPipeline.ReplaceUserMessageAsync(ConversationId!.Value, _userNameForAction!, messageId, newContent, UseThinkingMode, attachedPaths, requestedSkillIds, _sendCts!.Token);
-        if (result == null) { _streaming = false; await InvokeAsync(StateHasChanged); return; }
+        if (result == null) { _streaming = false; _streamingStartedAt = null; await InvokeAsync(StateHasChanged); return; }
         await OnMessageSent.InvokeAsync();
         await RunStreamingLoopForTurnAsync(result.Value.TurnId, result.Value.UserMessage, UseThinkingMode, result.Value.AttachedPaths, result.Value.RequestedSkillIds);
     }
@@ -343,7 +361,7 @@
     private async Task RunRegenerateStreamingLoopAsync(Guid turnId)
     {
         var result = await ConversationPipeline.PrepareTurnForRegenerateAsync(ConversationId!.Value, _userNameForAction!, turnId, _sendCts!.Token);
-        if (result == null) { _streaming = false; await InvokeAsync(StateHasChanged); return; }
+        if (result == null) { _streaming = false; _streamingStartedAt = null; await InvokeAsync(StateHasChanged); return; }
         await OnMessageSent.InvokeAsync();
         await RunStreamingLoopForTurnAsync(result.Value.TurnId, result.Value.UserMessage, result.Value.UseThinking, result.Value.AttachedPaths, result.Value.RequestedSkillIds);
     }
@@ -362,6 +380,8 @@
             await foreach (var update in channel.Reader.ReadAllAsync(_sendCts!.Token))
             {
                 _sendCts.Token.ThrowIfCancellationRequested();
+                _lastStreamActivityAt = DateTime.UtcNow;
+                _showWaitingForToolParams = false;
                 switch (update)
                 {
                     case TextStreamUpdate t:
@@ -391,6 +411,7 @@
         }
         finally
         {
+            StopWaitingCheckTimer();
             _sendCts?.Dispose();
             _sendCts = null;
             if (persisted)
@@ -400,6 +421,8 @@
                 await OnMessageSent.InvokeAsync();
             }
             _streaming = false;
+            _streamingStartedAt = null;
+            _showWaitingForToolParams = false;
             _streamingUpdates.Clear();
             _scrollToBottomRequested = true;
             await InvokeAsync(StateHasChanged);
@@ -424,10 +447,14 @@
         _pendingUserMessageTime = DateTime.UtcNow;
         _bubbleCountBeforeSend = Bubbles.Count;
         _streaming = true;
+        _streamingStartedAt = DateTime.UtcNow;
         _streamingText = "";
         _streamingUpdates.Clear();
+        _lastStreamActivityAt = null;
+        _showWaitingForToolParams = false;
         _sendCts = new CancellationTokenSource();
         _scrollToBottomRequested = true;
+        StartWaitingCheckTimer();
         StateHasChanged();
 
         await OnBeforeSend.InvokeAsync();
@@ -438,6 +465,7 @@
             Snackbar.Add("Username is missing. Please refresh and enter your name.", Severity.Warning);
             _pendingUserMessage = "";
             _streaming = false;
+            _streamingStartedAt = null;
             _sendCts?.Dispose();
             _sendCts = null;
             await InvokeAsync(StateHasChanged);
@@ -467,6 +495,8 @@
             await foreach (var update in channel.Reader.ReadAllAsync(_sendCts.Token))
             {
                 _sendCts.Token.ThrowIfCancellationRequested();
+                _lastStreamActivityAt = DateTime.UtcNow;
+                _showWaitingForToolParams = false;
                 switch (update)
                 {
                     case TextStreamUpdate t:
@@ -512,6 +542,7 @@
         }
         finally
         {
+            StopWaitingCheckTimer();
             _sendCts?.Dispose();
             _sendCts = null;
             if (persisted)
@@ -522,10 +553,38 @@
                 await OnMessageSent.InvokeAsync();
             }
             _streaming = false;
+            _streamingStartedAt = null;
+            _showWaitingForToolParams = false;
             _streamingUpdates.Clear();
             _scrollToBottomRequested = true;
             await InvokeAsync(StateHasChanged);
         }
+    }
+
+    private void StartWaitingCheckTimer()
+    {
+        _waitingCheckTimer?.Dispose();
+        _waitingCheckTimer = new Timer(_ => _ = InvokeAsync(RefreshWaitingState), null, 500, 500);
+    }
+
+    private void StopWaitingCheckTimer()
+    {
+        _waitingCheckTimer?.Dispose();
+        _waitingCheckTimer = null;
+    }
+
+    private void RefreshWaitingState()
+    {
+        if (!_streaming) return;
+        if (_lastStreamActivityAt is null) return;
+        var elapsed = (DateTime.UtcNow - _lastStreamActivityAt.Value).TotalSeconds;
+        if (!_showWaitingForToolParams && elapsed >= 2)
+        {
+            _showWaitingForToolParams = true;
+            _waitingForToolParamsSince = _lastStreamActivityAt;
+            _waitingInReasoning = !_streamingUpdates.Any(u => u is TextStreamUpdate);
+        }
+        StateHasChanged();
     }
 
     protected override void OnParametersSet()
@@ -541,6 +600,7 @@
         if (_streaming && Bubbles.Count > _bubbleCountBeforeSend)
         {
             _streaming = false;
+            _streamingStartedAt = null;
             _streamingUpdates.Clear();
         }
     }
@@ -716,6 +776,7 @@
 
     public void Dispose()
     {
+        StopWaitingCheckTimer();
         try { _ = JS.InvokeVoidAsync("SmallEBot.detachDropZone", "smallebot-chat-drop-zone"); } catch { /* ignore */ }
         _dropZoneDotNetRef?.Dispose();
         _dropZoneDotNetRef = null;
