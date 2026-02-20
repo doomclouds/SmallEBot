@@ -1,4 +1,4 @@
-using SmallEBot.Core.Models;
+﻿using SmallEBot.Core.Models;
 
 namespace SmallEBot.Services.Agent;
 
