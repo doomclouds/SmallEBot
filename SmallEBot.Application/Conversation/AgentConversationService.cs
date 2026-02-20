@@ -87,6 +87,23 @@ public sealed class AgentConversationService(
         CancellationToken cancellationToken = default) =>
         repository.CompleteTurnWithErrorAsync(conversationId, turnId, errorMessage, cancellationToken);
 
+    public async Task CompleteTurnWithPartialContentAsync(
+        Guid conversationId,
+        Guid turnId,
+        IReadOnlyList<StreamUpdate> updates,
+        bool useThinking,
+        string? stoppedOrErrorMessage,
+        CancellationToken cancellationToken = default)
+    {
+        var segments = StreamUpdateToSegments.ToSegments(updates, useThinking);
+        if (!string.IsNullOrEmpty(stoppedOrErrorMessage))
+            segments.Add(new AssistantSegment(true, false, stoppedOrErrorMessage));
+        if (segments.Count > 0)
+            await repository.CompleteTurnWithAssistantAsync(conversationId, turnId, segments, cancellationToken);
+        else
+            await repository.CompleteTurnWithErrorAsync(conversationId, turnId, stoppedOrErrorMessage ?? "Stopped.", cancellationToken);
+    }
+
     public Task<(Guid TurnId, string UserMessage)?> ReplaceUserMessageAsync(
         Guid conversationId,
         string userName,

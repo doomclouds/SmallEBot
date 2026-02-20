@@ -51,6 +51,15 @@ public interface IAgentConversationService
         string errorMessage,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Persist partial assistant content when stream is interrupted (cancel/error). Saves thinking, tool calls, and text received so far; appends stoppedOrErrorMessage as final text segment when provided.</summary>
+    Task CompleteTurnWithPartialContentAsync(
+        Guid conversationId,
+        Guid turnId,
+        IReadOnlyList<StreamUpdate> updates,
+        bool useThinking,
+        string? stoppedOrErrorMessage,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Replace user message with new content, delete subsequent turns, create new turn. Call before streaming. Returns (turnId, userMessage) or null.</summary>
     Task<(Guid TurnId, string UserMessage)?> ReplaceUserMessageAsync(
         Guid conversationId,
