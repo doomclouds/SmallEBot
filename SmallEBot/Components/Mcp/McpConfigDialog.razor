@@ -1,9 +1,12 @@
 @using SmallEBot.Models
+@using SmallEBot.Services.Agent
 @inject IMcpConfigService McpConfig
 @inject IMcpToolsLoaderService McpToolsLoader
+@inject IMcpConnectionManager McpConnectionManager
 @inject AgentCacheService AgentCache
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
+@implements IDisposable
 
 <MudDialog>
     <TitleContent>
@@ -23,6 +26,7 @@
                     <MudTh>Name</MudTh>
                     <MudTh>Type</MudTh>
                     <MudTh>Info</MudTh>
+                    <MudTh>Status</MudTh>
                     <MudTh>Source</MudTh>
                     <MudTh>Enabled</MudTh>
                     <MudTh Style="width: 120px;">Action</MudTh>
@@ -34,6 +38,20 @@
                     <MudTd DataLabel="Name">@context.Id</MudTd>
                     <MudTd DataLabel="Type">@GetTypeLabel(context.Entry)</MudTd>
                     <MudTd DataLabel="Info">@GetInfoLabel(context.Entry)</MudTd>
+                    <MudTd DataLabel="Status">
+                        @if (context.IsEnabled)
+                        {
+                            <MudText Typo="Typo.caption">@GetStatusIcon(context.Id) @GetStatusText(context.Id)</MudText>
+                            @if (GetStatus(context.Id)?.State == ConnectionState.Error)
+                            {
+                                <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="@(() => RetryConnect(context.Id))" Class="mt-1">Retry</MudButton>
+                            }
+                        }
+                        else
+                        {
+                            <MudText Typo="Typo.caption">Disabled</MudText>
+                        }
+                    </MudTd>
                     <MudTd DataLabel="Source">@(context.IsSystem ? "System" : "User")</MudTd>
                     <MudTd DataLabel="Enabled">
                         <MudSwitch T="bool" value="@context.IsEnabled" ValueChanged="@GetToggleCallback(context.Id)" Color="Color.Primary" />
@@ -118,7 +136,9 @@
 
     protected override async Task OnInitializedAsync()
     {
+        McpConnectionManager.OnStatusChanged += OnMcpStatusChanged;
         await LoadListAsync();
+        _ = McpConnectionManager.ReconcileAsync();
     }
 
     private async Task LoadListAsync()
@@ -302,6 +322,57 @@
     }
 
     private void Close() => MudDialog.Close();
+
+    public void Dispose() => McpConnectionManager.OnStatusChanged -= OnMcpStatusChanged;
+
+    private void OnMcpStatusChanged(string _, McpConnectionStatus __) => InvokeAsync(StateHasChanged);
+
+    private static McpConnectionStatus? GetStatus(IMcpConnectionManager manager, string serverId)
+    {
+        var statuses = manager.GetAllStatuses();
+        return statuses.TryGetValue(serverId, out var s) ? s : null;
+    }
+
+    private McpConnectionStatus? GetStatus(string serverId) => GetStatus(McpConnectionManager, serverId);
+
+    private static string GetStatusIcon(IMcpConnectionManager manager, string serverId)
+    {
+        var status = GetStatus(manager, serverId);
+        if (status == null) return "⚪";
+        return status.State switch
+        {
+            ConnectionState.Connected => "🟢",
+            ConnectionState.Connecting => "🟡",
+            ConnectionState.Reconnecting => "🟠",
+            ConnectionState.Error => "🔴",
+            _ => "⚪"
+        };
+    }
+
+    private string GetStatusIcon(string serverId) => GetStatusIcon(McpConnectionManager, serverId);
+
+    private static string GetStatusText(IMcpConnectionManager manager, string serverId)
+    {
+        var status = GetStatus(manager, serverId);
+        if (status == null) return "Not connected";
+        return status.State switch
+        {
+            ConnectionState.Connected => $"Connected • {status.ToolCount} tools",
+            ConnectionState.Connecting => "Connecting...",
+            ConnectionState.Reconnecting => "Reconnecting...",
+            ConnectionState.Error => string.IsNullOrEmpty(status.LastError) ? "Error" : $"Error: {status.LastError}",
+            ConnectionState.Disconnected => "Disconnected",
+            _ => ""
+        };
+    }
+
+    private string GetStatusText(string serverId) => GetStatusText(McpConnectionManager, serverId);
+
+    private async Task RetryConnect(string serverId)
+    {
+        await McpConnectionManager.GetOrCreateAsync(serverId);
+        await InvokeAsync(StateHasChanged);
+    }
 
     private sealed class McpRowViewModel(string id, McpServerEntry entry, bool isSystem, bool isEnabled)
     {

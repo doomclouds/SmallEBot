@@ -37,7 +37,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IConversationRepository, ConversationRepository>();
         services.AddScoped<BackfillTurnsService>();
         services.AddScoped<UserPreferencesService>();
-        services.AddScoped<IMcpConfigService, McpConfigService>();
+        services.AddSingleton<IMcpConfigService, McpConfigService>();
         services.AddScoped<ISkillsConfigService, SkillsConfigService>();
         services.AddSingleton<ITerminalConfigService, TerminalConfigService>();
         services.AddSingleton<ICommandConfirmationContext, CommandConfirmationContext>();
@@ -62,7 +62,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ITaskListCache, TaskListCache>();
         services.AddSingleton<ITaskListWatcher, TaskListWatcher>();
         services.AddSingleton<IModelConfigService, ModelConfigService>();
-        services.AddScoped<IMcpToolFactory, McpToolFactory>();
+        services.AddSingleton<IMcpConnectionManager, McpConnectionManager>();
         services.AddScoped<IAgentBuilder, AgentBuilder>();
         services.AddScoped<IAgentConversationService, AgentConversationService>();
         services.AddScoped<IAgentRunner, AgentRunnerAdapter>();

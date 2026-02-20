@@ -68,7 +68,7 @@ Blazor UI → SignalR → ConversationService → IAgentConversationService
                            IStreamSink (ChannelStreamSink) → UI updates
 ```
 
-**AgentBuilder** composes: `IAgentContextFactory` (system prompt + skills) + `IToolProviderAggregator` + `IMcpToolFactory` → caches `AIAgent`. Single cached agent (reasoner model); thinking on/off per request via ChatOptions.Reasoning in run options.
+**AgentBuilder** composes: `IAgentContextFactory` (system prompt + skills) + `IToolProviderAggregator` + `IMcpConnectionManager` → caches `AIAgent`. Single cached agent (reasoner model); thinking on/off per request via ChatOptions.Reasoning in run options.
 
 ### Built-in tools
 

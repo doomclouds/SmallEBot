@@ -6,7 +6,7 @@ using SmallEBot.Services.Agent.Tools;
 
 namespace SmallEBot.Services.Agent;
 
-/// <summary>Builds and caches AIAgent from context factory and tool factories. Owns MCP client disposal on Invalidate.</summary>
+/// <summary>Builds and caches AIAgent from context factory and tool factories. MCP connections are managed by IMcpConnectionManager.</summary>
 public interface IAgentBuilder
 {
     Task<AIAgent> GetOrCreateAgentAsync(bool useThinking, CancellationToken ct = default);
@@ -19,21 +19,20 @@ public interface IAgentBuilder
 public sealed class AgentBuilder(
     IAgentContextFactory contextFactory,
     IToolProviderAggregator toolAggregator,
-    IMcpToolFactory mcpToolFactory,
+    IMcpConnectionManager mcpConnectionManager,
     IModelConfigService modelConfig,
     ILogger<AgentBuilder> log) : IAgentBuilder
 {
     private AIAgent? _agent;
-    private List<IAsyncDisposable>? _mcpClients;
     private AITool[]? _allTools;
     private int _contextWindowTokens;
 
     public async Task<AIAgent> GetOrCreateAgentAsync(bool useThinking, CancellationToken ct = default)
     {
-        var instructions = await contextFactory.BuildSystemPromptAsync(ct);
-
         if (_agent != null)
             return _agent;
+
+        var instructions = await contextFactory.BuildSystemPromptAsync(ct);
 
         var config = await modelConfig.GetDefaultAsync(ct)
             ?? throw new InvalidOperationException("No model configured. Add a model in Settings.");
@@ -43,8 +42,7 @@ public sealed class AgentBuilder(
         if (_allTools == null)
         {
             var builtIn = await toolAggregator.GetAllToolsAsync(ct);
-            var (mcpTools, clients) = await mcpToolFactory.LoadAsync(ct);
-            _mcpClients = clients.Count > 0 ? [.. clients] : null;
+            var mcpTools = await mcpConnectionManager.GetAllToolsAsync(ct);
             var combined = new List<AITool>(builtIn.Length + mcpTools.Length);
             combined.AddRange(builtIn);
             combined.AddRange(mcpTools);
@@ -68,12 +66,6 @@ public sealed class AgentBuilder(
 
     public async Task InvalidateAsync()
     {
-        if (_mcpClients != null)
-        {
-            foreach (var c in _mcpClients)
-                await c.DisposeAsync();
-            _mcpClients = null;
-        }
         _agent = null;
         _allTools = null;
     }
