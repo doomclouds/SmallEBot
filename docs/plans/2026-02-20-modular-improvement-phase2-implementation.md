@@ -10,6 +10,18 @@
 
 ---
 
+## Workflow (MANDATORY for subagent development)
+
+**For each task:**
+
+1. **Implement** the task following the plan steps.
+2. **Code review** — Invoke `code-reviewer` subagent to review the implementation against the plan and coding standards.
+3. **Quality check** — Run `dotnet build`, fix linter errors, verify behavior; do NOT mark complete until build passes and review is addressed.
+
+Do not skip review or quality checks. Tasks 10+ are complex; strict discipline reduces regressions and integration issues.
+
+---
+
 ## Key Files Reference
 
 | Path | Role |
