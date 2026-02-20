@@ -14,6 +14,8 @@ using SmallEBot.Services.Circuit;
 using SmallEBot.Services.Terminal;
 using SmallEBot.Services.User;
 using SmallEBot.Services.Workspace;
+using SmallEBot.Application.Context;
+using SmallEBot.Services.Context;
 
 namespace SmallEBot.Extensions;
 
@@ -60,6 +62,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ICurrentCircuitAccessor, CurrentCircuitAccessor>();
         services.AddScoped<CircuitHandler, CircuitContextHandler>();
         services.AddSingleton<MarkdownService>();
+        services.AddSingleton<IContextWindowManager, ContextWindowManager>();
         services.AddSingleton<ITokenizer>(sp =>
         {
             var config = sp.GetRequiredService<IConfiguration>();
