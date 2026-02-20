@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using Microsoft.Extensions.AI;
 using SmallEBot.Core;
 using SmallEBot.Services.Workspace;
@@ -57,7 +57,7 @@ public sealed class FileToolProvider(IVirtualFileSystem vfs) : IToolProvider
             var dir = Path.GetDirectoryName(fullPath);
             if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
                 Directory.CreateDirectory(dir);
-            File.WriteAllText(fullPath, content ?? "", System.Text.Encoding.UTF8);
+            File.WriteAllText(fullPath, content, System.Text.Encoding.UTF8);
             return "Written " + fullPath;
         }
         catch (Exception ex)
