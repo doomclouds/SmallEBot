@@ -77,18 +77,21 @@ ReadFile, WriteFile, ListFiles, and ExecuteCommand (working directory) are scope
 | Tool | Purpose |
 |------|---------|
 | `GetCurrentTime` | Returns current local datetime (machine timezone) |
+| `GetWorkspaceRoot()` | Returns the workspace (VFS) root absolute path; no parameters. Use when MCP or scripts need an absolute path (e.g. MCP get_document savePath). Call once and reuse. |
 | `ReadFile(path)` | Read file in workspace (path relative to workspace root) |
 | `WriteFile(path, content)` | Write file in workspace |
+| `AppendFile(path, content)` | Append content to a file (or create); newline inserted before content if file exists |
 | `ListFiles(path?)` | List files/dirs in workspace |
+| `CopyDirectory(sourcePath, destPath)` | Copy a directory and all contents recursively to another path (both relative to workspace root); dest created if missing |
 | `GrepFiles(pattern, mode?, path?, maxDepth?)` | Search file names by glob (default) or regex pattern; returns JSON with file paths relative to workspace root |
-| `GrepContent(pattern, ...)` | Search file content with regex; supports ignoreCase, contextLines, filesOnly, countOnly, invertMatch, filePattern, maxResults; returns JSON with matches |
+| `GrepContent(pattern, ...)` | Search file content with regex; supports ignoreCase, contextLines, filesOnly, countOnly, invertMatch, filePattern, maxResults, maxDepth; returns JSON with matches |
 | `ReadSkill(skillName)` | Load SKILL.md from sys.skills or skills (not workspace) |
 | `ReadSkillFile(skillId, relativePath)` | Read a file inside a skill folder; returns JSON `{ "path", "content" }` |
 | `ListSkillFiles(skillId, path?)` | List files/dirs inside a skill folder |
 | `ExecuteCommand(command)` | Run shell command; working dir defaults to workspace root. Use for Python scripts (e.g. python script.py). Optional user confirmation and whitelist (prefix match) when enabled in Terminal config. |
 | `ListTasks` | List current conversation tasks (JSON `{ "tasks": [ { "id", "title", "description", "done" }, ... ] }`) |
 | `SetTaskList(tasksJson)` | Create or replace the task list in one call; pass JSON array of `{ "title", "description"? }` objects; returns the created list |
-| `CompleteTask(taskId)` | Mark a task as done |
+| `CompleteTask(taskId)` | Mark a task as done; returns `{ ok, task, nextTask, remaining }` — use nextTask.id for the next call without ListTasks |
 | `ClearTasks` | Delete all tasks for the current conversation; call before SetTaskList when starting a new breakdown |
 
 ### Context attachments (@ and /)

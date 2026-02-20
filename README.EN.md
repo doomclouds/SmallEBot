@@ -154,6 +154,7 @@ All runtime data is stored in the application directory:
 | `.agents/sys.skills/` | System skills |
 | `.agents/.mcp.json` | MCP server configuration |
 | `.agents/terminal.json` | Terminal security configuration |
+| `.agents/models.json` | Model configurations (switch via Settings or AppBar) |
 | `.agents/tasks/` | Per-conversation task lists (JSON) |
 
 ## Usage Guide
@@ -221,9 +222,12 @@ The assistant can use the following tools:
 | Tool | Description |
 |------|-------------|
 | `GetCurrentTime` | Get current local time |
+| `GetWorkspaceRoot()` | Get workspace root absolute path (no args); for MCP or script paths |
 | `ReadFile(path)` | Read workspace file |
 | `WriteFile(path, content)` | Write workspace file |
+| `AppendFile(path, content)` | Append content to a file (creates if missing) |
 | `ListFiles(path?)` | List workspace directory contents |
+| `CopyDirectory(sourcePath, destPath)` | Copy a directory and its contents recursively to another path |
 | `GrepFiles(pattern, ...)` | Search file names by pattern (glob/regex) |
 | `GrepContent(pattern, ...)` | Search file content (supports regex) |
 | `ReadSkill(skillName)` | Load skill file |
@@ -247,6 +251,10 @@ dotnet run --project SmallEBot
 # Add EF Core migration
 dotnet ef migrations add <MigrationName> --project SmallEBot.Infrastructure --startup-project SmallEBot
 ```
+
+**PowerShell**: Use `;` to chain commands, not `&&`. See `.cursor/rules/powershell-multi-command.mdc`.
+
+For architecture and Cursor guidance, see [AGENTS.md](AGENTS.md).
 
 ## License
 

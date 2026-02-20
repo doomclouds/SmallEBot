@@ -18,15 +18,32 @@ public sealed class FileToolProvider(IVirtualFileSystem vfs) : IToolProvider
         "WriteFile" => TimeSpan.FromMinutes(10),
         "ReadFile" => TimeSpan.FromSeconds(30),
         "ListFiles" => TimeSpan.FromSeconds(30),
+        "GetWorkspaceRoot" => TimeSpan.FromSeconds(5),
+        "CopyDirectory" => TimeSpan.FromMinutes(5),
         _ => null
     };
 
     public IEnumerable<AITool> GetTools()
     {
+        yield return AIFunctionFactory.Create(GetWorkspaceRoot);
         yield return AIFunctionFactory.Create(ReadFile);
         yield return AIFunctionFactory.Create(WriteFile);
         yield return AIFunctionFactory.Create(AppendFile);
         yield return AIFunctionFactory.Create(ListFiles);
+        yield return AIFunctionFactory.Create(CopyDirectory);
+    }
+
+    [Description("Get the absolute path of the workspace (virtual file system root). No parameters. Use when a tool or MCP requires an absolute path (e.g. MCP get_document savePath, or script arguments). Call once at the start of a multi-step flow and reuse the returned path.")]
+    private string GetWorkspaceRoot()
+    {
+        try
+        {
+            return Path.GetFullPath(vfs.GetRootPath());
+        }
+        catch (Exception ex)
+        {
+            return "Error: " + ex.Message;
+        }
     }
 
     [Description("Read a text file from the workspace. path: relative to workspace root (e.g. notes.txt or src/script.py). startLine/endLine: optional 1-based line numbers to read only part of a large file (e.g. startLine=10, endLine=50). lineNumbers: if true, prefix each output line with its 1-based number — useful when cross-referencing GrepContent results. When the response header says [Total: N lines] and N is large, use startLine/endLine on the next call. Allowed extensions: .md, .cs, .py, .txt, .json, .yml, .yaml.")]
@@ -130,6 +147,56 @@ public sealed class FileToolProvider(IVirtualFileSystem vfs) : IToolProvider
         {
             return "Error: " + ex.Message;
         }
+    }
+
+    [Description("Copy a directory from one path to another within the workspace. sourcePath: directory to copy (relative to workspace root, e.g. docs or backup/2024). destPath: destination directory (relative to workspace root); created if missing. Copies all files and subdirectories recursively. Both paths must be under the workspace. Fails if source does not exist, is not a directory, or if dest is inside source (to avoid infinite copy).")]
+    private string CopyDirectory(string sourcePath, string destPath)
+    {
+        if (string.IsNullOrWhiteSpace(sourcePath)) return "Error: sourcePath is required.";
+        if (string.IsNullOrWhiteSpace(destPath)) return "Error: destPath is required.";
+        var baseDir = Path.GetFullPath(vfs.GetRootPath());
+        var sourceFull = Path.GetFullPath(Path.Combine(baseDir, sourcePath.Trim().Replace('\\', Path.DirectorySeparatorChar)));
+        var destFull = Path.GetFullPath(Path.Combine(baseDir, destPath.Trim().Replace('\\', Path.DirectorySeparatorChar)));
+        if (!sourceFull.StartsWith(baseDir, StringComparison.OrdinalIgnoreCase))
+            return "Error: sourcePath must be under the workspace.";
+        if (!destFull.StartsWith(baseDir, StringComparison.OrdinalIgnoreCase))
+            return "Error: destPath must be under the workspace.";
+        if (!Directory.Exists(sourceFull))
+            return "Error: source directory not found.";
+        if (destFull.StartsWith(sourceFull.TrimEnd(Path.DirectorySeparatorChar, '/') + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+            || destFull.Equals(sourceFull, StringComparison.OrdinalIgnoreCase))
+            return "Error: destination cannot be inside or equal to source.";
+        try
+        {
+            Directory.CreateDirectory(destFull);
+            var count = CopyDirectoryRecursive(sourceFull, destFull);
+            return $"Copied {count} file(s) from {sourcePath.Trim()} to {destPath.Trim()}.";
+        }
+        catch (Exception ex)
+        {
+            return "Error: " + ex.Message;
+        }
+    }
+
+    private static int CopyDirectoryRecursive(string sourceDir, string destDir)
+    {
+        var count = 0;
+        foreach (var entry in Directory.GetFileSystemEntries(sourceDir))
+        {
+            var name = Path.GetFileName(entry);
+            var destPath = Path.Combine(destDir, name);
+            if (Directory.Exists(entry))
+            {
+                Directory.CreateDirectory(destPath);
+                count += CopyDirectoryRecursive(entry, destPath);
+            }
+            else
+            {
+                File.Copy(entry, destPath, overwrite: true);
+                count++;
+            }
+        }
+        return count;
     }
 
     [Description("List files and subdirectories in the workspace. Pass an optional path (relative to the workspace root, e.g. src or .) to list a subdirectory; omit or use . for the workspace root. Returns one entry per line: directories end with /, files do not.")]

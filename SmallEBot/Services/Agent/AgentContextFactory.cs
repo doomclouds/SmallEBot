@@ -49,6 +49,8 @@ public sealed class AgentContextFactory(ISkillsConfigService skillsConfig, ITerm
             [MCP] Use available MCP tools when they help answer the user.
 
             [File tools — decision tree]
+            0. Need workspace absolute path → GetWorkspaceRoot()
+               No parameters. Returns the workspace (virtual file) root as a single absolute path. Use when MCP or a script requires an absolute path (e.g. MCP get_document savePath). Call once and reuse the value.
             1. Explore a directory → ListFiles(path?)
                Lists direct children only. Use for "what is in folder X?".
             2. Find files by name/extension → GrepFiles(pattern, mode?, path?, maxDepth?)
@@ -71,6 +73,8 @@ public sealed class AgentContextFactory(ISkillsConfigService skillsConfig, ITerm
                Parent directories created automatically.
             6. Append to a file → AppendFile(path, content)
                Adds content to the end; creates the file if missing. Use for logs, accumulating results, or building output incrementally.
+            7. Copy a directory → CopyDirectory(sourcePath, destPath)
+               Both paths relative to workspace root. Copies the source directory and all its contents recursively into the destination (destination created if missing). Use to duplicate a folder (e.g. backup, template).
 
             [Shell]
             ExecuteCommand(command, workingDirectory?) — cmd.exe (Windows) / sh (Unix). workingDirectory defaults to workspace root; pass a relative path for subdirectories. Output capped at 50 000 chars. Result includes ExitCode, Stdout, Stderr. Always check ExitCode and Stderr.

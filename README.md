@@ -154,6 +154,7 @@ dotnet user-secrets set "Anthropic:ApiKey" "your-api-key"
 | `.agents/sys.skills/` | 系统技能 |
 | `.agents/.mcp.json` | MCP 服务器配置 |
 | `.agents/terminal.json` | 终端安全配置 |
+| `.agents/models.json` | 模型配置（可在设置或 AppBar 中切换） |
 | `.agents/tasks/` | 各对话任务列表（JSON） |
 
 ## 使用指南
@@ -221,9 +222,12 @@ dotnet user-secrets set "Anthropic:ApiKey" "your-api-key"
 | 工具 | 功能 |
 |------|------|
 | `GetCurrentTime` | 获取当前本地时间 |
+| `GetWorkspaceRoot()` | 获取工作区根目录的绝对路径（无参数），供 MCP 或脚本使用 |
 | `ReadFile(path)` | 读取工作区文件 |
 | `WriteFile(path, content)` | 写入工作区文件 |
+| `AppendFile(path, content)` | 向文件追加内容（不存在则创建） |
 | `ListFiles(path?)` | 列出工作区目录内容 |
+| `CopyDirectory(sourcePath, destPath)` | 将某目录及其内容递归复制到另一目录 |
 | `GrepFiles(pattern, ...)` | 按模式搜索文件名（glob/regex） |
 | `GrepContent(pattern, ...)` | 搜索文件内容（支持正则表达式） |
 | `ReadSkill(skillName)` | 加载技能文件 |
@@ -247,6 +251,10 @@ dotnet run --project SmallEBot
 # 添加 EF Core 迁移
 dotnet ef migrations add <MigrationName> --project SmallEBot.Infrastructure --startup-project SmallEBot
 ```
+
+**PowerShell 用户**：多条命令请用 `;` 连接，勿用 `&&`。详见 `.cursor/rules/powershell-multi-command.mdc`。
+
+开发与架构细节见 [AGENTS.md](AGENTS.md)。
 
 ## 许可证
 
