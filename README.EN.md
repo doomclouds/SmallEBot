@@ -6,15 +6,17 @@ A local AI assistant built with ASP.NET Core Blazor Server. **Runs locally on yo
 
 ## Features
 
-- **Multi-conversation**: Create, switch, and delete conversations; history stored per user
-- **Streaming chat**: Real-time streaming of assistant replies with optional reasoning/tool-call visibility
-- **Thinking mode**: Toggle extended reasoning (e.g. DeepSeek Reasoner) via Anthropic thinking support
-- **MCP tools**: Connect to Model Context Protocol servers for extended capabilities (filesystem, web search, databases, etc.)
-- **Skills**: File-based skills system — create custom skills in `.agents/skills/` with YAML frontmatter
-- **Terminal**: Execute shell commands via `ExecuteCommand` tool. Configurable command blacklist. Optional command confirmation and whitelist
-- **Workspace**: Agent file tools and ExecuteCommand scoped to `.agents/vfs/`. Browse files via the Workspace drawer
-- **Themes**: Multiple UI themes (dark, light, terminal style, etc.) with persistence
-- **No login**: First visit asks for a username; data is scoped by that name
+- **Multi-conversation**: Create, switch, and delete conversations; history stored per user. Sidebar supports search by conversation title.
+- **Streaming chat**: Real-time streaming of assistant replies with optional reasoning/tool-call visibility.
+- **Edit & regenerate**: Edit a user message and resend (discards later turns); or regenerate an AI reply (discards that reply and all later content).
+- **Thinking mode**: Toggle extended reasoning (e.g. DeepSeek Reasoner) via Anthropic thinking support.
+- **MCP tools**: Connect to Model Context Protocol servers for extended capabilities (filesystem, web search, databases, etc.).
+- **Skills**: File-based skills system — create custom skills in `.agents/skills/` with YAML frontmatter.
+- **Terminal**: Execute shell commands via `ExecuteCommand` tool. Configurable command blacklist. Optional command confirmation and whitelist.
+- **Workspace**: Agent file tools and ExecuteCommand scoped to `.agents/vfs/`. Browse files via the Workspace drawer (refreshes via FileSystemWatcher).
+- **Task list**: Assistant can manage a task list per conversation via tools; Task List drawer stays in sync.
+- **Themes**: Multiple UI themes (dark, light, terminal style, etc.) with persistence.
+- **No login**: First visit asks for a username; data is scoped by that name.
 
 ## Tech Stack
 
@@ -35,7 +37,9 @@ SmallEBot/
 │   ├── appsettings.json          # Configuration
 │   ├── Components/               # Razor components
 │   │   ├── Layout/               # Layout components
+│   │   ├── Chat/                 # Chat area, edit/regenerate, EditMessageDialog
 │   │   ├── Workspace/            # Workspace drawer components
+│   │   ├── TaskList/             # Task list drawer
 │   │   └── Terminal/             # Terminal-related components
 │   ├── Services/                 # Service layer
 │   │   ├── Agent/                # Agent services
@@ -64,7 +68,8 @@ SmallEBot/
 │   ├── sys.skills/               # System skills
 │   ├── .mcp.json                 # MCP configuration
 │   ├── .sys.mcp.json             # System MCP configuration
-│   └── terminal.json             # Terminal configuration
+│   ├── terminal.json             # Terminal configuration
+│   └── tasks/                    # Per-conversation task list JSON files
 │
 └── docs/plans/                   # Design documents
 ```
@@ -149,14 +154,16 @@ All runtime data is stored in the application directory:
 | `.agents/sys.skills/` | System skills |
 | `.agents/.mcp.json` | MCP server configuration |
 | `.agents/terminal.json` | Terminal security configuration |
+| `.agents/tasks/` | Per-conversation task lists (JSON) |
 
 ## Usage Guide
 
 ### Basic Chat
 
 1. Enter a username on first visit
-2. Type a question in the chat box and press Enter
+2. Type a question in the chat box and press Enter (or Ctrl+Enter)
 3. The assistant will stream the reply in real-time
+4. Use the edit button on a user message to change and resend; use the regenerate button on an AI message to discard that reply and everything after, then regenerate
 
 ### Context Attachments
 
@@ -169,6 +176,11 @@ In the chat input:
 ### Thinking Mode
 
 Click the "Thinking" button next to the input to toggle. When enabled, the assistant shows its reasoning process (requires a model that supports thinking).
+
+### Conversation Sidebar
+
+- Create, switch, and delete conversations
+- Search box at the top filters conversations by title
 
 ### Workspace
 

@@ -51,6 +51,8 @@ SmallEBot (Host)        → Core, Application, Infrastructure — Blazor UI, Sig
 | Allowed file extensions | `SmallEBot.Core/AllowedFileExtensions.cs` — single source for workspace and agent file tools (ReadFile, WriteFile, ReadSkillFile, workspace delete/preview). |
 | Workspace (VFS + UI) | `SmallEBot/Services/Workspace/` (IVirtualFileSystem, IWorkspaceService); drawer in `Components/Workspace/`. Drawer: file tree + preview only; delete button not shown for temp/ files; delete allowed only for extensions in `AllowedFileExtensions`; no new file/folder. Polls every 2s when open to refresh tree and open-file preview. |
 | Command confirmation | `ICommandConfirmationService` (pending requests); bottom-right strip `Components/Terminal/CommandConfirmationStrip.razor` in MainLayout; context id from Blazor Circuit via `ICurrentCircuitAccessor` and `CircuitContextHandler`. |
+| Conversation search | Sidebar search box; `ConversationService.SearchAsync` → `IAgentConversationService.SearchConversationsAsync` → repository `SearchAsync` (title). |
+| Message edit / regenerate | Edit user message or regenerate AI reply from bubble buttons; `ReplaceUserMessageAsync` / `GetTurnForRegenerateAsync` (delete subsequent turns), then refresh UI and stream. See `ConversationBubbleHelper` (no AssistantBubble when `items.Count == 0`). |
 
 Host services are grouped by folder/namespace: **Agent**, **Workspace**, **Mcp**, **Skills**, **Terminal**, **Sandbox**, **Conversation**, **User**, **Presentation**. UI: `Components/` (Razor + MudBlazor); layout and App bar in `Components/Layout/MainLayout.razor`.
 
