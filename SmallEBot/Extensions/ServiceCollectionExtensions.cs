@@ -49,6 +49,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IMcpToolsLoaderService, McpToolsLoaderService>();
         services.AddScoped<IAgentContextFactory, AgentContextFactory>();
         services.AddSingleton<IBuiltInToolFactory, BuiltInToolFactory>();
+        services.AddSingleton<IModelConfigService, ModelConfigService>();
         services.AddScoped<IMcpToolFactory, McpToolFactory>();
         services.AddScoped<IAgentBuilder, AgentBuilder>();
         services.AddScoped<IAgentConversationService, AgentConversationService>();

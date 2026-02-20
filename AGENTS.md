@@ -109,10 +109,11 @@ In the chat input, typing `@` opens a popover listing workspace files (allowed e
   - `.agents/terminal.json` (command blacklist, require-confirmation flag, confirmation timeout, whitelist). When confirmation is enabled, a bottom-right strip appears for Allow/Reject; approved commands are added to the whitelist (prefix match).
   - `.agents/sys.skills/` and `.agents/skills/` (skill folders)
   - `.agents/tasks/` (per-conversation task list JSON files)
+  - `.agents/models.json` (model configurations; add/edit/delete/switch via Settings or AppBar model selector)
 
 ### Cache invalidation
 
-After modifying MCP config or skills, call `AgentCacheService.InvalidateAgentAsync()` to rebuild the agent on next request.
+After modifying MCP config, skills, or model configuration, call `AgentCacheService.InvalidateAgentAsync()` to rebuild the agent on next request.
 
 ### Theming
 

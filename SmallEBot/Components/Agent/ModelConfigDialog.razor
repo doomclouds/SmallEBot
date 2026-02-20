@@ -1,0 +1,231 @@
+@* SmallEBot/Components/Agent/ModelConfigDialog.razor *@
+@using SmallEBot.Core.Models
+@using SmallEBot.Services.Agent
+@inject IModelConfigService ModelConfig
+@inject AgentCacheService AgentCache
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">Model Configuration</MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (_loading)
+        {
+            <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+        }
+        else if (_models.Count == 0)
+        {
+            <MudText Color="Color.Secondary">No models configured. Add one below.</MudText>
+        }
+        @foreach (var model in _models)
+        {
+            var m = model;
+            <MudPaper Class="pa-3 mb-2" Elevation="1">
+                <div class="d-flex align-center justify-space-between">
+                    <div>
+                        <MudText Typo="Typo.subtitle1">
+                            🤖 @m.Name
+                            @if (m.Id == _defaultModelId)
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Primary" Class="ml-2">Default</MudChip>
+                            }
+                        </MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                            @m.BaseUrl • @(m.ContextWindow / 1000)K context
+                            @if (m.SupportsThinking) { <span> • Thinking ✓</span> }
+                        </MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">Model: @m.Model</MudText>
+                    </div>
+                    <div class="d-flex gap-1">
+                        @if (m.Id != _defaultModelId)
+                        {
+                            <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="@(() => SetDefault(m.Id))">Set Default</MudButton>
+                        }
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => EditModel(m))" />
+                        @if (m.Id != _defaultModelId || _models.Count > 1)
+                        {
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => DeleteModel(m.Id))" />
+                        }
+                    </div>
+                </div>
+            </MudPaper>
+        }
+
+        @if (_editingModel != null)
+        {
+            <MudDivider Class="my-3" />
+            <MudText Typo="Typo.subtitle1" Class="mb-2">@(_isNewModel ? "Add Model" : "Edit Model")</MudText>
+            <MudTextField @bind-Value="_editingModel.Name" Label="Name" Required="true" Class="mb-2" />
+            <MudTextField @bind-Value="_editingModel.BaseUrl" Label="Base URL" Required="true" Class="mb-2" />
+            <MudTextField @bind-Value="_editingModel.ApiKeySource" Label="API Key Source" Required="true" Class="mb-2"
+                          HelperText='Use "env:VAR_NAME" to read from environment variable' />
+            <MudTextField @bind-Value="_editingModel.Model" Label="Model ID" Required="true" Class="mb-2" />
+            <div class="d-flex gap-3 align-center mb-2">
+                <MudNumericField @bind-Value="_editingModel.ContextWindow" Label="Context Window" Min="1000" Max="2000000" Class="flex-1" />
+                <MudCheckBox @bind-Value="_editingModel.SupportsThinking" Label="Supports Thinking" />
+            </div>
+            <div class="d-flex gap-2">
+                <MudButton OnClick="SaveModel" Color="Color.Primary" Variant="Variant.Filled" Disabled="@(!IsEditValid())">Save</MudButton>
+                <MudButton OnClick="@(() => _editingModel = null)">Cancel</MudButton>
+            </div>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="OnCloseOrCancelClick">
+            @if (_editingModel == null) { <span>Close</span> } else { <span>Cancel edit</span> }
+        </MudButton>
+        @if (_editingModel == null)
+        {
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="AddNew">+ Add Model</MudButton>
+        }
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance? MudDialog { get; set; }
+
+    private bool _loading = true;
+    private List<ModelConfig> _models = [];
+    private string? _defaultModelId;
+    private ModelEditState? _editingModel;
+    private bool _isNewModel;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _models = (await ModelConfig.GetAllAsync()).ToList();
+            _defaultModelId = await ModelConfig.GetDefaultModelIdAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to load models: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+        StateHasChanged();
+    }
+
+    private void AddNew()
+    {
+        _isNewModel = true;
+        _editingModel = new ModelEditState();
+    }
+
+    private void EditModel(ModelConfig m)
+    {
+        _isNewModel = false;
+        _editingModel = new ModelEditState
+        {
+            OriginalId = m.Id,
+            Name = m.Name,
+            BaseUrl = m.BaseUrl,
+            ApiKeySource = m.ApiKeySource,
+            Model = m.Model,
+            ContextWindow = m.ContextWindow,
+            SupportsThinking = m.SupportsThinking
+        };
+    }
+
+    private async Task SaveModel()
+    {
+        if (_editingModel == null) return;
+        var id = _isNewModel
+            ? ModelConfigService.SanitizeId(_editingModel.Model)
+            : _editingModel.OriginalId!;
+        if (_isNewModel && _models.Any(m => m.Id == id))
+        {
+            Snackbar.Add($"Model ID '{id}' already exists. Use a different Model ID.", Severity.Warning);
+            return;
+        }
+        try
+        {
+            var config = new ModelConfig(
+                Id: id,
+                Name: _editingModel.Name,
+                Provider: "anthropic-compatible",
+                BaseUrl: _editingModel.BaseUrl,
+                ApiKeySource: _editingModel.ApiKeySource,
+                Model: _editingModel.Model,
+                ContextWindow: _editingModel.ContextWindow,
+                SupportsThinking: _editingModel.SupportsThinking);
+
+            if (_isNewModel)
+                await ModelConfig.AddModelAsync(config);
+            else
+                await ModelConfig.UpdateModelAsync(id, config);
+
+            await AgentCache.InvalidateAgentAsync();
+            Snackbar.Add("Model saved.", Severity.Success);
+            _editingModel = null;
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to save model: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task SetDefault(string modelId)
+    {
+        try
+        {
+            await ModelConfig.SetDefaultAsync(modelId);
+            await AgentCache.InvalidateAgentAsync();
+            Snackbar.Add("Default model updated.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to set default: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task DeleteModel(string modelId)
+    {
+        try
+        {
+            await ModelConfig.DeleteModelAsync(modelId);
+            await AgentCache.InvalidateAgentAsync();
+            Snackbar.Add("Model deleted.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to delete model: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void OnCloseOrCancelClick()
+    {
+        if (_editingModel != null)
+            _editingModel = null;
+        else
+            MudDialog?.Close();
+    }
+
+    private bool IsEditValid() =>
+        _editingModel != null &&
+        !string.IsNullOrWhiteSpace(_editingModel.Name) &&
+        !string.IsNullOrWhiteSpace(_editingModel.BaseUrl) &&
+        !string.IsNullOrWhiteSpace(_editingModel.ApiKeySource) &&
+        !string.IsNullOrWhiteSpace(_editingModel.Model) &&
+        _editingModel.ContextWindow > 0;
+
+    private sealed class ModelEditState
+    {
+        public string? OriginalId { get; set; }
+        public string Name { get; set; } = "";
+        public string BaseUrl { get; set; } = "";
+        public string ApiKeySource { get; set; } = "env:ANTHROPIC_API_KEY";
+        public string Model { get; set; } = "";
+        public int ContextWindow { get; set; } = 128000;
+        public bool SupportsThinking { get; set; }
+    }
+}
