@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 namespace SmallEBot.Services.Conversation;
 
 /// <summary>Reads and clears per-conversation task files under .agents/tasks/.</summary>
-public sealed class TaskListService : ITaskListService
+public sealed class TaskListService(ITaskListCache taskCache) : ITaskListService
 {
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -38,6 +38,7 @@ public sealed class TaskListService : ITaskListService
     /// <inheritdoc />
     public Task ClearTasksAsync(Guid conversationId, CancellationToken ct = default)
     {
+        taskCache.Remove(conversationId);
         var path = GetTaskFilePath(conversationId);
         if (File.Exists(path))
             File.Delete(path);

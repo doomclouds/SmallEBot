@@ -1,6 +1,7 @@
 @implements IDisposable
 @inject ICurrentConversationService CurrentConversation
 @inject ITaskListService TaskListService
+@inject ITaskListWatcher TaskListWatcher
 
 <div class="task-list-drawer">
     <div class="task-list-drawer-header">
@@ -60,14 +61,11 @@
 </div>
 
 @code {
-    private const int PollIntervalMs = 2000;
-
     [Parameter] public bool Open { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
 
     private Guid? _conversationId;
     private IReadOnlyList<TaskItemViewModel>? _tasks;
-    private CancellationTokenSource? _pollCts;
 
     protected override void OnInitialized()
     {
@@ -81,16 +79,43 @@
         {
             _conversationId ??= CurrentConversation.CurrentConversationId;
             await LoadTasksAsync();
-            StartPolling();
+            SubscribeToChanges();
         }
         else
-            StopPolling();
+        {
+            UnsubscribeFromChanges();
+        }
     }
 
     private void OnConversationChanged()
     {
         _conversationId = CurrentConversation.CurrentConversationId;
         _ = InvokeAsync(LoadTasksAsync);
+    }
+
+    private void SubscribeToChanges()
+    {
+        TaskListWatcher.OnChange += HandleChange;
+        TaskListWatcher.Start();
+    }
+
+    private void UnsubscribeFromChanges()
+    {
+        TaskListWatcher.OnChange -= HandleChange;
+        TaskListWatcher.Stop();
+    }
+
+    private async void HandleChange(TaskListChangeEvent e)
+    {
+        if (_conversationId == null) return;
+        var currentFile = _conversationId.Value.ToString("N") + ".json";
+        if (!string.Equals(e.RelativePath, currentFile, StringComparison.OrdinalIgnoreCase))
+            return;
+        await InvokeAsync(async () =>
+        {
+            await LoadTasksAsync();
+            StateHasChanged();
+        });
     }
 
     private async Task LoadTasksAsync()
@@ -112,39 +137,9 @@
         await LoadTasksAsync();
     }
 
-    private void StartPolling()
-    {
-        if (_pollCts != null) return;
-        _pollCts = new CancellationTokenSource();
-        var token = _pollCts.Token;
-        _ = Task.Run(async () =>
-        {
-            using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(PollIntervalMs));
-            try
-            {
-                while (await timer.WaitForNextTickAsync(token))
-                {
-                    await InvokeAsync(async () =>
-                    {
-                        if (!Open || _conversationId == null) return;
-                        await LoadTasksAsync();
-                    });
-                }
-            }
-            catch (OperationCanceledException) { }
-        }, token);
-    }
-
-    private void StopPolling()
-    {
-        _pollCts?.Cancel();
-        _pollCts?.Dispose();
-        _pollCts = null;
-    }
-
     public void Dispose()
     {
         CurrentConversation.CurrentConversationChanged -= OnConversationChanged;
-        StopPolling();
+        UnsubscribeFromChanges();
     }
 }

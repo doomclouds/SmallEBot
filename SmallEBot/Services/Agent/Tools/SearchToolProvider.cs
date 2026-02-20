@@ -27,7 +27,7 @@ public sealed class SearchToolProvider(IVirtualFileSystem vfs) : IToolProvider
         yield return AIFunctionFactory.Create(GrepContent);
     }
 
-    [Description("Search for files by name pattern in the workspace. Returns JSON with matching file paths. pattern: search pattern. mode: 'glob' (default, e.g. '*.cs', '**/test*.py') or 'regex'. path: optional starting directory (default: workspace root). maxDepth: max recursion depth (default: 10, 0 for unlimited).")]
+    [Description("Find files by name or extension (e.g. all *.cs, *test*.py). Returns JSON with file paths. Use this when the user wants to find/locate FILES by name. pattern: glob like *.cs or regex. mode: 'glob' (default) or 'regex'. path: subdirectory to search (default root). maxDepth: recursion limit (default 10, 0=unlimited).")]
     private string GrepFiles(string pattern, string? mode = null, string? path = null, int maxDepth = 10)
     {
         if (string.IsNullOrWhiteSpace(pattern))
@@ -112,7 +112,7 @@ public sealed class SearchToolProvider(IVirtualFileSystem vfs) : IToolProvider
         }
     }
 
-    [Description("Search file content in the workspace with regex. Returns JSON with matches. pattern: regex pattern. path: optional starting directory (default: workspace root). filePattern: glob filter (e.g. '*.cs'), default all allowed extensions. ignoreCase: case-insensitive (default false). contextLines: show N lines before and after match (default 0). beforeLines: show N lines before match (default 0). afterLines: show N lines after match (default 0). filesOnly: return only file names (default false). countOnly: return only match counts (default false). invertMatch: show non-matching lines (default false). maxResults: max matches (default 100).")]
+    [Description("Find text INSIDE files (search file content). Use this when the user wants to find WHERE something is defined, which files CONTAIN a string, or search within file bodies. pattern: regex to match line content. path: subdirectory (default root). filePattern: restrict to file types (e.g. '*.cs'). ignoreCase: case-insensitive. filesOnly=true: list matching files only. countOnly=true: match counts per file. contextLines/beforeLines/afterLines: show surrounding lines. maxResults: limit (default 100).")]
     private string GrepContent(
         string pattern,
         string? path = null,
