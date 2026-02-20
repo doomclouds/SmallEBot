@@ -16,6 +16,12 @@ public sealed class ShellToolProvider(
     public string Name => "Shell";
     public bool IsEnabled => true;
 
+    public TimeSpan? GetTimeout(string toolName) => toolName switch
+    {
+        "ExecuteCommand" => TimeSpan.FromMinutes(10),
+        _ => null
+    };
+
     public IEnumerable<AITool> GetTools()
     {
         yield return AIFunctionFactory.Create(ExecuteCommand);
@@ -59,6 +65,7 @@ public sealed class ShellToolProvider(
             }
         }
 
-        return commandRunner.Run(normalized, workDir);
+        var timeout = GetTimeout("ExecuteCommand");
+        return commandRunner.Run(normalized, workDir, timeout);
     }
 }

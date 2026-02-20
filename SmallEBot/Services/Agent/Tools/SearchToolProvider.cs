@@ -21,6 +21,13 @@ public sealed class SearchToolProvider(IVirtualFileSystem vfs) : IToolProvider
     public string Name => "Search";
     public bool IsEnabled => true;
 
+    public TimeSpan? GetTimeout(string toolName) => toolName switch
+    {
+        "GrepFiles" => TimeSpan.FromSeconds(60),
+        "GrepContent" => TimeSpan.FromSeconds(60),
+        _ => null
+    };
+
     public IEnumerable<AITool> GetTools()
     {
         yield return AIFunctionFactory.Create(GrepFiles);

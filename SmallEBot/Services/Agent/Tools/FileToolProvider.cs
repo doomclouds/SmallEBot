@@ -1,4 +1,4 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using Microsoft.Extensions.AI;
 using SmallEBot.Core;
 using SmallEBot.Services.Workspace;
@@ -10,6 +10,14 @@ public sealed class FileToolProvider(IVirtualFileSystem vfs) : IToolProvider
 {
     public string Name => "File";
     public bool IsEnabled => true;
+
+    public TimeSpan? GetTimeout(string toolName) => toolName switch
+    {
+        "WriteFile" => TimeSpan.FromMinutes(10),
+        "ReadFile" => TimeSpan.FromSeconds(30),
+        "ListFiles" => TimeSpan.FromSeconds(30),
+        _ => null
+    };
 
     public IEnumerable<AITool> GetTools()
     {

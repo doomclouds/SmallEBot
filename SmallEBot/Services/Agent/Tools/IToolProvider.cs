@@ -13,4 +13,7 @@ public interface IToolProvider
 
     /// <summary>Get all tools from this provider.</summary>
     IEnumerable<AITool> GetTools();
+
+    /// <summary>Returns the timeout for a specific tool, or null to use the default.</summary>
+    TimeSpan? GetTimeout(string toolName) => null;
 }
