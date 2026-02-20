@@ -1,0 +1,36 @@
+@using SmallEBot.Components.Mcp
+@using SmallEBot.Components.Skills
+@using SmallEBot.Components.Terminal
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">Settings</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-4" Style="min-height: 400px;">
+            <MudTabPanel Text="Theme" Icon="@Icons.Material.Filled.Palette">
+                <ThemePanel CurrentThemeId="@CurrentThemeId" OnThemeChanged="@OnThemeChanged" />
+            </MudTabPanel>
+            <MudTabPanel Text="MCP" Icon="@Icons.Material.Filled.Extension">
+                <McpConfigContent />
+            </MudTabPanel>
+            <MudTabPanel Text="Skills" Icon="@Icons.Material.Filled.School">
+                <SkillsConfigContent />
+            </MudTabPanel>
+            <MudTabPanel Text="Terminal" Icon="@Icons.Material.Filled.Terminal">
+                <TerminalConfigContent />
+            </MudTabPanel>
+        </MudTabs>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="@Close">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public string CurrentThemeId { get; set; } = "";
+    [Parameter] public EventCallback<string> OnThemeChanged { get; set; }
+
+    private void Close() => MudDialog.Close();
+}

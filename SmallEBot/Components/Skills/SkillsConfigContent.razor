@@ -1,0 +1,130 @@
+@using SmallEBot.Models
+@inject ISkillsConfigService SkillsConfig
+@inject AgentCacheService AgentCache
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+@if (_loading)
+{
+    <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+}
+else
+{
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="@StartAdd" Class="mb-3">Add Skill</MudButton>
+    <MudButton Variant="Variant.Outlined" Class="mb-3 ms-2" StartIcon="@Icons.Material.Filled.Upload" OnClick="@StartImport">Import</MudButton>
+    <MudTable Items="@_rows" Hover="true" Breakpoint="Breakpoint.Sm" Dense="true">
+        <HeaderContent>
+            <MudTh>Name (id)</MudTh>
+            <MudTh>Source</MudTh>
+            <MudTh Style="width: 100px;">Action</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Name">@context.Name (@context.Id)</MudTd>
+            <MudTd DataLabel="Source">@(context.IsSystem ? "System" : "User")</MudTd>
+            <MudTd DataLabel="Action">
+                <MudIconButton Icon="@Icons.Material.Filled.Visibility" Size="Size.Small" OnClick="@(() => ViewContent(context))" title="View content" />
+                @if (!context.IsSystem)
+                {
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => ConfirmDelete(context.Id))" title="Delete" />
+                }
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+@code {
+    private bool _loading = true;
+    private List<SkillMetadata> _rows = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadListAsync();
+    }
+
+    private async Task LoadListAsync()
+    {
+        _loading = true;
+        try
+        {
+            var all = await SkillsConfig.GetAllAsync();
+            _rows = all.ToList();
+        }
+        catch
+        {
+            Snackbar.Add("Failed to load Skills", Severity.Warning);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task StartAdd()
+    {
+        var dialog = await DialogService.ShowAsync<AddSkillDialog>("Add Skill", new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dialog.Result;
+        if (result?.Canceled != false || result.Data is not (string id, string name, string desc, string bodyPart)) return;
+        await SaveAddAsync(id, name, desc, string.IsNullOrWhiteSpace(bodyPart) ? null : bodyPart);
+    }
+
+    private async Task StartImport()
+    {
+        var dialog = await DialogService.ShowAsync<ImportSkillDialog>("Import Skill", new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dialog.Result;
+        if (result?.Canceled != false) return;
+        await AgentCache.InvalidateAgentAsync();
+        Snackbar.Add("Imported", Severity.Success);
+        await LoadListAsync();
+    }
+
+    private async Task SaveAddAsync(string id, string name, string desc, string? body)
+    {
+        try
+        {
+            await SkillsConfig.AddUserSkillAsync(id, name, desc, body);
+            await AgentCache.InvalidateAgentAsync();
+            Snackbar.Add("Added", Severity.Success);
+            await LoadListAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add("Add failed: " + ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task ViewContent(SkillMetadata skill)
+    {
+        var parameters = new DialogParameters
+        {
+            [nameof(ViewSkillContentDialog.Id)] = skill.Id,
+            [nameof(ViewSkillContentDialog.Name)] = skill.Name
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true };
+        await DialogService.ShowAsync<ViewSkillContentDialog>("Skill content", parameters, options);
+    }
+
+    private async Task ConfirmDelete(string id)
+    {
+        var parameters = new DialogParameters { [nameof(DeleteSkillConfirmDialog.Id)] = id };
+        var dialog = await DialogService.ShowAsync<DeleteSkillConfirmDialog>("Delete Skill", parameters);
+        var result = await dialog.Result;
+        if (result?.Canceled == true) return;
+        if (result?.Data is true)
+            await DoDeleteAsync(id);
+    }
+
+    private async Task DoDeleteAsync(string id)
+    {
+        try
+        {
+            await SkillsConfig.DeleteUserSkillAsync(id);
+            await AgentCache.InvalidateAgentAsync();
+            Snackbar.Add("Deleted", Severity.Success);
+            await LoadListAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add("Delete failed: " + ex.Message, Severity.Error);
+        }
+    }
+}

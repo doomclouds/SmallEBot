@@ -1,0 +1,163 @@
+@using SmallEBot.Services.Terminal
+@inject ITerminalConfigService TerminalConfig
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<MudText Typo="Typo.subtitle2" Class="mb-2">Command timeout (seconds)</MudText>
+<MudText Typo="Typo.body2" Class="mb-2">Maximum time to wait for a shell command before cancelling (5–600).</MudText>
+<MudNumericField T="int" @bind-Value="_timeoutSeconds" Min="5" Max="600" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3" Style="max-width: 120px;" />
+<MudSwitch @bind-Value="_requireConfirmation" Color="Color.Primary" Class="mb-2">Require command confirmation</MudSwitch>
+<MudText Typo="Typo.body2" Class="mb-2">When enabled, commands not in the whitelist will wait for your approval in the bottom-right corner before running. Timeout below applies.</MudText>
+<MudText Typo="Typo.subtitle2" Class="mb-2">Confirmation timeout (seconds)</MudText>
+<MudText Typo="Typo.body2" Class="mb-2">How long to wait for Allow/Reject before treating as rejected (10–120).</MudText>
+<MudNumericField T="int" @bind-Value="_confirmationTimeoutSeconds" Min="10" Max="120" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3" Style="max-width: 120px;" />
+<MudText Typo="Typo.subtitle2" Class="mb-2">Command blacklist</MudText>
+<MudText Typo="Typo.body2" Class="mb-3">Commands that contain any of these entries (case-insensitive) will be blocked when the agent runs shell commands.</MudText>
+@if (_loading)
+{
+    <MudProgressLinear Color="Color.Primary" Indeterminate="true" />
+}
+else
+{
+    <MudStack Row="true" Class="mb-3" AlignItems="AlignItems.Center">
+        <MudTextField @bind-Value="_newEntry"
+                     Label="New entry"
+                     Variant="Variant.Outlined"
+                     Margin="Margin.Dense"
+                     Style="max-width: 320px;"
+                     Placeholder="e.g. dangerous_cmd"
+                     OnKeyDown="@OnNewEntryKeyDown" />
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Add"
+                   OnClick="@AddEntry"
+                   Disabled="@string.IsNullOrWhiteSpace(_newEntry)">
+            Add
+        </MudButton>
+    </MudStack>
+    @if (_entries.Count == 0)
+    {
+        <MudText Typo="Typo.body2" Class="mb-3">No entries. Add one above or save to persist the default list.</MudText>
+    }
+    else
+    {
+        <MudList T="string" Dense="true" Class="mb-3" Style="max-height: 320px; overflow-y: auto;">
+            @foreach (var entry in _entries)
+            {
+                var item = entry;
+                <MudListItem T="string">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                        <MudText Typo="Typo.body2" Style="word-break: break-all;">@item</MudText>
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                       Size="Size.Small"
+                                       OnClick="@(() => ConfirmRemoveEntry(item))"
+                                       title="Remove" />
+                    </MudStack>
+                </MudListItem>
+            }
+        </MudList>
+    }
+    <MudText Typo="Typo.subtitle2" Class="mb-2 mt-4">Command whitelist</MudText>
+    <MudText Typo="Typo.body2" Class="mb-3">Commands you have approved (prefix match). Add entries by approving commands when confirmation is enabled.</MudText>
+    @if (_whitelistEntries.Count == 0)
+    {
+        <MudText Typo="Typo.body2" Class="mb-3">No entries. Approve a command in chat to add it.</MudText>
+    }
+    else
+    {
+        <MudList T="string" Dense="true" Class="mb-3" Style="max-height: 200px; overflow-y: auto;">
+            @foreach (var w in _whitelistEntries)
+            {
+                var item = w;
+                <MudListItem T="string">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                        <MudText Typo="Typo.body2" Style="word-break: break-all;">@item</MudText>
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                       Size="Size.Small"
+                                       OnClick="@(() => RemoveWhitelistEntry(item))"
+                                       title="Remove" />
+                    </MudStack>
+                </MudListItem>
+            }
+        </MudList>
+    }
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Save" Class="mt-2">Save</MudButton>
+}
+
+@code {
+    private bool _loading = true;
+    private List<string> _entries = [];
+    private string _newEntry = "";
+    private int _timeoutSeconds = 60;
+    private bool _requireConfirmation;
+    private int _confirmationTimeoutSeconds = 60;
+    private List<string> _whitelistEntries = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var list = await TerminalConfig.GetCommandBlacklistAsync();
+            _entries = list.ToList();
+            _timeoutSeconds = await TerminalConfig.GetCommandTimeoutSecondsAsync();
+            _requireConfirmation = await TerminalConfig.GetRequireCommandConfirmationAsync();
+            _confirmationTimeoutSeconds = await TerminalConfig.GetConfirmationTimeoutSecondsAsync();
+            _whitelistEntries = (await TerminalConfig.GetCommandWhitelistAsync()).ToList();
+        }
+        catch
+        {
+            Snackbar.Add("Failed to load terminal config", Severity.Warning);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void AddEntry()
+    {
+        var trimmed = _newEntry.Trim();
+        if (string.IsNullOrEmpty(trimmed))
+            return;
+        if (_entries.Contains(trimmed, StringComparer.OrdinalIgnoreCase))
+        {
+            Snackbar.Add("Entry already in list", Severity.Warning);
+            return;
+        }
+        _entries.Add(trimmed);
+        _newEntry = "";
+    }
+
+    private void OnNewEntryKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+            AddEntry();
+    }
+
+    private void RemoveWhitelistEntry(string entry)
+    {
+        _whitelistEntries.Remove(entry);
+    }
+
+    private async Task ConfirmRemoveEntry(string entry)
+    {
+        var parameters = new DialogParameters { [nameof(DeleteBlacklistEntryConfirmDialog.Entry)] = entry };
+        var dialog = await DialogService.ShowAsync<DeleteBlacklistEntryConfirmDialog>("Remove blacklist entry", parameters);
+        var result = await dialog.Result;
+        if (result is { Canceled: false, Data: true })
+            _entries.Remove(entry);
+    }
+
+    private async Task Save()
+    {
+        try
+        {
+            await TerminalConfig.SaveAsync(_entries, _timeoutSeconds, _requireConfirmation, _confirmationTimeoutSeconds, _whitelistEntries);
+            Snackbar.Add("Saved", Severity.Success);
+        }
+        catch
+        {
+            Snackbar.Add("Save failed", Severity.Error);
+        }
+    }
+}

@@ -1,7 +1,6 @@
 @inherits LayoutComponentBase
 @using SmallEBot.Components.Agent
-@using SmallEBot.Components.Mcp
-@using SmallEBot.Components.Terminal
+@using SmallEBot.Components.Settings
 @using SmallEBot.Components.TaskList
 @implements IDisposable
 @inject UserNameService UserNameSvc
@@ -21,19 +20,10 @@
         <MudTooltip Text="Model">
             <ModelSelectorMenu OnManageModels="@OpenModelSettings" />
         </MudTooltip>
-        <MudTooltip Text="Theme">
-            <MudMenu Icon="@Icons.Material.Filled.Palette"
-                     AnchorOrigin="Origin.BottomRight"
-                     TransformOrigin="Origin.TopRight"
-                     Color="Color.Default">
-                @foreach (var id in ThemeConstants.ThemeIds)
-                {
-                    var idCopy = id;
-                    <MudMenuItem OnClick="@(() => SelectTheme(idCopy))">
-                        @GetThemeLabel(id) @(_currentThemeId == id ? "✓" : "")
-                    </MudMenuItem>
-                }
-            </MudMenu>
+        <MudTooltip Text="Settings (Theme, MCP, Skills, Terminal)">
+            <MudIconButton Icon="@Icons.Material.Filled.Settings"
+                           Color="Color.Default"
+                           OnClick="@OpenSettings" />
         </MudTooltip>
         <MudTooltip Text="@(_showToolCalls ? "Hide tool calls" : "Show tool calls")">
             <MudIconButton Icon="@Icons.Material.Filled.Build"
@@ -44,21 +34,6 @@
             <MudIconButton Icon="@Icons.Material.Filled.Psychology"
                            Color="@(_useThinkingMode ? Color.Primary : Color.Default)"
                            OnClick="@ToggleUseThinkingMode" />
-        </MudTooltip>
-        <MudTooltip Text="MCP config">
-            <MudIconButton Icon="@Icons.Material.Filled.Extension"
-                           Color="Color.Default"
-                           OnClick="@OpenMcpConfig" />
-        </MudTooltip>
-        <MudTooltip Text="Skills config">
-            <MudIconButton Icon="@Icons.Material.Filled.School"
-                           Color="Color.Default"
-                           OnClick="@OpenSkillsConfig" />
-        </MudTooltip>
-        <MudTooltip Text="Terminal config">
-            <MudIconButton Icon="@Icons.Material.Filled.Terminal"
-                           Color="Color.Default"
-                           OnClick="@OpenTerminalConfig" />
         </MudTooltip>
         <MudTooltip Text="Workspace">
             <MudIconButton Icon="@Icons.Material.Filled.Folder"
@@ -137,32 +112,6 @@
             _userName = await UserNameSvc.GetAsync();
     }
 
-    private async Task SelectTheme(string id)
-    {
-        _currentThemeId = ThemeConstants.NormalizeThemeId(id);
-        try
-        {
-            await JS.InvokeVoidAsync("SmallEBotSetTheme", _currentThemeId);
-            await Preferences.SetThemeAsync(_currentThemeId);
-        }
-        catch
-        {
-            /* ignore */
-        }
-
-        StateHasChanged();
-    }
-
-    private static string GetThemeLabel(string id) => id switch
-    {
-        "editorial-dark" => "Editorial dark",
-        "paper-light" => "Paper light",
-        "terminal" => "Terminal",
-        "dusk" => "Dusk",
-        "mono" => "Mono",
-        _ => id
-    };
-
     private async Task ToggleShowToolCalls()
     {
         _showToolCalls = !_showToolCalls;
@@ -182,14 +131,21 @@
     private void OpenModelSettings() =>
         DialogService.ShowAsync<ModelConfigDialog>(string.Empty, new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true });
 
-    private void OpenMcpConfig() =>
-        DialogService.ShowAsync<McpConfigDialog>(string.Empty, new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true });
+    private void OpenSettings()
+    {
+        var parameters = new DialogParameters
+        {
+            [nameof(SettingsDialog.CurrentThemeId)] = _currentThemeId,
+            [nameof(SettingsDialog.OnThemeChanged)] = EventCallback.Factory.Create<string>(this, OnThemeChangedFromSettings)
+        };
+        DialogService.ShowAsync<SettingsDialog>("Settings", parameters, new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true });
+    }
 
-    private void OpenSkillsConfig() =>
-        DialogService.ShowAsync<SkillsConfigDialog>(string.Empty, new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true });
-
-    private void OpenTerminalConfig() =>
-        DialogService.ShowAsync<TerminalConfigDialog>(string.Empty, new DialogOptions { MaxWidth = MaxWidth.Medium });
+    private void OnThemeChangedFromSettings(string id)
+    {
+        _currentThemeId = ThemeConstants.NormalizeThemeId(id);
+        StateHasChanged();
+    }
 
     private void ToggleWorkspaceDrawer() => _workspaceDrawerOpen = !_workspaceDrawerOpen;
 

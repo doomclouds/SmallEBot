@@ -1,0 +1,56 @@
+@using SmallEBot
+@inject UserPreferencesService Preferences
+@inject IJSRuntime JS
+
+<MudText Typo="Typo.body2" Class="mb-3">Select theme for the application.</MudText>
+<div class="d-flex flex-wrap gap-2">
+    @foreach (var id in ThemeConstants.ThemeIds)
+    {
+        var idCopy = id;
+        <MudChip T="string"
+                  Icon="@(_currentThemeId == id ? Icons.Material.Filled.CheckCircle : null)"
+                  Color="@(_currentThemeId == id ? Color.Primary : Color.Default)"
+                  Variant="@(_currentThemeId == id ? Variant.Filled : Variant.Outlined)"
+                  OnClick="@(() => SelectTheme(idCopy))">
+            @GetThemeLabel(id)
+        </MudChip>
+    }
+</div>
+
+@code {
+    [Parameter] public string CurrentThemeId { get; set; } = "";
+    [Parameter] public EventCallback<string> OnThemeChanged { get; set; }
+
+    private string _currentThemeId = "";
+
+    protected override void OnParametersSet()
+    {
+        _currentThemeId = ThemeConstants.NormalizeThemeId(CurrentThemeId);
+    }
+
+    private async Task SelectTheme(string id)
+    {
+        _currentThemeId = ThemeConstants.NormalizeThemeId(id);
+        try
+        {
+            await Preferences.SetThemeAsync(_currentThemeId);
+            await JS.InvokeVoidAsync("SmallEBotSetTheme", _currentThemeId);
+            await OnThemeChanged.InvokeAsync(_currentThemeId);
+        }
+        catch
+        {
+            /* ignore */
+        }
+        StateHasChanged();
+    }
+
+    private static string GetThemeLabel(string id) => id switch
+    {
+        "editorial-dark" => "Editorial dark",
+        "paper-light" => "Paper light",
+        "terminal" => "Terminal",
+        "dusk" => "Dusk",
+        "mono" => "Mono",
+        _ => id
+    };
+}
