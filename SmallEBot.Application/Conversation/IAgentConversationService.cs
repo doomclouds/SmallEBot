@@ -60,17 +60,19 @@ public interface IAgentConversationService
         string? stoppedOrErrorMessage,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Replace user message with new content, delete subsequent turns, create new turn. Call before streaming. Returns (turnId, userMessage) or null.</summary>
-    Task<(Guid TurnId, string UserMessage)?> ReplaceUserMessageAsync(
+    /// <summary>Replace user message with new content, delete subsequent turns, create new turn. Call before streaming. Returns (turnId, userMessage, attachedPaths, requestedSkillIds) or null.</summary>
+    Task<(Guid TurnId, string UserMessage, IReadOnlyList<string> AttachedPaths, IReadOnlyList<string> RequestedSkillIds)?> ReplaceUserMessageAsync(
         Guid conversationId,
         string userName,
         Guid messageId,
         string newContent,
         bool useThinking,
+        IReadOnlyList<string>? attachedPaths = null,
+        IReadOnlyList<string>? requestedSkillIds = null,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Delete assistant content of turn for regenerate. Call before streaming. Returns (turnId, userMessage, useThinking) or null.</summary>
-    Task<(Guid TurnId, string UserMessage, bool UseThinking)?> PrepareTurnForRegenerateAsync(
+    /// <summary>Delete assistant content of turn for regenerate. Call before streaming. Returns (turnId, userMessage, useThinking, attachedPaths, requestedSkillIds) or null.</summary>
+    Task<(Guid TurnId, string UserMessage, bool UseThinking, IReadOnlyList<string> AttachedPaths, IReadOnlyList<string> RequestedSkillIds)?> PrepareTurnForRegenerateAsync(
         Guid conversationId,
         string userName,
         Guid turnId,

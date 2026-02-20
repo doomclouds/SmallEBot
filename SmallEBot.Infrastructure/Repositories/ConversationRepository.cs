@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using SmallEBot.Core.Entities;
 using SmallEBot.Core.Models;
@@ -83,7 +84,7 @@ public class ConversationRepository(SmallEBotDbContext db) : IConversationReposi
         return true;
     }
 
-    public async Task<Guid> AddTurnAndUserMessageAsync(Guid conversationId, string userName, string userMessage, bool useThinking, string? newTitle, CancellationToken ct = default)
+    public async Task<Guid> AddTurnAndUserMessageAsync(Guid conversationId, string userName, string userMessage, bool useThinking, string? newTitle, IReadOnlyList<string>? attachedPaths = null, IReadOnlyList<string>? requestedSkillIds = null, CancellationToken ct = default)
     {
         var conv = await db.Conversations
             .FirstOrDefaultAsync(x => x.Id == conversationId && x.UserName == userName, ct);
@@ -108,7 +109,9 @@ public class ConversationRepository(SmallEBotDbContext db) : IConversationReposi
             TurnId = turn.Id,
             Role = "user",
             Content = userMessage,
-            CreatedAt = baseTime
+            CreatedAt = baseTime,
+            AttachedPathsJson = (attachedPaths?.Count ?? 0) > 0 ? JsonSerializer.Serialize(attachedPaths) : null,
+            RequestedSkillIdsJson = (requestedSkillIds?.Count ?? 0) > 0 ? JsonSerializer.Serialize(requestedSkillIds) : null
         });
 
         conv.UpdatedAt = DateTime.UtcNow;
@@ -195,12 +198,14 @@ public class ConversationRepository(SmallEBotDbContext db) : IConversationReposi
         await db.SaveChangesAsync(ct);
     }
 
-    public async Task<(Guid TurnId, string UserMessage)?> ReplaceUserMessageAsync(
+    public async Task<(Guid TurnId, string UserMessage, IReadOnlyList<string> AttachedPaths, IReadOnlyList<string> RequestedSkillIds)?> ReplaceUserMessageAsync(
         Guid conversationId,
         string userName,
         Guid messageId,
         string newContent,
         bool useThinking,
+        IReadOnlyList<string>? attachedPaths = null,
+        IReadOnlyList<string>? requestedSkillIds = null,
         CancellationToken ct = default)
     {
         var conv = await db.Conversations
@@ -215,6 +220,9 @@ public class ConversationRepository(SmallEBotDbContext db) : IConversationReposi
         var turns = conv.Turns.OrderBy(t => t.CreatedAt).ToList();
         var turnIndex = turns.FindIndex(t => t.Id == oldMsg.TurnId);
         if (turnIndex < 0) return null;
+
+        var effectivePaths = attachedPaths ?? oldMsg.AttachedPaths;
+        var effectiveSkills = requestedSkillIds ?? oldMsg.RequestedSkillIds;
 
         var baseTime = DateTime.UtcNow;
         var newTurn = new ConversationTurn
@@ -234,7 +242,9 @@ public class ConversationRepository(SmallEBotDbContext db) : IConversationReposi
             Role = "user",
             Content = newContent.Trim(),
             CreatedAt = baseTime.AddMilliseconds(1),
-            IsEdited = true
+            IsEdited = true,
+            AttachedPathsJson = effectivePaths.Count > 0 ? JsonSerializer.Serialize(effectivePaths) : null,
+            RequestedSkillIdsJson = effectiveSkills.Count > 0 ? JsonSerializer.Serialize(effectiveSkills) : null
         };
         db.ChatMessages.Add(newMsg);
         oldMsg.ReplacedByMessageId = newMsg.Id;
@@ -265,10 +275,10 @@ public class ConversationRepository(SmallEBotDbContext db) : IConversationReposi
 
         conv.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
-        return (newTurn.Id, newMsg.Content);
+        return (newTurn.Id, newMsg.Content, effectivePaths, effectiveSkills);
     }
 
-    public async Task<(Guid TurnId, string UserMessage, bool UseThinking)?> GetTurnForRegenerateAsync(
+    public async Task<(Guid TurnId, string UserMessage, bool UseThinking, IReadOnlyList<string> AttachedPaths, IReadOnlyList<string> RequestedSkillIds)?> GetTurnForRegenerateAsync(
         Guid conversationId,
         string userName,
         Guid turnId,
@@ -315,6 +325,6 @@ public class ConversationRepository(SmallEBotDbContext db) : IConversationReposi
 
         conv.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
-        return (turn.Id, userMsg.Content, turn.IsThinkingMode);
+        return (turn.Id, userMsg.Content, turn.IsThinkingMode, userMsg.AttachedPaths, userMsg.RequestedSkillIds);
     }
 }

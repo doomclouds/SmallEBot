@@ -34,16 +34,18 @@ public class ConversationService(IAgentConversationService pipeline, ITaskListSe
     public async Task<int> GetMessageCountAsync(Guid conversationId, CancellationToken ct = default) =>
         await pipeline.GetMessageCountAsync(conversationId, ct);
 
-    public Task<(Guid TurnId, string UserMessage)?> ReplaceUserMessageAsync(
+    public Task<(Guid TurnId, string UserMessage, IReadOnlyList<string> AttachedPaths, IReadOnlyList<string> RequestedSkillIds)?> ReplaceUserMessageAsync(
         Guid conversationId,
         string userName,
         Guid messageId,
         string newContent,
         bool useThinking,
+        IReadOnlyList<string>? attachedPaths = null,
+        IReadOnlyList<string>? requestedSkillIds = null,
         CancellationToken ct = default) =>
-        pipeline.ReplaceUserMessageAsync(conversationId, userName, messageId, newContent, useThinking, ct);
+        pipeline.ReplaceUserMessageAsync(conversationId, userName, messageId, newContent, useThinking, attachedPaths, requestedSkillIds, ct);
 
-    public Task<(Guid TurnId, string UserMessage, bool UseThinking)?> PrepareTurnForRegenerateAsync(
+    public Task<(Guid TurnId, string UserMessage, bool UseThinking, IReadOnlyList<string> AttachedPaths, IReadOnlyList<string> RequestedSkillIds)?> PrepareTurnForRegenerateAsync(
         Guid conversationId,
         string userName,
         Guid turnId,

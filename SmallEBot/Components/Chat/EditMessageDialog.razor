@@ -1,13 +1,45 @@
+@using SmallEBot.Models
+@inject IWorkspaceService WorkspaceService
+@inject ISkillsConfigService SkillsConfigService
+
 <MudDialog>
     <TitleContent>
         <MudText Typo="Typo.h6">Edit message</MudText>
     </TitleContent>
     <DialogContent>
-        <MudTextField @bind-Value="_content"
-                     Label="Message"
-                     Variant="Variant.Outlined"
-                     Lines="4"
-                     Style="min-width: 400px" />
+        <div class="position-relative">
+            <AttachmentPopover @bind-Open="_popoverOpen"
+                              Kind="@_popoverKind"
+                              Filter="@_popoverFilter"
+                              FilePaths="@_filePaths"
+                              Skills="@_skills"
+                              OnSelect="@OnAttachmentSelected" />
+            @if (_attachmentPaths.Count > 0 || _requestedSkillIds.Count > 0)
+            {
+                <div class="d-flex flex-wrap align-items-center gap-1 mb-2">
+                    @foreach (var path in _attachmentPaths)
+                    {
+                        var p = path;
+                        <MudChip T="object" Color="Color.Primary" Variant="Variant.Filled" OnClose="@(() => RemovePath(p))" CloseIcon="@Icons.Material.Filled.Cancel">
+                            @path
+                        </MudChip>
+                    }
+                    @foreach (var skillId in _requestedSkillIds)
+                    {
+                        var s = skillId;
+                        <MudChip T="object" Color="Color.Secondary" Variant="Variant.Filled" OnClose="@(() => RemoveSkill(s))" CloseIcon="@Icons.Material.Filled.Cancel">
+                            /@skillId
+                        </MudChip>
+                    }
+                </div>
+            }
+            <MudTextField Value="_content"
+                         ValueChanged="@((string v) => _ = HandleInputChanged(v))"
+                         Label="Message"
+                         Variant="Variant.Outlined"
+                         Lines="4"
+                         Style="min-width: 400px" />
+        </div>
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="@Cancel">Cancel</MudButton>
@@ -18,15 +50,100 @@
 @code {
     [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
     [Parameter] public string InitialContent { get; set; } = "";
+    [Parameter] public IReadOnlyList<string> InitialAttachedPaths { get; set; } = [];
+    [Parameter] public IReadOnlyList<string> InitialRequestedSkillIds { get; set; } = [];
 
     private string _content = "";
+    private readonly List<string> _attachmentPaths = [];
+    private readonly List<string> _requestedSkillIds = [];
+    private bool _popoverOpen;
+    private string _popoverKind = "file";
+    private string _popoverFilter = "";
+    private List<string> _filePaths = [];
+    private List<SkillMetadata> _skills = [];
+    private bool _justSelectedAttachment;
 
     protected override void OnParametersSet()
     {
         _content = InitialContent;
+        _attachmentPaths.Clear();
+        _attachmentPaths.AddRange(InitialAttachedPaths);
+        _requestedSkillIds.Clear();
+        _requestedSkillIds.AddRange(InitialRequestedSkillIds);
+    }
+
+    private async Task HandleInputChanged(string v)
+    {
+        if (_justSelectedAttachment)
+        {
+            _justSelectedAttachment = false;
+            return;
+        }
+        _content = v;
+        var lastAt = v.LastIndexOf('@');
+        var lastSlash = v.LastIndexOf('/');
+        if (lastSlash > lastAt)
+        {
+            _popoverKind = "skill";
+            _popoverOpen = true;
+            _popoverFilter = lastSlash + 1 < v.Length ? v[(lastSlash + 1)..] : "";
+            if (_skills.Count == 0)
+                _skills = (await SkillsConfigService.GetMetadataForAgentAsync()).ToList();
+        }
+        else if (lastAt >= 0)
+        {
+            _popoverKind = "file";
+            _popoverOpen = true;
+            _popoverFilter = lastAt + 1 < v.Length ? v[(lastAt + 1)..] : "";
+            if (_filePaths.Count == 0)
+                _filePaths = (await WorkspaceService.GetAllowedFilePathsAsync()).ToList();
+        }
+        else
+        {
+            _popoverOpen = false;
+        }
+        StateHasChanged();
+    }
+
+    private async Task OnAttachmentSelected(string value)
+    {
+        if (_popoverKind == "file")
+        {
+            if (!_attachmentPaths.Contains(value, StringComparer.OrdinalIgnoreCase))
+                _attachmentPaths.Add(value);
+            var lastAt = _content.LastIndexOf('@');
+            _content = lastAt >= 0 ? _content[..lastAt].TrimEnd() : _content;
+        }
+        else
+        {
+            if (!_requestedSkillIds.Any(s => string.Equals(s, value, StringComparison.OrdinalIgnoreCase)))
+                _requestedSkillIds.Add(value);
+            var lastSlash = _content.LastIndexOf('/');
+            _content = lastSlash >= 0 ? _content[..lastSlash].TrimEnd() : _content;
+        }
+        if (_content.Length > 0 && !_content.EndsWith(' '))
+            _content += " ";
+        _justSelectedAttachment = true;
+        _popoverOpen = false;
+        StateHasChanged();
+    }
+
+    private void RemovePath(string path)
+    {
+        _attachmentPaths.Remove(path);
+        StateHasChanged();
+    }
+
+    private void RemoveSkill(string skillId)
+    {
+        _requestedSkillIds.Remove(skillId);
+        StateHasChanged();
     }
 
     private void Cancel() => MudDialog.Cancel();
 
-    private void Save() => MudDialog.Close(DialogResult.Ok(_content.Trim()));
+    private void Save() => MudDialog.Close(DialogResult.Ok(new EditMessageResult(
+        _content.Trim(),
+        new List<string>(_attachmentPaths),
+        new List<string>(_requestedSkillIds))));
 }

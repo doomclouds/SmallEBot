@@ -40,7 +40,7 @@ public sealed class AgentConversationService(
     {
         var count = await repository.GetMessageCountAsync(conversationId, cancellationToken);
         var newTitle = count == 0 ? await agentRunner.GenerateTitleAsync(userMessage, cancellationToken) : null;
-        return await repository.AddTurnAndUserMessageAsync(conversationId, userName, userMessage, useThinking, newTitle, cancellationToken);
+        return await repository.AddTurnAndUserMessageAsync(conversationId, userName, userMessage, useThinking, newTitle, attachedPaths, requestedSkillIds, cancellationToken);
     }
 
     public async Task StreamResponseAndCompleteAsync(
@@ -104,16 +104,18 @@ public sealed class AgentConversationService(
             await repository.CompleteTurnWithErrorAsync(conversationId, turnId, stoppedOrErrorMessage ?? "Stopped.", cancellationToken);
     }
 
-    public Task<(Guid TurnId, string UserMessage)?> ReplaceUserMessageAsync(
+    public Task<(Guid TurnId, string UserMessage, IReadOnlyList<string> AttachedPaths, IReadOnlyList<string> RequestedSkillIds)?> ReplaceUserMessageAsync(
         Guid conversationId,
         string userName,
         Guid messageId,
         string newContent,
         bool useThinking,
+        IReadOnlyList<string>? attachedPaths = null,
+        IReadOnlyList<string>? requestedSkillIds = null,
         CancellationToken cancellationToken = default) =>
-        repository.ReplaceUserMessageAsync(conversationId, userName, messageId, newContent, useThinking, cancellationToken);
+        repository.ReplaceUserMessageAsync(conversationId, userName, messageId, newContent, useThinking, attachedPaths, requestedSkillIds, cancellationToken);
 
-    public Task<(Guid TurnId, string UserMessage, bool UseThinking)?> PrepareTurnForRegenerateAsync(
+    public Task<(Guid TurnId, string UserMessage, bool UseThinking, IReadOnlyList<string> AttachedPaths, IReadOnlyList<string> RequestedSkillIds)?> PrepareTurnForRegenerateAsync(
         Guid conversationId,
         string userName,
         Guid turnId,
@@ -132,15 +134,18 @@ public sealed class AgentConversationService(
         IReadOnlyList<string>? attachedPaths = null,
         IReadOnlyList<string>? requestedSkillIds = null)
     {
-        var result = await repository.ReplaceUserMessageAsync(conversationId, userName, messageId, newContent, useThinking, cancellationToken);
+        var result = await repository.ReplaceUserMessageAsync(conversationId, userName, messageId, newContent, useThinking, attachedPaths, requestedSkillIds, cancellationToken);
         if (result == null) return;
+
+        var effectivePaths = attachedPaths ?? result.Value.AttachedPaths;
+        var effectiveSkills = requestedSkillIds ?? result.Value.RequestedSkillIds;
 
         commandConfirmationContext.SetCurrentId(commandConfirmationContextId);
         conversationTaskContext.SetConversationId(conversationId);
         try
         {
             var updates = new List<StreamUpdate>();
-            await foreach (var update in agentRunner.RunStreamingAsync(conversationId, result.Value.UserMessage, useThinking, cancellationToken, attachedPaths, requestedSkillIds))
+            await foreach (var update in agentRunner.RunStreamingAsync(conversationId, result.Value.UserMessage, useThinking, cancellationToken, effectivePaths, effectiveSkills))
             {
                 updates.Add(update);
                 await sink.OnNextAsync(update, cancellationToken);
@@ -167,12 +172,15 @@ public sealed class AgentConversationService(
         var result = await repository.GetTurnForRegenerateAsync(conversationId, userName, turnId, cancellationToken);
         if (result == null) return;
 
+        var effectivePaths = attachedPaths ?? result.Value.AttachedPaths;
+        var effectiveSkills = requestedSkillIds ?? result.Value.RequestedSkillIds;
+
         commandConfirmationContext.SetCurrentId(commandConfirmationContextId);
         conversationTaskContext.SetConversationId(conversationId);
         try
         {
             var updates = new List<StreamUpdate>();
-            await foreach (var update in agentRunner.RunStreamingAsync(conversationId, result.Value.UserMessage, result.Value.UseThinking, cancellationToken, attachedPaths, requestedSkillIds))
+            await foreach (var update in agentRunner.RunStreamingAsync(conversationId, result.Value.UserMessage, result.Value.UseThinking, cancellationToken, effectivePaths, effectiveSkills))
             {
                 updates.Add(update);
                 await sink.OnNextAsync(update, cancellationToken);

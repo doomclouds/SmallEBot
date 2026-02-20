@@ -32,6 +32,19 @@
                         <div class="d-flex justify-space-between align-start gap-1">
                             <div style="flex: 1">
                                 <MudText Typo="Typo.caption">You · @msg.CreatedAt.ToString("g")@(msg.IsEdited ? " (edited)" : "")</MudText>
+                                @if (msg.AttachedPaths.Count > 0 || msg.RequestedSkillIds.Count > 0)
+                                {
+                                    <div class="d-flex flex-wrap align-items-center gap-1 mt-1 mb-1">
+                                        @foreach (var path in msg.AttachedPaths)
+                                        {
+                                            <MudChip T="object" Color="Color.Primary" Variant="Variant.Filled" Size="Size.Small">@path</MudChip>
+                                        }
+                                        @foreach (var skillId in msg.RequestedSkillIds)
+                                        {
+                                            <MudChip T="object" Color="Color.Secondary" Variant="Variant.Filled" Size="Size.Small">/@skillId</MudChip>
+                                        }
+                                    </div>
+                                }
                                 @if (!string.IsNullOrEmpty(msg.Content))
                                 {
                                     <MarkdownContentView Content="@msg.Content" />
@@ -281,10 +294,15 @@
     private async Task EditUserMessage(SmallEBot.Core.Entities.ChatMessage msg)
     {
         if (_streaming || !ConversationId.HasValue) return;
-        var parameters = new DialogParameters { [nameof(EditMessageDialog.InitialContent)] = msg.Content };
-        var dialog = await DialogSvc.ShowAsync<EditMessageDialog>("Edit message", parameters);
+        var parameters = new DialogParameters
+        {
+            [nameof(EditMessageDialog.InitialContent)] = msg.Content,
+            [nameof(EditMessageDialog.InitialAttachedPaths)] = msg.AttachedPaths,
+            [nameof(EditMessageDialog.InitialRequestedSkillIds)] = msg.RequestedSkillIds
+        };
+        var dialog = await DialogSvc.ShowAsync<EditMessageDialog>("Edit message", parameters, new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
         var result = await dialog.Result;
-        if (result == null || result.Canceled || result.Data is not string newContent || string.IsNullOrWhiteSpace(newContent)) return;
+        if (result == null || result.Canceled || result.Data is not EditMessageResult editResult || string.IsNullOrWhiteSpace(editResult.Content)) return;
         _userNameForAction = await UserNameSvc.GetAsync() ?? UserName;
         if (string.IsNullOrWhiteSpace(_userNameForAction)) { Snackbar.Add("Username is missing.", Severity.Warning); return; }
         _streaming = true;
@@ -295,7 +313,7 @@
         _bubbleCountBeforeSend = Bubbles.Count;
         StateHasChanged();
         await OnBeforeSend.InvokeAsync();
-        _ = RunReplaceStreamingLoopAsync(msg.Id, newContent.Trim());
+        _ = RunReplaceStreamingLoopAsync(msg.Id, editResult.Content.Trim(), editResult.AttachedPaths, editResult.RequestedSkillIds);
     }
 
     private async Task RegenerateReply(Guid turnId)
@@ -314,12 +332,12 @@
         _ = RunRegenerateStreamingLoopAsync(turnId);
     }
 
-    private async Task RunReplaceStreamingLoopAsync(Guid messageId, string newContent)
+    private async Task RunReplaceStreamingLoopAsync(Guid messageId, string newContent, IReadOnlyList<string>? attachedPaths, IReadOnlyList<string>? requestedSkillIds)
     {
-        var result = await ConversationPipeline.ReplaceUserMessageAsync(ConversationId!.Value, _userNameForAction!, messageId, newContent, UseThinkingMode, _sendCts!.Token);
+        var result = await ConversationPipeline.ReplaceUserMessageAsync(ConversationId!.Value, _userNameForAction!, messageId, newContent, UseThinkingMode, attachedPaths, requestedSkillIds, _sendCts!.Token);
         if (result == null) { _streaming = false; await InvokeAsync(StateHasChanged); return; }
         await OnMessageSent.InvokeAsync();
-        await RunStreamingLoopForTurnAsync(result.Value.TurnId, result.Value.UserMessage, UseThinkingMode);
+        await RunStreamingLoopForTurnAsync(result.Value.TurnId, result.Value.UserMessage, UseThinkingMode, result.Value.AttachedPaths, result.Value.RequestedSkillIds);
     }
 
     private async Task RunRegenerateStreamingLoopAsync(Guid turnId)
@@ -327,16 +345,16 @@
         var result = await ConversationPipeline.PrepareTurnForRegenerateAsync(ConversationId!.Value, _userNameForAction!, turnId, _sendCts!.Token);
         if (result == null) { _streaming = false; await InvokeAsync(StateHasChanged); return; }
         await OnMessageSent.InvokeAsync();
-        await RunStreamingLoopForTurnAsync(result.Value.TurnId, result.Value.UserMessage, result.Value.UseThinking);
+        await RunStreamingLoopForTurnAsync(result.Value.TurnId, result.Value.UserMessage, result.Value.UseThinking, result.Value.AttachedPaths, result.Value.RequestedSkillIds);
     }
 
-    private async Task RunStreamingLoopForTurnAsync(Guid turnId, string userMessage, bool useThinking)
+    private async Task RunStreamingLoopForTurnAsync(Guid turnId, string userMessage, bool useThinking, IReadOnlyList<string> attachedPaths, IReadOnlyList<string> requestedSkillIds)
     {
         var persisted = false;
         var channel = System.Threading.Channels.Channel.CreateUnbounded<StreamUpdate>();
         var sink = new ChannelStreamSink(channel.Writer);
         var runTask = ConversationPipeline
-            .StreamResponseAndCompleteAsync(ConversationId!.Value, turnId, userMessage, useThinking, sink, _sendCts!.Token, CircuitAccessor.CurrentCircuit?.Id, null, null)
+            .StreamResponseAndCompleteAsync(ConversationId!.Value, turnId, userMessage, useThinking, sink, _sendCts!.Token, CircuitAccessor.CurrentCircuit?.Id, attachedPaths, requestedSkillIds)
             .ContinueWith(_ => channel.Writer.Complete());
 
         try
