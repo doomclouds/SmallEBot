@@ -10,8 +10,11 @@ public partial class ChatArea
         public bool IsThink { get; init; }
         public string? Text { get; set; }
         public string? ToolName { get; init; }
+        public string? ToolCallId { get; init; }
         public string? ToolArguments { get; init; }
         public string? ToolResult { get; set; }
+        public ToolCallPhase Phase { get; set; }
+        public TimeSpan? Elapsed { get; set; }
     }
 
     private sealed class StreamDisplayItem
@@ -22,8 +25,11 @@ public partial class ChatArea
         public string? Text { get; init; }
         public bool IsReplyTool { get; init; }
         public string? ToolName { get; init; }
+        public string? ToolCallId { get; init; }
         public string? ToolArguments { get; init; }
         public string? ToolResult { get; set; }
+        public ToolCallPhase Phase { get; set; }
+        public TimeSpan? Elapsed { get; set; }
     }
 
     private static ReasoningStepView? TimelineItemToReasoningStepView(TimelineItem item)
@@ -39,7 +45,7 @@ public partial class ChatArea
     {
         return step.IsThink
             ? new ReasoningStepView { IsThink = true, Text = step.Text ?? "" }
-            : new ReasoningStepView { IsThink = false, ToolName = step.ToolName, ToolArguments = step.ToolArguments, ToolResult = step.ToolResult };
+            : new ReasoningStepView { IsThink = false, ToolName = step.ToolName, ToolArguments = step.ToolArguments, ToolResult = step.ToolResult, Phase = step.Phase, Elapsed = step.Elapsed };
     }
 
     private List<StreamingDisplayItemView> GetStreamingDisplayItemViews()
@@ -66,8 +72,11 @@ public partial class ChatArea
                 {
                     IsReplyTool = true,
                     ToolName = x.ToolName,
+                    ToolCallId = x.ToolCallId,
                     ToolArguments = x.ToolArguments,
-                    ToolResult = x.ToolResult
+                    ToolResult = x.ToolResult,
+                    Phase = x.Phase,
+                    Elapsed = x.Elapsed
                 });
             }
         }
@@ -113,27 +122,51 @@ public partial class ChatArea
             }
             if (update is ToolCallStreamUpdate tc)
             {
-                // Result-only update: merge into the last tool (reply or reasoning), so we never show a separate block for the result.
-                if (tc.Result != null && tc.Arguments == null)
+                if (tc.Phase is ToolCallPhase.Completed or ToolCallPhase.Failed or ToolCallPhase.Cancelled)
                 {
-                    var lastReplyTool = replyItems.LastOrDefault(x => x.IsReplyTool);
+                    var lastReplyTool = replyItems.LastOrDefault(x => x.IsReplyTool && x.ToolCallId == tc.CallId);
                     if (lastReplyTool != null)
+                    {
                         lastReplyTool.ToolResult = tc.Result;
+                        lastReplyTool.Phase = tc.Phase;
+                        lastReplyTool.Elapsed = tc.Elapsed;
+                    }
                     else
                     {
-                        var lastReasoningTool = reasoningSteps.LastOrDefault(x => !x.IsThink);
+                        var lastReasoningTool = reasoningSteps.LastOrDefault(x => !x.IsThink && x.ToolCallId == tc.CallId);
                         if (lastReasoningTool != null)
+                        {
                             lastReasoningTool.ToolResult = tc.Result;
+                            lastReasoningTool.Phase = tc.Phase;
+                            lastReasoningTool.Elapsed = tc.Elapsed;
+                        }
                     }
                     continue;
                 }
-                // New tool call (name/args): add to reasoning or reply depending on whether we've seen text.
-                if (string.IsNullOrEmpty(tc.ToolName) && tc.Arguments == null)
+                if (string.IsNullOrEmpty(tc.ToolName) && tc.CallId == null)
                     continue;
+                var toolItem = new StreamDisplayItem
+                {
+                    IsReplyTool = true,
+                    ToolCallId = tc.CallId,
+                    ToolName = tc.ToolName,
+                    ToolArguments = tc.Arguments,
+                    Phase = tc.Phase,
+                    Elapsed = tc.Elapsed
+                };
+                var reasoningToolStep = new ReasoningStep
+                {
+                    IsThink = false,
+                    ToolCallId = tc.CallId,
+                    ToolName = tc.ToolName,
+                    ToolArguments = tc.Arguments,
+                    Phase = tc.Phase,
+                    Elapsed = tc.Elapsed
+                };
                 if (seenText)
-                    replyItems.Add(new StreamDisplayItem { IsReplyTool = true, ToolName = tc.ToolName, ToolArguments = tc.Arguments, ToolResult = tc.Result });
+                    replyItems.Add(toolItem);
                 else
-                    reasoningSteps.Add(new ReasoningStep { IsThink = false, ToolName = tc.ToolName, ToolArguments = tc.Arguments, ToolResult = tc.Result });
+                    reasoningSteps.Add(reasoningToolStep);
             }
         }
 

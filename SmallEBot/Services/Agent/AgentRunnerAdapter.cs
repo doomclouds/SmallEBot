@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Microsoft.Agents.AI;
@@ -65,6 +66,8 @@ public sealed class AgentRunnerAdapter(
             Reasoning = reasoningOpt
         };
         var runOptions = new ChatClientAgentRunOptions(chatOptions);
+        var toolTimers = new Dictionary<string, Stopwatch>();
+        var toolNames = new Dictionary<string, string>();
 
         await foreach (var update in agent.RunStreamingAsync(frameworkMessages, null, runOptions, cancellationToken))
         {
@@ -81,10 +84,33 @@ public sealed class AgentRunnerAdapter(
                             yield return new ThinkStreamUpdate(reasoningContent.Text);
                             break;
                         case FunctionCallContent fnCall:
-                            yield return new ToolCallStreamUpdate(fnCall.Name, ToJsonString(fnCall.Arguments));
+                            var callId = fnCall.CallId ?? Guid.NewGuid().ToString("N");
+                            toolTimers[callId] = Stopwatch.StartNew();
+                            toolNames[callId] = fnCall.Name;
+                            yield return new ToolCallStreamUpdate(
+                                ToolName: fnCall.Name,
+                                CallId: callId,
+                                Phase: ToolCallPhase.Started,
+                                Arguments: ToJsonString(fnCall.Arguments),
+                                Elapsed: TimeSpan.Zero);
                             break;
                         case FunctionResultContent fnResult:
-                            yield return new ToolCallStreamUpdate(fnResult.CallId, Result: ToJsonString(fnResult.Result));
+                            var resCallId = fnResult.CallId;
+                            if (string.IsNullOrEmpty(resCallId) && toolTimers.Count == 1)
+                                resCallId = toolTimers.Keys.First();
+                            if (!string.IsNullOrEmpty(resCallId) && toolTimers.TryGetValue(resCallId, out var timer))
+                            {
+                                timer.Stop();
+                                var toolName = toolNames.GetValueOrDefault(resCallId) ?? resCallId;
+                                yield return new ToolCallStreamUpdate(
+                                    ToolName: toolName,
+                                    CallId: resCallId,
+                                    Phase: ToolCallPhase.Completed,
+                                    Result: ToJsonString(fnResult.Result),
+                                    Elapsed: timer.Elapsed);
+                                toolTimers.Remove(resCallId);
+                                toolNames.Remove(resCallId);
+                            }
                             break;
                     }
                 }
