@@ -1,0 +1,26 @@
+@* Streaming indicator: displays streaming message bubble during active streaming *@
+@using SmallEBot.Components.Chat.ViewModels.Streaming
+
+@if (IsStreaming)
+{
+    <StreamingMessageView Items="@StreamingItems"
+                          FallbackText="@FallbackText"
+                          Timestamp="@Timestamp"
+                          OnCancel="@OnCancel"
+                          ShowWaitingForToolParams="@ShowWaitingForToolParams"
+                          WaitingElapsed="@WaitingElapsed"
+                          WaitingInReasoning="@WaitingInReasoning"
+                          ShowToolCalls="@ShowToolCalls" />
+}
+
+@code {
+    [Parameter] public bool IsStreaming { get; set; }
+    [Parameter] public IReadOnlyList<StreamingDisplayItemView>? StreamingItems { get; set; }
+    [Parameter] public string? FallbackText { get; set; }
+    [Parameter] public DateTime Timestamp { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+    [Parameter] public bool ShowWaitingForToolParams { get; set; }
+    [Parameter] public TimeSpan WaitingElapsed { get; set; }
+    [Parameter] public bool WaitingInReasoning { get; set; }
+    [Parameter] public bool ShowToolCalls { get; set; } = true;
+}
