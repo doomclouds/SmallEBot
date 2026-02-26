@@ -275,7 +275,7 @@
                         _streamingUpdates.Add(update);
                         break;
                 }
-                _streamingViews = GetStreamingDisplayItemViews();
+                _streamingViews = Presentation.ConvertStreamingUpdates(_streamingUpdates);
                 await InvokeAsync(StateHasChanged);
             }
             await runTask;
@@ -393,7 +393,7 @@
                         _streamingUpdates.Add(update);
                         break;
                 }
-                _streamingViews = GetStreamingDisplayItemViews();
+                _streamingViews = Presentation.ConvertStreamingUpdates(_streamingUpdates);
                 await InvokeAsync(StateHasChanged);
             }
             await runTask;
