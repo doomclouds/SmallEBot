@@ -136,51 +136,24 @@
     }
     </div>
 
-    <div id="smallebot-chat-drop-zone" class="position-relative mt-2">
-        @* Chips for @ (files) and / (skills); different colors, closable. Input does not show path or skill text. *@
-        <AttachmentPopover @ref="_attachmentPopoverRef"
-                          @bind-Open="_popoverOpen"
-                          Kind="@_popoverKind"
-                          Filter="@_popoverFilter"
-                          FilePaths="@_filePaths"
-                          Skills="@_skills"
-                          OnSelect="@OnAttachmentSelected" />
-        @if (_attachmentItems.Count > 0 || _requestedSkillIds.Count > 0)
-        {
-            <div class="d-flex flex-wrap align-items-center gap-1 mb-2">
-                @foreach (var item in _attachmentItems)
-                {
-                    @if (item is ResolvedPathAttachment r)
-                    {
-                        <MudChip T="object" Color="Color.Primary" Variant="Variant.Filled" OnClose="@(() => RemoveAttachmentItem(r))" CloseIcon="@Icons.Material.Filled.Cancel">
-                            @r.Path
-                        </MudChip>
-                    }
-                    else if (item is PendingUploadAttachment p)
-                    {
-                        <MudChip T="object" Color="Color.Primary" Variant="Variant.Filled" OnClose="@(() => RemoveAttachmentItem(p))" CloseIcon="@Icons.Material.Filled.Cancel">
-                            <MudProgressCircular Size="Size.Small" Indeterminate="@(p.Progress <= 0 || p.Progress >= 100)" Value="@p.Progress" />
-                            @p.DisplayName
-                        </MudChip>
-                    }
-                }
-                @foreach (var skillId in _requestedSkillIds)
-                {
-                    <MudChip T="object" Color="Color.Secondary" Variant="Variant.Filled" OnClose="@(() => RemoveRequestedSkill(skillId))" CloseIcon="@Icons.Material.Filled.Cancel">
-                        /@skillId
-                    </MudChip>
-                }
-            </div>
-        }
-        <ChatInputBar Value="@_input"
-                      ValueChanged="HandleInputChanged"
-                      Streaming="_streaming"
-                      ContextPercentText="@_contextPercentText"
-                      ContextUsageTooltip="@_contextUsageTooltip"
-                      OnSend="Send"
-                      OnStop="StopSend"
-                      Disabled="@(string.IsNullOrWhiteSpace(_input) || _attachmentItems.OfType<PendingUploadAttachment>().Any())"
-                      Class="" />
+    <div class="mt-2">
+        <ChatInputArea InputText="@_input"
+                       InputTextChanged="@HandleInputChanged"
+                       IsStreaming="@_streaming"
+                       Attachments="@_attachmentItems"
+                       RequestedSkillIds="@_requestedSkillIds"
+                       PopoverOpen="@_popoverOpen"
+                       PopoverKind="@_popoverKind"
+                       PopoverFilter="@_popoverFilter"
+                       FilePaths="@_filePaths"
+                       Skills="@_skills"
+                       ContextPercentText="@_contextPercentText"
+                       ContextUsageTooltip="@_contextUsageTooltip"
+                       OnSend="@Send"
+                       OnStop="@StopSend"
+                       OnRemoveAttachment="@RemoveAttachmentItem"
+                       OnRemoveSkill="@RemoveRequestedSkill"
+                       InputTextWithPopover="@OnAttachmentSelected" />
     </div>
 </MudPaper>
 
@@ -220,9 +193,6 @@
     private bool _moveCursorToEnd;
     private readonly List<AttachmentItem> _attachmentItems = [];
     private readonly List<string> _requestedSkillIds = [];
-    private AttachmentPopover? _attachmentPopoverRef;
-    private bool _suggestionKeysAttached;
-    private DotNetObjectReference<ChatArea>? _suggestionKeysDotNetRef;
     private DotNetObjectReference<ChatArea>? _dropZoneDotNetRef;
     private bool _justSelectedAttachment;
 
@@ -676,28 +646,6 @@
             }
             catch { /* ignore if JS not loaded or disconnected */ }
         }
-        if (_popoverOpen && !_suggestionKeysAttached)
-        {
-            _suggestionKeysAttached = true;
-            _suggestionKeysDotNetRef = DotNetObjectReference.Create(this);
-            try
-            {
-                await JS.InvokeVoidAsync("SmallEBot.attachChatInputSuggestionKeys", "smallebot-chat-input-wrap", _suggestionKeysDotNetRef);
-            }
-            catch
-            {
-                _suggestionKeysAttached = false;
-                _suggestionKeysDotNetRef?.Dispose();
-                _suggestionKeysDotNetRef = null;
-            }
-        }
-        else if (!_popoverOpen && _suggestionKeysAttached)
-        {
-            _suggestionKeysAttached = false;
-            try { await JS.InvokeVoidAsync("SmallEBot.detachChatInputSuggestionKeys", "smallebot-chat-input-wrap"); } catch { /* ignore */ }
-            _suggestionKeysDotNetRef?.Dispose();
-            _suggestionKeysDotNetRef = null;
-        }
     }
 
     [JSInvokable]
@@ -752,13 +700,6 @@
         await InvokeAsync(StateHasChanged);
     }
 
-    [JSInvokable]
-    public async Task OnSuggestionKeyDown(string key)
-    {
-        if (_attachmentPopoverRef != null)
-            await _attachmentPopoverRef.HandleKeyFromInputAsync(key);
-    }
-
     /// <summary>True if the last user message in Bubbles has the same content as _pendingUserMessage (avoids duplicate bubble when refresh and pending overlap).</summary>
     private bool IsPendingMessageAlreadyInBubbles()
     {
@@ -781,6 +722,5 @@
         try { _ = JS.InvokeVoidAsync("SmallEBot.detachDropZone", "smallebot-chat-drop-zone"); } catch { /* ignore */ }
         _dropZoneDotNetRef?.Dispose();
         _dropZoneDotNetRef = null;
-        _suggestionKeysDotNetRef?.Dispose();
     }
 }
