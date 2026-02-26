@@ -1,5 +1,4 @@
 // SmallEBot/Components/Chat/ViewModels/Reasoning/SegmentBlockView.cs
-using SmallEBot.Components.Chat;
 
 namespace SmallEBot.Components.Chat.ViewModels.Reasoning;
 
