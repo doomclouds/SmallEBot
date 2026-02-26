@@ -1,0 +1,48 @@
+@* Attachment chips display: reusable in ChatInputArea and EditMessageDialog *@
+@using SmallEBot.Models
+
+@if (Attachments.Count > 0 || RequestedSkillIds.Count > 0)
+{
+    <div class="d-flex flex-wrap align-items-center gap-1 mb-2">
+        @foreach (var item in Attachments)
+        {
+            @if (item is ResolvedPathAttachment r)
+            {
+                var captured = r;
+                <MudChip T="object" Color="Color.Primary" Variant="Variant.Filled"
+                         OnClose="@(() => OnRemoveAttachment.InvokeAsync(captured))"
+                         CloseIcon="@Icons.Material.Filled.Cancel">
+                    @r.Path
+                </MudChip>
+            }
+            else if (item is PendingUploadAttachment p)
+            {
+                var captured = p;
+                <MudChip T="object" Color="Color.Primary" Variant="Variant.Filled"
+                         OnClose="@(() => OnRemoveAttachment.InvokeAsync(captured))"
+                         CloseIcon="@Icons.Material.Filled.Cancel">
+                    <MudProgressCircular Size="Size.Small"
+                                         Indeterminate="@(p.Progress <= 0 || p.Progress >= 100)"
+                                         Value="@p.Progress" />
+                    @p.DisplayName
+                </MudChip>
+            }
+        }
+        @foreach (var skillId in RequestedSkillIds)
+        {
+            var captured = skillId;
+            <MudChip T="object" Color="Color.Secondary" Variant="Variant.Filled"
+                     OnClose="@(() => OnRemoveSkill.InvokeAsync(captured))"
+                     CloseIcon="@Icons.Material.Filled.Cancel">
+                /@skillId
+            </MudChip>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public IReadOnlyList<AttachmentItem> Attachments { get; set; } = [];
+    [Parameter] public IReadOnlyList<string> RequestedSkillIds { get; set; } = [];
+    [Parameter] public EventCallback<AttachmentItem> OnRemoveAttachment { get; set; }
+    [Parameter] public EventCallback<string> OnRemoveSkill { get; set; }
+}
