@@ -76,7 +76,7 @@
 ## 6. Next steps
 
 - Implement in order: (1) Backend API and fragment building + injection in runner; (2) Front-end popover and list data; (3) Wire send payload and parsing.
-- Optional: document in AGENTS.md the @ and / behaviour and the allowed extensions.
+- Optional: document in CLAUDE.md the @ and / behaviour and the allowed extensions.
 - After implementation, consider: token/size limit for attached files, and richer popover UX (e.g. type-ahead filter after @ or /).
 
 ---

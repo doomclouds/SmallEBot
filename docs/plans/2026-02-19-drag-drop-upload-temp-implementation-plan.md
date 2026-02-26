@@ -6,7 +6,7 @@
 
 **Architecture:** Approach C — chunked upload via JS interop; server writes to staging file under `temp/`, computes hash on completion, maintains `temp/.hash-index.json` (path→hash). Dedup: if hash exists, delete staging and rename existing file to new name; else move staging to `temp/{fileName}`. New `IWorkspaceUploadService` (scoped) with StartUpload, ReportChunk, CompleteUpload, CancelUpload. ChatArea uses a unified attachment list: `ResolvedPath(path)` or `PendingUpload(uploadId, displayName, progress)`; loading chips and send-disabled when any pending.
 
-**Tech Stack:** Blazor Server, MudBlazor, .NET 10, JS interop (chunked FileReader + base64), SHA256 for hash. Design: `docs/plans/2026-02-19-drag-drop-upload-temp-design.md`. Reference: AGENTS.md (AllowedFileExtensions, workspace root). No test project; use `dotnet build` and manual verification.
+**Tech Stack:** Blazor Server, MudBlazor, .NET 10, JS interop (chunked FileReader + base64), SHA256 for hash. Design: `docs/plans/2026-02-19-drag-drop-upload-temp-design.md`. Reference: CLAUDE.md (AllowedFileExtensions, workspace root). No test project; use `dotnet build` and manual verification.
 
 ---
 
@@ -270,10 +270,10 @@ git commit -m "chore(workspace): cleanup orphan .upload-* files on first upload"
 
 ---
 
-## Task 7: Update AGENTS.md
+## Task 7: Update CLAUDE.md
 
 **Files:**
-- Modify: `AGENTS.md`
+- Modify: `CLAUDE.md`
 
 **Step 1: Add drag-and-drop to Context attachments**
 
@@ -282,8 +282,8 @@ In the section that describes @ and / context attachments, add a line: "Users ca
 **Step 2: Commit**
 
 ```bash
-git add AGENTS.md
-git commit -m "docs: mention drag-drop upload in AGENTS.md context attachments"
+git add CLAUDE.md
+git commit -m "docs: mention drag-drop upload in CLAUDE.md context attachments"
 ```
 
 ---

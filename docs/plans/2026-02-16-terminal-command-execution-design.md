@@ -93,7 +93,7 @@
   - **Service:** `SmallEBot/Services/Terminal/TerminalConfigService.cs` (interface + class), or under an existing namespace; implement `ITerminalConfigService` with default blacklist constant and file read/write.
   - **UI:** `SmallEBot/Components/Terminal/TerminalConfigDialog.razor` (and optional `_Imports` or namespace). MainLayout: add icon button and `OpenTerminalConfig()` that shows `TerminalConfigDialog`.
   - **Tool:** Extend `SmallEBot/Services/Agent/BuiltInToolFactory.cs`: inject `ITerminalConfigService`, add instance method for ExecuteCommand (with blacklist check and process run), and add it to `CreateTools()`. Optionally extract process execution to a small `TerminalCommandRunner` or similar in the same assembly for clarity and testability.
-- **AGENTS.md / README:** Already state local deployment. Optionally add one line: “Terminal: built-in ExecuteCommand tool; config and command blacklist in Terminal config (App bar).”
+- **CLAUDE.md / README:** Already state local deployment. Optionally add one line: “Terminal: built-in ExecuteCommand tool; config and command blacklist in Terminal config (App bar).”
 
 ---
 

@@ -338,10 +338,10 @@ git commit -m "feat(agent): add GrepContent tool for workspace content search"
 
 ---
 
-## Task 3: Update AGENTS.md Documentation
+## Task 3: Update CLAUDE.md Documentation
 
 **Files:**
-- Modify: `AGENTS.md`
+- Modify: `CLAUDE.md`
 
 **Step 1: Add GrepFiles to Built-in tools table**
 
@@ -355,7 +355,7 @@ In the Built-in tools table (around line 75-88), add after `ListFiles`:
 **Step 2: Commit**
 
 ```bash
-git add AGENTS.md
+git add CLAUDE.md
 git commit -m "docs: add GrepFiles and GrepContent to built-in tools table"
 ```
 

@@ -723,13 +723,13 @@ git commit -m "chore: remove duplicate entities and models from Host (now in Cor
 
 **Files:**
 - Modify: Any file that still references `SmallEBot.Data` or `SmallEBot.Data.Entities` or old SmallEBot.Models types (grep and fix)
-- Modify: `AGENTS.md` (update build/run/migrations commands and architecture description)
+- Modify: `CLAUDE.md` (update build/run/migrations commands and architecture description)
 
 **Step 1: Grep and fix remaining references**
 
 Run: `rg "SmallEBot\.Data|SmallEBot\.Models" SmallEBot/ --type cs -l` and `rg "SmallEBot\.Data|SmallEBot\.Models" SmallEBot/ --glob "*.razor" -l`. For conversation/entity types, use Core. For McpServerEntry, SkillMetadata, SmallEBotSettings keep SmallEBot.Models (Host).
 
-**Step 2: Update AGENTS.md**
+**Step 2: Update CLAUDE.md**
 
 - Build: `dotnet build` or `dotnet build SmallEBot/SmallEBot.csproj` (unchanged)
 - Run: `dotnet run --project SmallEBot` (unchanged)
@@ -744,8 +744,8 @@ Expected: PASS; app runs; create/send/delete conversation works.
 **Step 4: Commit**
 
 ```bash
-git add SmallEBot/ AGENTS.md
-git commit -m "docs: update AGENTS.md for Core/Infrastructure layout; fix remaining refs"
+git add SmallEBot/ CLAUDE.md
+git commit -m "docs: update CLAUDE.md for Core/Infrastructure layout; fix remaining refs"
 ```
 
 ---

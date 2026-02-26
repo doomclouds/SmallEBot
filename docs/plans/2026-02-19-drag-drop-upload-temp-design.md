@@ -84,7 +84,7 @@ Same as A but simplify: browser sends file in chunks; server writes to a staging
 ## 6. Testing and docs
 
 - **Manual testing:** Drag one allowed file → loading chip → complete → chip shows path; send disabled until complete; close chip cancels. Drag disallowed extension → Snackbar. Drag two files with same content → second completes without duplicate file, both chips show (possibly same path or one path twice; design choice: second chip could show same path so user sees “both attached”).  
-- **Docs:** Update AGENTS.md “Context attachments” to mention drag-and-drop: “Users can also drag files onto the chat; allowed files are uploaded to workspace temp/, deduplicated by hash, and appear as @-style chips.”
+- **Docs:** Update CLAUDE.md “Context attachments” to mention drag-and-drop: “Users can also drag files onto the chat; allowed files are uploaded to workspace temp/, deduplicated by hash, and appear as @-style chips.”
 - **AllowedFileExtensions:** Single source of truth; upload service and drop validation both use it.
 
 ---

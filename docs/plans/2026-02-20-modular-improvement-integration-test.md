@@ -232,4 +232,4 @@ Issues found:
 
 - Implementation plan: `docs/plans/2026-02-20-modular-improvement-implementation.md`
 - Design doc: `docs/plans/2026-02-20-modular-improvement-design.md`
-- Architecture: `AGENTS.md`
+- Architecture: `CLAUDE.md`

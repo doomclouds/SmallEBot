@@ -8,7 +8,7 @@
 
 **Tech stack:** .NET 10, existing Agent/Host; no new projects. Task storage is file-based only (no DB).
 
-**Note:** This repo has no test project (AGENTS.md). Steps use “Build and verify” instead of automated tests.
+**Note:** This repo has no test project (CLAUDE.md). Steps use “Build and verify” instead of automated tests.
 
 ---
 
@@ -171,14 +171,14 @@ git commit -m "feat(task): add CompleteTask, UncompleteTask, DeleteTask built-in
 
 **Files:**
 - Modify: `SmallEBot/Services/Agent/AgentContextFactory.cs`
-- Modify: `AGENTS.md`
+- Modify: `CLAUDE.md`
 - Modify: `README.md`
 
 **Step 1: System prompt**
 
 In `AgentContextFactory`, in the system prompt text, add one or two sentences: the current conversation has task list tools (ListTasks, AddTask, CompleteTask, UncompleteTask, DeleteTask) for breaking down and tracking work; for complex tasks the model can list tasks, then add/complete/uncomplete/delete to maintain the list and decide next steps.
 
-**Step 2: AGENTS.md**
+**Step 2: CLAUDE.md**
 
 In the Built-in tools table, add five rows:
 - ListTasks: list current conversation tasks (JSON).
@@ -200,7 +200,7 @@ Build. Skim system prompt and docs for consistency.
 **Step 5: Commit**
 
 ```bash
-git add SmallEBot/Services/Agent/AgentContextFactory.cs AGENTS.md README.md
+git add SmallEBot/Services/Agent/AgentContextFactory.cs CLAUDE.md README.md
 git commit -m "docs: describe task list tools in system prompt and AGENTS/README"
 ```
 
@@ -214,6 +214,6 @@ git commit -m "docs: describe task list tools in system prompt and AGENTS/README
 | 2 | Task list file DTOs and read/write helpers in BuiltInToolFactory |
 | 3 | ListTasks + AddTask tools |
 | 4 | CompleteTask + UncompleteTask + DeleteTask tools |
-| 5 | System prompt + AGENTS.md + README.md |
+| 5 | System prompt + CLAUDE.md + README.md |
 
 After Task 5, the feature is complete. Optional: add `.agents/tasks/` to `.gitignore` if you do not want task files committed in repos that use SmallEBot as a library.

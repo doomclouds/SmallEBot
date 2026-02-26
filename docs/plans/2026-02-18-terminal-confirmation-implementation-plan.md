@@ -10,7 +10,7 @@
 
 **Reference design:** `docs/plans/2026-02-18-terminal-confirmation-design.md`
 
-**Note:** This repo has no test project (see AGENTS.md). Steps use “Build and verify” instead of TDD.
+**Note:** This repo has no test project (see CLAUDE.md). Steps use “Build and verify” instead of TDD.
 
 ---
 
@@ -351,21 +351,21 @@ git commit -m "feat(terminal): add Require confirmation, Confirmation timeout, W
 ## Task 10: End-to-end verification and docs
 
 **Files:**
-- Modify: `AGENTS.md` (optional: one line about terminal confirmation)
+- Modify: `CLAUDE.md` (optional: one line about terminal confirmation)
 - Modify: `README.md` (optional: user-facing note)
 
 **Step 1: Manual verification**
 
 Run the app: `dotnet run --project SmallEBot`. Open Terminal config, enable “Require command confirmation”, set confirmation timeout (e.g. 60), save. Send a chat message that triggers ExecuteCommand (e.g. “Run dotnet --version”). Confirm the bottom-right strip appears, click Allow, and that the command runs and the reply contains output. Repeat with Reject. Optionally test timeout (wait 60 s without clicking). Check that after Allow, the same command runs without prompting (whitelist). Verify whitelist appears in Terminal config and can be removed.
 
-**Step 2: Update AGENTS.md**
+**Step 2: Update CLAUDE.md**
 
 Under Built-in tools or Configuration, add a short line that Terminal config includes optional command confirmation and whitelist (see design doc).
 
 **Step 3: Commit**
 
 ```bash
-git add AGENTS.md README.md
+git add CLAUDE.md README.md
 git commit -m "docs: mention terminal command confirmation and whitelist"
 ```
 

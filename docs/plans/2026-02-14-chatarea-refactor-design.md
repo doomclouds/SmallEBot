@@ -93,4 +93,4 @@
 
 - No Builder pattern for composing messages (optional future).
 - No change to `ConversationService`, `ReasoningSegmenter`, or streaming types.
-- No new tests in this refactor (no test project in repo per AGENTS.md).
+- No new tests in this refactor (no test project in repo per CLAUDE.md).

@@ -252,9 +252,9 @@ dotnet run --project SmallEBot
 dotnet ef migrations add <MigrationName> --project SmallEBot.Infrastructure --startup-project SmallEBot
 ```
 
-**PowerShell**: Use `;` to chain commands, not `&&`. See `.cursor/rules/powershell-multi-command.mdc`.
+**PowerShell**: Use `;` to chain commands, not `&&`.
 
-For architecture and Cursor guidance, see [AGENTS.md](AGENTS.md).
+For architecture and Claude Code guidance, see [CLAUDE.md](CLAUDE.md).
 
 ## License
 

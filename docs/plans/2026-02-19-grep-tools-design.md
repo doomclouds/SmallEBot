@@ -139,5 +139,5 @@ Use .NET built-in libraries:
 
 After implementation, update:
 
-1. **AGENTS.md** - Add tools to Built-in tools table
+1. **CLAUDE.md** - Add tools to Built-in tools table
 2. **README.md** - Add tools to 内置工具 table

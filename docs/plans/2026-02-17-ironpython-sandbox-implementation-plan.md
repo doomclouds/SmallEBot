@@ -146,13 +146,13 @@ git commit -m "feat(agent): add RunPython built-in tool"
 
 ---
 
-## Task 4: Update AGENTS.md and system prompt
+## Task 4: Update CLAUDE.md and system prompt
 
 **Files:**
-- Modify: `AGENTS.md`
+- Modify: `CLAUDE.md`
 - Modify: `SmallEBot/Services/Agent/AgentContextFactory.cs` (optional: mention RunPython in BaseInstructions)
 
-**Step 1: Update AGENTS.md**
+**Step 1: Update CLAUDE.md**
 
 In the Architecture section where built-in tools are listed (e.g. “Built-in tools: **ReadSkill** … **ReadFile** …”), add a sentence: “**RunPython(code?, scriptPath?, workingDirectory?)** runs Python in an IronPython sandbox (no system Python required); pass inline code or a path to a `.py` file under the run directory; if both are provided, scriptPath is used.”
 
@@ -163,8 +163,8 @@ In `SmallEBot/Services/Agent/AgentContextFactory.cs`, in `BaseInstructions`, add
 **Step 3: Commit**
 
 ```bash
-git add AGENTS.md SmallEBot/Services/Agent/AgentContextFactory.cs
-git commit -m "docs: document RunPython in AGENTS.md and system prompt"
+git add CLAUDE.md SmallEBot/Services/Agent/AgentContextFactory.cs
+git commit -m "docs: document RunPython in CLAUDE.md and system prompt"
 ```
 
 ---
@@ -193,5 +193,5 @@ In the Blazor UI, start a conversation and ask the agent to run a simple Python 
 - [ ] Task 1: IronPython package + IPythonSandbox interface
 - [ ] Task 2: IronPythonSandbox implementation + DI registration
 - [ ] Task 3: RunPython in BuiltInToolFactory
-- [ ] Task 4: AGENTS.md and optional system prompt
+- [ ] Task 4: CLAUDE.md and optional system prompt
 - [ ] Task 5: Manual run and chat verification

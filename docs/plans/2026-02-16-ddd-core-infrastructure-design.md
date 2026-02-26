@@ -84,7 +84,7 @@ Child entities (Turn/Message/ToolCall/ThinkBlock) are not exposed via separate r
    Move `IAgentBuilder`, `IAgentContextFactory`, `IBuiltInToolFactory`, `IMcpToolFactory` to Core (interfaces); implementations can stay in Infrastructure (or Host for Blazor-specific ones). `AgentService` (chat module) depends only on `IConversationRepository` and `IAgentBuilder`; its type can live in Core for reuse by Cron later. This step keeps the current behavior while establishing the boundary.
 
 5. **Cleanup**  
-   Remove any remaining direct `AppDbContext` usage from Host. Ensure EF migrations run from Infrastructure (e.g. `dotnet ef migrations add ... --project SmallEBot.Infrastructure --startup-project SmallEBot`). Update `AGENTS.md` and docs with new project layout and commands.
+   Remove any remaining direct `AppDbContext` usage from Host. Ensure EF migrations run from Infrastructure (e.g. `dotnet ef migrations add ... --project SmallEBot.Infrastructure --startup-project SmallEBot`). Update `CLAUDE.md` and docs with new project layout and commands.
 
 **Error handling:** Repository methods throw or return results (e.g. `bool` for `DeleteAsync`) as today; no new cross-cutting error model required. Host continues to handle exceptions in UI or middleware.
 

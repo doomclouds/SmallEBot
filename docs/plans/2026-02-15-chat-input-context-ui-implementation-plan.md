@@ -262,6 +262,6 @@ git commit -m "style(ui): align ChatInputBar with theme and add aria-labels"
 
 ## Notes
 
-- **No test project:** The repo has no test project (per AGENTS.md). Verification is by `dotnet build` and manual run. If tests are added later, add unit tests for `GetEstimatedContextUsageAsync` and for usage capture in the streaming loop.
+- **No test project:** The repo has no test project (per CLAUDE.md). Verification is by `dotnet build` and manual run. If tests are added later, add unit tests for `GetEstimatedContextUsageAsync` and for usage capture in the streaming loop.
 - **Usage from Framework:** If the Anthropic provider does not populate `Usage` on streaming updates, the context % will rely entirely on `GetEstimatedContextUsageAsync` until the SDK exposes usage. The implementation should not throw when `update.Usage` is null.
 - **Left bar:** Left side of the bottom bar remains empty; no placeholders are drawn (per design).

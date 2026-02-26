@@ -186,17 +186,17 @@
 
 ---
 
-## Task 11: AGENTS.md and README update
+## Task 11: CLAUDE.md and README update
 
 **Files:**
-- Modify: `AGENTS.md`
+- Modify: `CLAUDE.md`
 - Modify: `README.md`
 
 **Steps:**
 
-1. In **AGENTS.md**: Under "Data paths" or "Configuration", add the virtual workspace root (`.agents/vfs/`). In "Built-in tools", state that ReadFile, WriteFile, ListFiles, ExecuteCommand (working dir), and RunPython (scriptPath, workingDirectory) are relative to the workspace root; ReadSkill is unchanged.
+1. In **CLAUDE.md**: Under "Data paths" or "Configuration", add the virtual workspace root (`.agents/vfs/`). In "Built-in tools", state that ReadFile, WriteFile, ListFiles, ExecuteCommand (working dir), and RunPython (scriptPath, workingDirectory) are relative to the workspace root; ReadSkill is unchanged.
 2. In **README.md**: In "Built-in Tools" or "Configuration", mention the workspace (e.g. "Agent file tools and RunPython/ExecuteCommand use a workspace directory at `.agents/vfs/`; use the Workspace drawer in the app to browse and manage files.").
-3. **Commit (optional):** `docs: document virtual workspace in AGENTS.md and README`
+3. **Commit (optional):** `docs: document virtual workspace in CLAUDE.md and README`
 
 ---
 

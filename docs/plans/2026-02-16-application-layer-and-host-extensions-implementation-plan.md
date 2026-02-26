@@ -465,10 +465,10 @@ git commit -m "refactor(Host): move DI registration to ServiceCollectionExtensio
 
 ---
 
-## Task 9: Update AGENTS.md and verify
+## Task 9: Update CLAUDE.md and verify
 
 **Files:**
-- Modify: `AGENTS.md`
+- Modify: `CLAUDE.md`
 
 **Step 1: Update Architecture section**
 
@@ -486,6 +486,6 @@ Expected: Build succeeds.
 **Step 3: Commit**
 
 ```powershell
-git add AGENTS.md
-git commit -m "docs: update AGENTS.md for Application layer and Host Extensions"
+git add CLAUDE.md
+git commit -m "docs: update CLAUDE.md for Application layer and Host Extensions"
 ```

@@ -105,10 +105,10 @@ git commit -m "feat(agent): pass per-request Reasoning options in runner"
 
 ---
 
-## Task 3: Update AGENTS.md
+## Task 3: Update CLAUDE.md
 
 **Files:**
-- Modify: `AGENTS.md`
+- Modify: `CLAUDE.md`
 
 **Step 1: Update AgentBuilder description**
 
@@ -117,8 +117,8 @@ In the section that describes **AgentBuilder** (e.g. “Two cached variants: nor
 **Step 2: Commit**
 
 ```bash
-git add AGENTS.md
-git commit -m "docs: update AGENTS.md for single-agent thinking option"
+git add CLAUDE.md
+git commit -m "docs: update CLAUDE.md for single-agent thinking option"
 ```
 
 ---

@@ -8,7 +8,7 @@
 
 **Tech Stack:** Blazor Server, MudBlazor, .NET 10, SmallEBot.Application (IAgentConversationService, IAgentRunner), Host (AgentRunnerAdapter, IWorkspaceService, ISkillsConfigService). Design: `docs/plans/2026-02-19-at-slash-context-attachments-design.md`.
 
-**Reference:** AGENTS.md (allowed extensions, workspace, skills, conversation flow). No test project; use `dotnet build` and manual verification.
+**Reference:** CLAUDE.md (allowed extensions, workspace, skills, conversation flow). No test project; use `dotnet build` and manual verification.
 
 ---
 
@@ -289,21 +289,21 @@ git commit -m "feat(chat): add @ and / popovers for workspace files and skills"
 
 ---
 
-## Task 8: (Optional) AGENTS.md and README
+## Task 8: (Optional) CLAUDE.md and README
 
 **Files:**
-- Modify: `AGENTS.md`
+- Modify: `CLAUDE.md`
 - Modify: `README.md` (if user-facing)
 
-**Step 1: Document @ and / in AGENTS.md**
+**Step 1: Document @ and / in CLAUDE.md**
 
 Under a "Chat input" or "Context attachments" subsection: describe that typing @ opens a list of workspace files (allowed extensions), typing / opens skills; selected items appear as @path and /skillId; on send, file contents are added to the turn context and skills are hinted for the model to use via ReadSkill. Reference AllowedFileExtensions.
 
 **Step 2: Commit**
 
 ```bash
-git add AGENTS.md
-git commit -m "docs: describe @ and / context attachments in AGENTS.md"
+git add CLAUDE.md
+git commit -m "docs: describe @ and / context attachments in CLAUDE.md"
 ```
 
 ---
@@ -319,7 +319,7 @@ git commit -m "docs: describe @ and / context attachments in AGENTS.md"
 | 5 | ChatArea: parse input and pass lists to pipeline |
 | 6 | IWorkspaceService.GetAllowedFilePathsAsync (or document flatten in UI) |
 | 7 | Popover UI for @ and /, trigger from input, insert on select |
-| 8 | AGENTS.md (and optional README) |
+| 8 | CLAUDE.md (and optional README) |
 
 After Task 5, backend is complete (user can type @path and /id by hand and get context). After Task 7, full UX works. Task 8 is optional.
 

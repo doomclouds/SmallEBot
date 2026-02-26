@@ -252,9 +252,9 @@ dotnet run --project SmallEBot
 dotnet ef migrations add <MigrationName> --project SmallEBot.Infrastructure --startup-project SmallEBot
 ```
 
-**PowerShell 用户**：多条命令请用 `;` 连接，勿用 `&&`。详见 `.cursor/rules/powershell-multi-command.mdc`。
+**PowerShell 用户**：多条命令请用 `;` 连接，勿用 `&&`。
 
-开发与架构细节见 [AGENTS.md](AGENTS.md)。
+开发与架构细节见 [CLAUDE.md](CLAUDE.md)。
 
 ## 许可证
 

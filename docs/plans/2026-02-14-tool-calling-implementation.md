@@ -1,6 +1,6 @@
 # Tool Calling Implementation Plan
 
-> **For Claude/Cursor:** Execute this plan task-by-task. After each verification block, run the **UI verification** steps using the browser MCP (navigate, snapshot, click, type). Treat verification as mandatory: do not mark a task complete until the browser test passes or the step explicitly allows "skip if app not runnable".
+> **For Claude/Claude Code:** Execute this plan task-by-task. After each verification block, run the **UI verification** steps using the browser MCP (navigate, snapshot, click, type). Treat verification as mandatory: do not mark a task complete until the browser test passes or the step explicitly allows "skip if app not runnable".
 
 **Goal:** Implement tool-call visibility in the chat UI (🔧 icon, collapsible blocks), AppBar toggle to show/hide tool blocks, Function Call + MCP tools, with quality guaranteed by runnable UI verification steps.
 
@@ -8,11 +8,11 @@
 
 **Tech Stack:** .NET 10, Blazor Server, MudBlazor, Microsoft.Agents.AI.OpenAI, browser MCP for UI verification.
 
-**References:** `docs/plans/2026-02-14-tool-calling-design.md`, `AGENTS.md`
+**References:** `docs/plans/2026-02-14-tool-calling-design.md`, `CLAUDE.md`
 
 ---
 
-## How to Run UI Verification (Cursor)
+## How to Run UI Verification (Claude Code)
 
 1. **Start the app** (in a terminal, keep it running):
    ```powershell
@@ -384,7 +384,7 @@ git commit -m "docs: link design to implementation plan"
 | 10   | MCP (if http configured) | Tool block or normal reply, no crash |
 | 11   | No-tools + scroll | Normal chat, no extra UI break |
 
-All verifications are run by the executor (Cursor) using the browser MCP against the running app. Do not mark the feature complete until Tasks 3, 6, 8, and 11 pass; Task 10 can be skipped if no http MCP is configured or reachable.
+All verifications are run by the executor (Claude Code) using the browser MCP against the running app. Do not mark the feature complete until Tasks 3, 6, 8, and 11 pass; Task 10 can be skipped if no http MCP is configured or reachable.
 
 **Verification completed (2026-02-14):** Tasks 3, 6, 8, and 11 passed via browser MCP. Tool call persistence and JSON-serialized Arguments/Result are implemented.
 

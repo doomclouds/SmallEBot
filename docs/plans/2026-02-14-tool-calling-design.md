@@ -80,7 +80,7 @@ Each assistant message is a sequence of “text + tool blocks” in order. While
   - **stdio:** Use `command`, `args`, `env`; if the SDK supports stdio MCP client, register it; otherwise log “not supported” and only bind http for now.
 - No secrets in the frontend; MCP is backend-only.
 
-**Self-test checklist (browser, manual / Cursor)**  
+**Self-test checklist (browser, manual / Claude Code)**  
 1. **Function Call:** Ask something that triggers a built-in function (e.g. “现在几点？”); confirm a tool block with 🔧 appears, collapsed by default; expand and check name/args/result.  
 2. **MCP (if http configured):** Ask something that triggers an MCP tool; confirm a tool block with correct content.  
 3. **Toggle:** Turn off “显示工具” in the AppBar; confirm no tool blocks are shown (only text). Turn on again; new messages show tool blocks.  

@@ -15,7 +15,7 @@
 **Files:**
 - Modify: `SmallEBot/SmallEBot.csproj`
 - Modify: `SmallEBot/appsettings.json` (optional: add DeepSeek/Anthropic section comment or placeholder)
-- Modify: `AGENTS.md` or `docs/plans/2026-02-14-deepseek-anthropic-thinking-design.md` (document env vars)
+- Modify: `CLAUDE.md` or `docs/plans/2026-02-14-deepseek-anthropic-thinking-design.md` (document env vars)
 
 **Step 1: Add NuGet package**
 
@@ -39,7 +39,7 @@ Expected: Build succeeds.
 
 **Step 3: Document environment variables**
 
-In `docs/plans/2026-02-14-deepseek-anthropic-thinking-design.md` (or AGENTS.md), add a short “Configuration” subsection:
+In `docs/plans/2026-02-14-deepseek-anthropic-thinking-design.md` (or CLAUDE.md), add a short “Configuration” subsection:
 
 - `ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic` (required for DeepSeek)
 - `ANTHROPIC_API_KEY` = DeepSeek API key (or set from existing `DeepseekKey` in code)
@@ -291,4 +291,4 @@ git commit -m "chore: remove OpenAI provider and document AppBar thinking toggle
 
 - Design: `docs/plans/2026-02-14-deepseek-anthropic-thinking-design.md`
 - Tool-calling design (UI pattern): `docs/plans/2026-02-14-tool-calling-design.md`
-- AGENTS.md: build/run commands, PowerShell use `;` not `&&`
+- CLAUDE.md: build/run commands, PowerShell use `;` not `&&`

@@ -70,3 +70,4 @@ openclaw-main
 # Git worktrees (subagent-driven-development)
 .worktrees/
 claude-code-system-prompts
+.claude

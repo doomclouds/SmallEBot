@@ -91,4 +91,4 @@ All tools operate on the current conversation’s task file. The conversation id
 - New built-in tools take effect after restart (or when agent cache is invalidated); no change to cache policy for this feature.
 
 **Documentation:**
-- After implementation, add the five tools to the Built-in tools table in AGENTS.md and a brief “conversation task list” line in README.
+- After implementation, add the five tools to the Built-in tools table in CLAUDE.md and a brief “conversation task list” line in README.
