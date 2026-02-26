@@ -663,14 +663,6 @@
         return lastUser?.Message.Content.Trim() == _pendingUserMessage.Trim();
     }
 
-    /// <summary>Detects if the assistant bubble is a single error message (Content starts with "Error: ").</summary>
-    private static bool IsErrorReply(IReadOnlyList<TimelineItem> items)
-    {
-        if (items.Count != 1) return false;
-        var item = items[0];
-        return item.Message is { Role: "assistant" } msg && msg.Content.StartsWith("Error: ", StringComparison.Ordinal);
-    }
-
     public void Dispose()
     {
         StopWaitingCheckTimer();
