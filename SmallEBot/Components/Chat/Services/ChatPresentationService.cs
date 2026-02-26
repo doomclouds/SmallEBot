@@ -111,9 +111,10 @@ public sealed class ChatPresentationService
 
     private ReasoningStepView? TimelineItemToStepView(TimelineItem item)
     {
-        // Shell - will be implemented in Phase 4
+        // Handle think blocks
         if (item.ThinkBlock is { } tb)
             return new ReasoningStepView { IsThink = true, Text = tb.Content ?? "" };
+        // Handle tool calls
         if (item.ToolCall is { } tc)
             return new ReasoningStepView
             {
@@ -123,6 +124,9 @@ public sealed class ChatPresentationService
                 ToolResult = tc.Result,
                 Phase = ToolCallPhase.Completed
             };
+        // Handle message content (actual text from assistant)
+        if (item.Message is { } msg)
+            return new ReasoningStepView { IsThink = false, Text = msg.Content ?? "" };
         return null;
     }
 
