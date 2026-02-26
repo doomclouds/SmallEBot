@@ -17,25 +17,10 @@
                               FilePaths="@_filePaths"
                               Skills="@_skills"
                               OnSelect="@OnAttachmentSelected" />
-            @if (_attachmentPaths.Count > 0 || _requestedSkillIds.Count > 0)
-            {
-                <div class="d-flex flex-wrap align-items-center gap-1 mb-2">
-                    @foreach (var path in _attachmentPaths)
-                    {
-                        var p = path;
-                        <MudChip T="object" Color="Color.Primary" Variant="Variant.Filled" OnClose="@(() => RemovePath(p))" CloseIcon="@Icons.Material.Filled.Cancel">
-                            @path
-                        </MudChip>
-                    }
-                    @foreach (var skillId in _requestedSkillIds)
-                    {
-                        var s = skillId;
-                        <MudChip T="object" Color="Color.Secondary" Variant="Variant.Filled" OnClose="@(() => RemoveSkill(s))" CloseIcon="@Icons.Material.Filled.Cancel">
-                            /@skillId
-                        </MudChip>
-                    }
-                </div>
-            }
+            <AttachmentChips Attachments="@_attachmentItems"
+                             RequestedSkillIds="@_requestedSkillIds"
+                             OnRemoveAttachment="@RemoveAttachmentItem"
+                             OnRemoveSkill="@RemoveSkill" />
             <MudTextField Value="_content"
                          ValueChanged="@((string v) => _ = HandleInputChanged(v))"
                          Immediate="true"
@@ -59,7 +44,7 @@
     [Parameter] public IReadOnlyList<string> InitialRequestedSkillIds { get; set; } = [];
 
     private string _content = "";
-    private readonly List<string> _attachmentPaths = [];
+    private List<AttachmentItem> _attachmentItems = [];
     private readonly List<string> _requestedSkillIds = [];
     private bool _popoverOpen;
     private string _popoverKind = "file";
@@ -75,8 +60,7 @@
     protected override void OnParametersSet()
     {
         _content = InitialContent;
-        _attachmentPaths.Clear();
-        _attachmentPaths.AddRange(InitialAttachedPaths);
+        _attachmentItems = InitialAttachedPaths.Select(p => new ResolvedPathAttachment(p)).ToList<AttachmentItem>();
         _requestedSkillIds.Clear();
         _requestedSkillIds.AddRange(InitialRequestedSkillIds);
     }
@@ -161,8 +145,8 @@
     {
         if (_popoverKind == "file")
         {
-            if (!_attachmentPaths.Contains(value, StringComparer.OrdinalIgnoreCase))
-                _attachmentPaths.Add(value);
+            if (!_attachmentItems.OfType<ResolvedPathAttachment>().Any(a => string.Equals(a.Path, value, StringComparison.OrdinalIgnoreCase)))
+                _attachmentItems.Add(new ResolvedPathAttachment(value));
             var lastAt = _content.LastIndexOf('@');
             _content = lastAt >= 0 ? _content[..lastAt].TrimEnd() : _content;
         }
@@ -181,9 +165,9 @@
         StateHasChanged();
     }
 
-    private void RemovePath(string path)
+    private void RemoveAttachmentItem(AttachmentItem item)
     {
-        _attachmentPaths.Remove(path);
+        _attachmentItems.Remove(item);
         StateHasChanged();
     }
 
@@ -197,7 +181,7 @@
 
     private void Save() => MudDialog.Close(DialogResult.Ok(new EditMessageResult(
         _content.Trim(),
-        new List<string>(_attachmentPaths),
+        _attachmentItems.OfType<ResolvedPathAttachment>().Select(x => x.Path).ToList(),
         new List<string>(_requestedSkillIds))));
 
     public void Dispose()
