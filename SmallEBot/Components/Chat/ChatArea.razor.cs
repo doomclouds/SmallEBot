@@ -1,3 +1,4 @@
+using SmallEBot.Components.Chat.ViewModels.Bubbles;
 using SmallEBot.Components.Chat.ViewModels.Reasoning;
 using SmallEBot.Components.Chat.ViewModels.Streaming;
 using SmallEBot.Core.Models;
@@ -7,6 +8,10 @@ namespace SmallEBot.Components.Chat;
 
 public partial class ChatArea
 {
+    private MessageList? _messageListRef;
+    private IReadOnlyList<BubbleViewBase> _bubbleViews = [];
+    private UserBubbleView? _pendingUserBubble;
+
     private sealed class ReasoningStep
     {
         public bool IsThink { get; init; }

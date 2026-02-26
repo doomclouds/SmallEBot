@@ -1,8 +1,11 @@
 @using System.IO
 @using SmallEBot.Application.Conversation
 @using SmallEBot.Application.Streaming
+@using SmallEBot.Components.Chat.ViewModels.Bubbles
 @using SmallEBot.Components.Chat.ViewModels.Reasoning
 @using SmallEBot.Components.Chat.ViewModels.Streaming
+@using SmallEBot.Components.Chat.Services
+@using SmallEBot.Components.Chat.State
 @using SmallEBot.Core
 @using SmallEBot.Core.Models
 @using SmallEBot.Models
@@ -15,6 +18,7 @@
 @inject UserNameService UserNameSvc
 @inject IWorkspaceService WorkspaceService
 @inject ISkillsConfigService SkillsConfigService
+@inject ChatPresentationService Presentation
 @inject IJSRuntime JS
 @inject ISnackbar Snackbar
 @inject ILogger<ChatArea> Log
@@ -22,107 +26,12 @@
 
 <MudPaper Class="pa-4 pb-1 smallebot-chat-paper" Elevation="0">
     <div @ref="_chatScrollRef" class="smallebot-chat-scroll">
-    @if (Bubbles.Any())
-    {
-        @foreach (var bubble in Bubbles)
-        {
-            @if (bubble is UserBubble userBubble)
-            {
-                var msg = userBubble.Message;
-                <MudChat ChatPosition="ChatBubblePosition.End" ArrowPosition="ChatArrowPosition.Top" Class="mb-3 smallebot-bubble">
-                    <MudChatBubble>
-                        <div class="d-flex justify-space-between align-start gap-1">
-                            <div style="flex: 1">
-                                <MudText Typo="Typo.caption">You · @msg.CreatedAt.ToString("g")@(msg.IsEdited ? " (edited)" : "")</MudText>
-                                @if (msg.AttachedPaths.Count > 0 || msg.RequestedSkillIds.Count > 0)
-                                {
-                                    <div class="d-flex flex-wrap align-items-center gap-1 mt-1 mb-1">
-                                        @foreach (var path in msg.AttachedPaths)
-                                        {
-                                            <MudChip T="object" Color="Color.Primary" Variant="Variant.Filled" Size="Size.Small">@path</MudChip>
-                                        }
-                                        @foreach (var skillId in msg.RequestedSkillIds)
-                                        {
-                                            <MudChip T="object" Color="Color.Secondary" Variant="Variant.Filled" Size="Size.Small">/@skillId</MudChip>
-                                        }
-                                    </div>
-                                }
-                                @if (!string.IsNullOrEmpty(msg.Content))
-                                {
-                                    <MarkdownContentView Content="@msg.Content" />
-                                }
-                            </div>
-                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => EditUserMessage(msg))" title="Edit" />
-                        </div>
-                    </MudChatBubble>
-                </MudChat>
-            }
-            else if (bubble is AssistantBubble asstBubble)
-            {
-                var blocks = ReasoningSegmenter.SegmentTurn(asstBubble.Items, asstBubble.IsThinkingMode);
-                var firstCreatedAt = asstBubble.Items.Count > 0 ? asstBubble.Items[0].CreatedAt : DateTime.UtcNow;
-                var isError = IsErrorReply(asstBubble.Items);
-                var bubbleClass = isError ? "mb-3 smallebot-bubble smallebot-assistant-error" : "mb-3 smallebot-bubble";
-                <MudChat ChatPosition="ChatBubblePosition.Start" ArrowPosition="ChatArrowPosition.Top" Class="@bubbleClass">
-                    <MudChatBubble>
-                        <div class="d-flex justify-space-between align-start gap-1">
-                            <div style="flex: 1">
-                                <MudText Typo="Typo.caption">SmallEBot · @firstCreatedAt.ToString("g")</MudText>
-                        @foreach (var block in blocks)
-                        {
-                            @if (block.IsThinkBlock)
-                            {
-                                var stepViews = block.Items.Select(TimelineItemToReasoningStepView).Where(x => x != null).Cast<ReasoningStepView>().ToList();
-                                var toolCount = stepViews.Count(x => !x.IsThink);
-                                var panelTitle = toolCount > 0 ? $"💭 Reasoning ({toolCount} tool calls)" : "💭 Reasoning";
-                                <MudExpansionPanels Class="mt-2" Elevation="0">
-                                    <MudExpansionPanel expanded="false" Text="@panelTitle">
-                                        <div class="d-flex flex-column gap-2">
-                                            <ReasoningBlockView Steps="@stepViews" />
-                                        </div>
-                                    </MudExpansionPanel>
-                                </MudExpansionPanels>
-                            }
-                            else
-                            {
-                                @foreach (var item in block.Items)
-                                {
-                                    @if (item.Message is { } msg && !string.IsNullOrEmpty(msg.Content))
-                                    {
-                                        <MarkdownContentView Content="@msg.Content" />
-                                    }
-                                    else if (item.ThinkBlock is { } tb && !string.IsNullOrEmpty(tb.Content))
-                                    {
-                                        <MarkdownContentView Content="@tb.Content" />
-                                    }
-                                    else if (item.ToolCall is { } tc && ShowToolCalls)
-                                    {
-                                        <ToolCallView ToolName="@tc.ToolName" ToolArguments="@tc.Arguments" ToolResult="@tc.Result" Phase="ToolCallPhase.Completed" ShowToolCalls="@ShowToolCalls" />
-                                    }
-                                }
-                            }
-                        }
-                            </div>
-                            @if (asstBubble.TurnId != Guid.Empty)
-                            {
-                                <MudIconButton Icon="@Icons.Material.Filled.Refresh" Size="Size.Small" OnClick="@(() => RegenerateReply(asstBubble.TurnId))" title="Regenerate" />
-                            }
-                        </div>
-                    </MudChatBubble>
-                </MudChat>
-            }
-        }
-    }
-    @* Optimistic user message: show immediately when sent, until parent refreshes with persisted messages. Hide if already in Bubbles to avoid duplicate (H5). *@
-    @if (!string.IsNullOrEmpty(_pendingUserMessage) && !IsPendingMessageAlreadyInBubbles())
-    {
-        <MudChat ChatPosition="ChatBubblePosition.End" ArrowPosition="ChatArrowPosition.Top" Class="mb-3 smallebot-bubble">
-            <MudChatBubble>
-                <MudText Typo="Typo.caption">You · @_pendingUserMessageTime.ToString("g")</MudText>
-                <MarkdownContentView Content="@_pendingUserMessage" />
-            </MudChatBubble>
-        </MudChat>
-    }
+    <MessageList @ref="_messageListRef"
+                 Bubbles="@_bubbleViews"
+                 PendingUserMessage="@_pendingUserBubble"
+                 ShowToolCalls="@ShowToolCalls"
+                 OnEditMessage="@HandleEditMessage"
+                 OnRegenerateReply="@HandleRegenerateReply" />
     @* Only show streaming block while actively streaming; after persist parent refresh shows reply from Bubbles (avoids duplicate AI bubble). *@
     <StreamingIndicator IsStreaming="@_streaming"
                         StreamingItems="@_streamingViews"
@@ -582,6 +491,44 @@
             _streamingUpdates.Clear();
             _streamingViews = [];
         }
+        RefreshBubbleViews();
+    }
+
+    private void RefreshBubbleViews()
+    {
+        _bubbleViews = Presentation.ConvertBubbles(Bubbles);
+        // Update pending bubble if we have a pending message
+        if (!string.IsNullOrEmpty(_pendingUserMessage) && !IsPendingMessageAlreadyInBubbles())
+        {
+            _pendingUserBubble = new UserBubbleView
+            {
+                MessageId = Guid.Empty,
+                Content = _pendingUserMessage,
+                CreatedAt = _pendingUserMessageTime,
+                IsEdited = false,
+                AttachedPaths = [],
+                RequestedSkillIds = []
+            };
+        }
+        else
+        {
+            _pendingUserBubble = null;
+        }
+    }
+
+    private async Task HandleEditMessage(UserBubbleView userBubble)
+    {
+        // Find the original message from Bubbles to get the ChatMessage entity
+        var originalBubble = Bubbles.OfType<UserBubble>().FirstOrDefault(b => b.Message.Id == userBubble.MessageId);
+        if (originalBubble?.Message is { } msg)
+        {
+            await EditUserMessage(msg);
+        }
+    }
+
+    private async Task HandleRegenerateReply(Guid turnId)
+    {
+        await RegenerateReply(turnId);
     }
 
     private bool _contextRefreshRequested;
