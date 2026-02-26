@@ -2,6 +2,7 @@
 @using SmallEBot.Application.Conversation
 @using SmallEBot.Application.Streaming
 @using SmallEBot.Components.Chat.ViewModels.Reasoning
+@using SmallEBot.Components.Chat.ViewModels.Streaming
 @using SmallEBot.Core
 @using SmallEBot.Core.Models
 @using SmallEBot.Models
@@ -123,17 +124,15 @@
         </MudChat>
     }
     @* Only show streaming block while actively streaming; after persist parent refresh shows reply from Bubbles (avoids duplicate AI bubble). *@
-    @if (_streaming)
-    {
-        <StreamingMessageView Items="@GetStreamingDisplayItemViews()"
-                              FallbackText="@_streamingText"
-                              Timestamp="@DateTime.Now"
-                              OnCancel="StopSend"
-                              ShowWaitingForToolParams="@_showWaitingForToolParams"
-                              WaitingElapsed="@(_showWaitingForToolParams && _waitingForToolParamsSince.HasValue ? DateTime.UtcNow - _waitingForToolParamsSince.Value : TimeSpan.Zero)"
-                              WaitingInReasoning="@_waitingInReasoning"
-                              ShowToolCalls="@ShowToolCalls" />
-    }
+    <StreamingIndicator IsStreaming="@_streaming"
+                        StreamingItems="@_streamingViews"
+                        FallbackText="@_streamingText"
+                        Timestamp="@DateTime.Now"
+                        OnCancel="StopSend"
+                        ShowWaitingForToolParams="@_showWaitingForToolParams"
+                        WaitingElapsed="@(_showWaitingForToolParams && _waitingForToolParamsSince.HasValue ? DateTime.UtcNow - _waitingForToolParamsSince.Value : TimeSpan.Zero)"
+                        WaitingInReasoning="@_waitingInReasoning"
+                        ShowToolCalls="@ShowToolCalls" />
     </div>
 
     <div class="mt-2">
@@ -172,6 +171,7 @@
     private DateTime? _streamingStartedAt;
     private string _streamingText = "";
     private readonly List<StreamUpdate> _streamingUpdates = [];
+    private IReadOnlyList<StreamingDisplayItemView> _streamingViews = [];
     private DateTime? _lastStreamActivityAt;
     private bool _showWaitingForToolParams;
     private DateTime? _waitingForToolParamsSince;
@@ -290,6 +290,7 @@
         _streamingStartedAt = DateTime.UtcNow;
         _streamingText = "";
         _streamingUpdates.Clear();
+        _streamingViews = [];
         _lastStreamActivityAt = null;
         _showWaitingForToolParams = false;
         _sendCts = new CancellationTokenSource();
@@ -310,6 +311,7 @@
         _streamingStartedAt = DateTime.UtcNow;
         _streamingText = "";
         _streamingUpdates.Clear();
+        _streamingViews = [];
         _lastStreamActivityAt = null;
         _showWaitingForToolParams = false;
         _sendCts = new CancellationTokenSource();
@@ -364,6 +366,7 @@
                         _streamingUpdates.Add(update);
                         break;
                 }
+                _streamingViews = GetStreamingDisplayItemViews();
                 await InvokeAsync(StateHasChanged);
             }
             await runTask;
@@ -395,6 +398,7 @@
             _streamingStartedAt = null;
             _showWaitingForToolParams = false;
             _streamingUpdates.Clear();
+            _streamingViews = [];
             _scrollToBottomRequested = true;
             await InvokeAsync(StateHasChanged);
         }
@@ -421,6 +425,7 @@
         _streamingStartedAt = DateTime.UtcNow;
         _streamingText = "";
         _streamingUpdates.Clear();
+        _streamingViews = [];
         _lastStreamActivityAt = null;
         _showWaitingForToolParams = false;
         _sendCts = new CancellationTokenSource();
@@ -479,6 +484,7 @@
                         _streamingUpdates.Add(update);
                         break;
                 }
+                _streamingViews = GetStreamingDisplayItemViews();
                 await InvokeAsync(StateHasChanged);
             }
             await runTask;
@@ -527,6 +533,7 @@
             _streamingStartedAt = null;
             _showWaitingForToolParams = false;
             _streamingUpdates.Clear();
+            _streamingViews = [];
             _scrollToBottomRequested = true;
             await InvokeAsync(StateHasChanged);
         }
@@ -573,6 +580,7 @@
             _streaming = false;
             _streamingStartedAt = null;
             _streamingUpdates.Clear();
+            _streamingViews = [];
         }
     }
 
