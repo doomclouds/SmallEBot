@@ -1,0 +1,41 @@
+@* User message bubble component *@
+@using SmallEBot.Components.Chat.ViewModels.Bubbles
+
+<MudChat ChatPosition="ChatBubblePosition.End" ArrowPosition="ChatArrowPosition.Top" Class="mb-3 smallebot-bubble">
+    <MudChatBubble>
+        <div class="d-flex justify-space-between align-start gap-1">
+            <div style="flex: 1">
+                <MudText Typo="Typo.caption">You · @Model.CreatedAt.ToString("g")@(Model.IsEdited ? " (edited)" : "")</MudText>
+                @if (Model.AttachedPaths.Count > 0 || Model.RequestedSkillIds.Count > 0)
+                {
+                    <div class="d-flex flex-wrap align-items-center gap-1 mt-1 mb-1">
+                        @foreach (var path in Model.AttachedPaths)
+                        {
+                            <MudChip T="object" Color="Color.Primary" Variant="Variant.Filled" Size="Size.Small">@path</MudChip>
+                        }
+                        @foreach (var skillId in Model.RequestedSkillIds)
+                        {
+                            <MudChip T="object" Color="Color.Secondary" Variant="Variant.Filled" Size="Size.Small">/@skillId</MudChip>
+                        }
+                    </div>
+                }
+                @if (!string.IsNullOrEmpty(Model.Content))
+                {
+                    <MarkdownContentView Content="@Model.Content" />
+                }
+            </div>
+            @if (ShowEditButton && OnEdit.HasDelegate)
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                               OnClick="@(() => OnEdit.InvokeAsync(Model))"
+                               title="Edit" />
+            }
+        </div>
+    </MudChatBubble>
+</MudChat>
+
+@code {
+    [Parameter] public UserBubbleView Model { get; set; } = null!;
+    [Parameter] public bool ShowEditButton { get; set; } = true;
+    [Parameter] public EventCallback<UserBubbleView> OnEdit { get; set; }
+}
