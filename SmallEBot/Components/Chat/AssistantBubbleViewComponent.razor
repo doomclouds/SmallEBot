@@ -1,0 +1,63 @@
+@* Assistant message bubble component with reasoning blocks *@
+@using SmallEBot.Components.Chat.ViewModels.Bubbles
+@using SmallEBot.Components.Chat.ViewModels.Reasoning
+@using SmallEBot.Core.Models
+
+@{
+    var bubbleClass = Model.IsError ? "mb-3 smallebot-bubble smallebot-assistant-error" : "mb-3 smallebot-bubble";
+}
+
+<MudChat ChatPosition="ChatBubblePosition.Start" ArrowPosition="ChatArrowPosition.Top" Class="@bubbleClass">
+    <MudChatBubble>
+        <div class="d-flex justify-space-between align-start gap-1">
+            <div style="flex: 1">
+                <MudText Typo="Typo.caption">SmallEBot · @Model.CreatedAt.ToString("g")</MudText>
+                @foreach (var block in Model.Segments)
+                {
+                    @if (block.IsThinkBlock)
+                    {
+                        var toolCount = block.Steps.Count(x => !x.IsThink);
+                        var panelTitle = toolCount > 0 ? $"Reasoning ({toolCount} tool calls)" : "Reasoning";
+                        <MudExpansionPanels Class="mt-2" Elevation="0">
+                            <MudExpansionPanel expanded="false" Text="@panelTitle">
+                                <div class="d-flex flex-column gap-2">
+                                    <ReasoningBlockView Steps="@block.Steps" />
+                                </div>
+                            </MudExpansionPanel>
+                        </MudExpansionPanels>
+                    }
+                    else
+                    {
+                        @foreach (var step in block.Steps)
+                        {
+                            @if (!step.IsThink && !string.IsNullOrEmpty(step.Text))
+                            {
+                                <MarkdownContentView Content="@step.Text" />
+                            }
+                            else if (!step.IsThink && ShowToolCalls)
+                            {
+                                <ToolCallView ToolName="@step.ToolName"
+                                              ToolArguments="@step.ToolArguments"
+                                              ToolResult="@step.ToolResult"
+                                              Phase="ToolCallPhase.Completed"
+                                              ShowToolCalls="@ShowToolCalls" />
+                            }
+                        }
+                    }
+                }
+            </div>
+            @if (Model.TurnId != Guid.Empty && OnRegenerate.HasDelegate)
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.Refresh" Size="Size.Small"
+                               OnClick="@(() => OnRegenerate.InvokeAsync(Model.TurnId))"
+                               title="Regenerate" />
+            }
+        </div>
+    </MudChatBubble>
+</MudChat>
+
+@code {
+    [Parameter] public AssistantBubbleView Model { get; set; } = null!;
+    [Parameter] public bool ShowToolCalls { get; set; } = true;
+    [Parameter] public EventCallback<Guid> OnRegenerate { get; set; }
+}
