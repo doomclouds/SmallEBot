@@ -17,6 +17,8 @@ using SmallEBot.Services.Workspace;
 using SmallEBot.Application.Context;
 using SmallEBot.Services.Context;
 using SmallEBot.Services.Agent.Tools;
+using SmallEBot.Components.Chat.Services;
+using SmallEBot.Components.Chat.State;
 
 namespace SmallEBot.Extensions;
 
@@ -74,6 +76,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<CircuitHandler, CircuitContextHandler>();
         services.AddSingleton<MarkdownService>();
         services.AddScoped<KeyboardShortcutService>();
+        services.AddScoped<ChatState>();
+        services.AddScoped<ChatPresentationService>();
         services.AddSingleton<IContextWindowManager, ContextWindowManager>();
         services.AddSingleton<ITokenizer>(sp =>
         {
