@@ -1,0 +1,36 @@
+@* Chat input area: input field with attachment chips and popover *@
+@using SmallEBot.Models
+@inject IJSRuntime JS
+@implements IDisposable
+
+<div id="smallebot-chat-drop-zone" class="position-relative">
+    @* Attachment Popover *@
+    <AttachmentPopover @ref="_popoverRef"
+                       Open="@PopoverOpen"
+                       OpenChanged="@OnPopoverOpenChanged"
+                       Kind="@PopoverKind"
+                       Filter="@PopoverFilter"
+                       FilePaths="@FilePaths"
+                       Skills="@Skills"
+                       OnSelect="@OnAttachmentSelected" />
+
+    @* Attachment Chips *@
+    <AttachmentChips Attachments="@Attachments"
+                     RequestedSkillIds="@RequestedSkillIds"
+                     OnRemoveAttachment="@OnRemoveAttachment"
+                     OnRemoveSkill="@OnRemoveSkill" />
+
+    @* Input Bar *@
+    <ChatInputBar Value="@InputText"
+                  ValueChanged="@OnInputTextChanged"
+                  Streaming="@IsStreaming"
+                  ContextPercentText="@ContextPercentText"
+                  ContextUsageTooltip="@ContextUsageTooltip"
+                  OnSend="@OnSend"
+                  OnStop="@OnStop"
+                  Disabled="@IsInputDisabled" />
+</div>
+
+@code {
+    // Code-behind in ChatInputArea.razor.cs
+}
