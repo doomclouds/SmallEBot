@@ -90,6 +90,37 @@ Blazor UI → SignalR → ConversationService → IAgentConversationService
 - `/skillId` — Injects directive to call `ReadSkill(skillId)`; model fetches skill via tools
 - Drag-and-drop — Uploads to `temp/`, deduplicated by hash
 
+### Chat UI Architecture
+
+The ChatArea uses a State Container + Events pattern for clean separation of concerns:
+
+**Components:**
+- `ChatArea.razor` - Orchestrator component (simplified from ~786 lines to ~100 lines)
+- `MessageList` - Renders user and assistant message bubbles
+- `StreamingIndicator` - Displays streaming message during active streaming
+- `ChatInputArea` - Input field with attachments and popover
+- `AttachmentChips` - Reusable attachment chip display
+
+**State Management:**
+- `ChatState` - State container holding all UI state, notifies changes via `StateChanged` event
+- `ChatPresentationService` - Converts domain models to view models
+
+**View Models (Components/Chat/ViewModels/):**
+- `Bubbles/BubbleViewBase` - Base class for bubble view models
+- `Bubbles/UserBubbleView` - User message view model
+- `Bubbles/AssistantBubbleView` - Assistant message view model
+- `Reasoning/ReasoningStepView` - Reasoning/tool call step view
+- `Reasoning/SegmentBlockView` - Segment block wrapper
+- `Streaming/StreamingDisplayItemView` - Streaming display item view
+
+**Key Files:**
+| Component | Location |
+|-----------|----------|
+| ChatArea orchestrator | `Components/Chat/ChatArea.razor` |
+| State container | `Components/Chat/State/ChatState.cs` |
+| Presentation service | `Components/Chat/Services/ChatPresentationService.cs` |
+| View models | `Components/Chat/ViewModels/` |
+
 ## Configuration
 
 - **API keys**: Config `Anthropic:ApiKey` (user secrets) or environment `ANTHROPIC_API_KEY` / `DeepseekKey`
