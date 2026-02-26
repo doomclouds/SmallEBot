@@ -1,4 +1,5 @@
 using SmallEBot.Components.Chat.ViewModels.Reasoning;
+using SmallEBot.Components.Chat.ViewModels.Streaming;
 using SmallEBot.Core.Models;
 using SmallEBot.Services.Presentation;
 
