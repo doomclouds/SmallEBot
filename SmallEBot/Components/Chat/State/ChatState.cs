@@ -90,7 +90,7 @@ public sealed class ChatState : IDisposable
     public void RemoveRequestedSkillId(string skillId)
     {
         var list = RequestedSkillIds.ToList();
-        list.Remove(skillId);
+        list.RemoveAll(s => string.Equals(s, skillId, StringComparison.OrdinalIgnoreCase));
         RequestedSkillIds = list;
         NotifyStateChanged();
     }
