@@ -32,7 +32,7 @@ public sealed class AgentRunnerAdapter(
         var agent = await agentBuilder.GetOrCreateAgentAsync(useThinking, cancellationToken);
 
         // Get conversation to check CompressedAt for filtering
-        var conversation = await conversationRepository.GetByIdAsync(conversationId, "", cancellationToken);
+        var conversation = await conversationRepository.GetByIdNoUserCheckAsync(conversationId, cancellationToken);
 
         // Load all history and filter by CompressedAt
         var allHistory = await conversationRepository.GetMessagesForConversationAsync(conversationId, cancellationToken);

@@ -34,7 +34,7 @@ public sealed class CompressionToolProvider(
         if (conversationId == null)
             return JsonSerializer.Serialize(new { success = false, message = "No active conversation", compressedCount = 0 }, JsonOptions);
 
-        var conversation = await repository.GetByIdAsync(conversationId.Value, "", ct);
+        var conversation = await repository.GetByIdNoUserCheckAsync(conversationId.Value, ct);
         if (conversation == null)
             return JsonSerializer.Serialize(new { success = false, message = "Conversation not found", compressedCount = 0 }, JsonOptions);
 

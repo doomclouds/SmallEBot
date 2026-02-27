@@ -57,7 +57,7 @@ public sealed class AgentContextFactory(
         var conversationId = currentConversation.CurrentConversationId;
         if (conversationId == null) return null;
 
-        var conversation = await conversationRepository.GetByIdAsync(conversationId.Value, "", ct);
+        var conversation = await conversationRepository.GetByIdNoUserCheckAsync(conversationId.Value, ct);
         return conversation?.CompressedContext;
     }
 

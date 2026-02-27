@@ -21,7 +21,7 @@ public class AgentCacheService(
     public async Task<ContextUsageEstimate?> GetEstimatedContextUsageDetailAsync(Guid conversationId, CancellationToken ct = default)
     {
         // Get conversation to check CompressedAt
-        var conversation = await conversationRepository.GetByIdAsync(conversationId, "", ct);
+        var conversation = await conversationRepository.GetByIdNoUserCheckAsync(conversationId, ct);
 
         var allMessages = await conversationRepository.GetMessagesForConversationAsync(conversationId, ct);
         var toolCalls = await conversationRepository.GetToolCallsForConversationAsync(conversationId, ct);
