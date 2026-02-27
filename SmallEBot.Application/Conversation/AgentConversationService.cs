@@ -222,12 +222,13 @@ public sealed class AgentConversationService(
             var allMessages = await repository.GetMessagesForConversationAsync(conversationId, ct);
             var toolCalls = await repository.GetToolCallsForConversationAsync(conversationId, ct);
 
+            // Compress NEW messages since last compression (createdAt > CompressedAt), not already-compressed ones
             var messagesToCompress = conversation.CompressedAt != null
-                ? allMessages.Where(m => m.CreatedAt <= conversation.CompressedAt.Value).ToList()
+                ? allMessages.Where(m => m.CreatedAt > conversation.CompressedAt.Value).ToList()
                 : allMessages;
 
             var toolCallsToCompress = conversation.CompressedAt != null
-                ? toolCalls.Where(t => t.CreatedAt <= conversation.CompressedAt.Value).ToList()
+                ? toolCalls.Where(t => t.CreatedAt > conversation.CompressedAt.Value).ToList()
                 : toolCalls;
 
             if (messagesToCompress.Count == 0)

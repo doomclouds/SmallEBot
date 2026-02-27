@@ -48,6 +48,7 @@
         <ChatInputArea InputText="@_input"
                        InputTextChanged="@HandleInputChanged"
                        IsStreaming="@_streaming"
+                       IsCompressing="@_compressing"
                        Attachments="@_attachmentItems"
                        RequestedSkillIds="@_requestedSkillIds"
                        PopoverOpen="@_popoverOpen"
@@ -59,6 +60,7 @@
                        ContextUsageTooltip="@_contextUsageTooltip"
                        OnSend="@Send"
                        OnStop="@StopSend"
+                       OnCompress="@CompressContext"
                        OnRemoveAttachment="@RemoveAttachmentItem"
                        OnRemoveSkill="@RemoveRequestedSkill"
                        InputTextWithPopover="@OnAttachmentSelected" />
@@ -382,6 +384,40 @@
         _requestedSkillIds.Clear();
         var turnId = await ConversationPipeline.CreateTurnAndUserMessageAsync(ConversationId!.Value, userName, msg, UseThinkingMode, _sendCts!.Token, attachedPaths, requestedSkillIds);
         _ = RunStreamingLoopAsync(turnId, msg, attachedPaths, requestedSkillIds);
+    }
+
+    private async Task CompressContext()
+    {
+        if (!ConversationId.HasValue || _compressing) return;
+
+        _compressing = true;
+        _compressionMessage = "Compressing context...";
+        StateHasChanged();
+
+        try
+        {
+            var compressed = await ConversationPipeline.CompactConversationAsync(ConversationId!.Value);
+            if (compressed)
+            {
+                await RefreshContextUsageAsync();
+                Snackbar.Add("Context compressed successfully.", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add("No messages to compress or compression failed.", Severity.Info);
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.LogWarning(ex, "Failed to compress context");
+            Snackbar.Add($"Compression failed: {ex.Message}", Severity.Warning);
+        }
+        finally
+        {
+            _compressing = false;
+            _compressionMessage = "";
+            StateHasChanged();
+        }
     }
 
     private async Task RunStreamingLoopAsync(Guid turnId, string msg, IReadOnlyList<string> attachedPaths, IReadOnlyList<string> requestedSkillIds)

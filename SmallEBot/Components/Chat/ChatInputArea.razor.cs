@@ -1,5 +1,6 @@
 // SmallEBot/Components/Chat/ChatInputArea.razor.cs
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
 using SmallEBot.Models;
 
@@ -10,6 +11,7 @@ public partial class ChatInputArea
     [Parameter] public string InputText { get; set; } = "";
     [Parameter] public EventCallback<string> InputTextChanged { get; set; }
     [Parameter] public bool IsStreaming { get; set; }
+    [Parameter] public bool IsCompressing { get; set; }
     [Parameter] public IReadOnlyList<AttachmentItem> Attachments { get; set; } = [];
     [Parameter] public IReadOnlyList<string> RequestedSkillIds { get; set; } = [];
     [Parameter] public bool PopoverOpen { get; set; }
@@ -22,6 +24,7 @@ public partial class ChatInputArea
 
     [Parameter] public EventCallback OnSend { get; set; }
     [Parameter] public EventCallback OnStop { get; set; }
+    [Parameter] public EventCallback OnCompress { get; set; }
     [Parameter] public EventCallback<AttachmentItem> OnRemoveAttachment { get; set; }
     [Parameter] public EventCallback<string> OnRemoveSkill { get; set; }
     [Parameter] public EventCallback<string> InputTextWithPopover { get; set; }
@@ -57,5 +60,15 @@ public partial class ChatInputArea
     {
         if (_popoverRef != null)
             await _popoverRef.HandleKeyFromInputAsync(key);
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        // Forward navigation keys to popover when open
+        if (PopoverOpen && _popoverRef != null &&
+            (e.Key == "ArrowDown" || e.Key == "ArrowUp" || e.Key == "Enter" || e.Key == "Escape"))
+        {
+            await _popoverRef.HandleKeyFromInputAsync(e.Key);
+        }
     }
 }

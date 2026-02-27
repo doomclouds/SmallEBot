@@ -11,9 +11,9 @@ using EntityToolCall = SmallEBot.Core.Entities.ToolCall;
 namespace SmallEBot.Services.Agent;
 
 /// <summary>Compresses conversation history by calling LLM with compact skill prompt.</summary>
-public sealed class CompressionService : ICompressionService
+public sealed class CompressionService(IAgentBuilder agentBuilder, ILogger<CompressionService> logger) : ICompressionService
 {
-    private readonly IAgentBuilder _agentBuilder;
+    private readonly IAgentBuilder _agentBuilder = agentBuilder;
 
     private const string CompactPrompt = """
                                          You are compressing conversation history to save context space.
@@ -50,11 +50,6 @@ public sealed class CompressionService : ICompressionService
 
                                          Keep total output under 500 tokens. Focus on what's needed to continue the work.
                                          """;
-
-    public CompressionService(IAgentBuilder agentBuilder)
-    {
-        _agentBuilder = agentBuilder;
-    }
 
     public async Task<string?> GenerateSummaryAsync(
         IReadOnlyList<EntityChatMessage> messages,
@@ -97,10 +92,12 @@ public sealed class CompressionService : ICompressionService
             var chatOptions = new ChatOptions { Reasoning = null };
             var runOptions = new ChatClientAgentRunOptions(chatOptions);
             var result = await agent.RunAsync(chatMessages, null, runOptions, ct);
+            logger.LogInformation("Compression generated summary: {Length} chars", result.Text?.Length ?? 0);
             return result.Text;
         }
-        catch
+        catch (Exception ex)
         {
+            logger.LogError(ex, "Failed to generate compression summary");
             return null;
         }
     }

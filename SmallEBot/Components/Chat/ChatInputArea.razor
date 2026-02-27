@@ -19,9 +19,12 @@
     <ChatInputBar Value="@InputText"
                   ValueChanged="@OnInputTextChanged"
                   Streaming="@IsStreaming"
+                  Compressing="@IsCompressing"
                   ContextPercentText="@ContextPercentText"
                   ContextUsageTooltip="@ContextUsageTooltip"
                   OnSend="@OnSend"
                   OnStop="@OnStop"
-                  Disabled="@IsInputDisabled" />
+                  OnCompress="@OnCompress"
+                  Disabled="@IsInputDisabled"
+                  OnKeyDown="@HandleKeyDown" />
 </div>
