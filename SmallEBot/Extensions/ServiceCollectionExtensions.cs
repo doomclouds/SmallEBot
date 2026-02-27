@@ -71,7 +71,6 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IToolResultMaxProvider>(sp => sp.GetRequiredService<AgentConfigService>());
         services.AddSingleton<ICompressionThresholdProvider>(sp => sp.GetRequiredService<AgentConfigService>());
         services.AddScoped<ICompressionService, CompressionService>();
-        services.AddScoped<CompressionToolProvider>();
         services.AddSingleton<IMcpConnectionManager, McpConnectionManager>();
         services.AddScoped<IAgentBuilder, AgentBuilder>();
         services.AddScoped<IAgentConversationService, AgentConversationService>();

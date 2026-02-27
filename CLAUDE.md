@@ -149,6 +149,35 @@ The ChatArea uses a State Container + Events pattern for clean separation of con
 
 After modifying MCP config, skills, or model configuration, call `AgentCacheService.InvalidateAgentAsync()` to rebuild the agent on next request.
 
+## Context Compression
+
+Context compression reduces token usage by summarizing old conversation messages into a compact summary.
+
+**Trigger Methods:**
+1. **Automatic**: Before each message send, if context usage ≥ threshold (default 80%), compression runs automatically
+2. **Manual**: User clicks the compress button (left side of input bar)
+
+**Implementation:**
+| Component | Location |
+|-----------|----------|
+| Compression service | `Services/Agent/CompressionService.cs` |
+| Compression logic | `Application/Conversation/AgentConversationService.cs` → `CompactConversationAsync()` |
+| UI trigger | `Components/Chat/ChatInputBar.razor` (compress button) |
+| UI handler | `Components/Chat/ChatArea.razor` → `CompressContext()` |
+
+**Data Flow:**
+1. Get messages created after `CompressedAt` timestamp (new messages only)
+2. Call LLM to generate/merge summary (includes existing `CompressedContext` for merge)
+3. Save summary to `Conversation.CompressedContext`, update `CompressedAt`
+4. System prompt includes `CompressedContext` as "Conversation Summary" section
+5. Token estimator excludes compressed messages from token count
+
+**Key Files:**
+- `Core/Entities/Conversation.cs` — `CompressedContext`, `CompressedAt` fields
+- `Application/Conversation/ICompressionService.cs` — interface
+- `Services/Agent/CompressionService.cs` — LLM-based summary generation
+- `Services/Agent/AgentContextFactory.cs` — injects summary into system prompt
+
 ## Technology Stack
 
 | Layer | Technology |
