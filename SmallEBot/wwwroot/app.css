@@ -502,7 +502,6 @@ h1:focus {
 }
 .tool-call-header-center {
     flex: 1;
-    align-self: stretch;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -533,7 +532,6 @@ h1:focus {
 }
 .waiting-tool-params-center {
     flex: 1;
-    align-self: stretch;
     display: flex;
     justify-content: center;
     align-items: center;
