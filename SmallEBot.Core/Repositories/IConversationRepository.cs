@@ -39,4 +39,7 @@ public interface IConversationRepository
         string userName,
         Guid turnId,
         CancellationToken ct = default);
+
+    /// <summary>Update compression fields for a conversation. Set compressedAt to null to clear compression.</summary>
+    Task UpdateCompressionAsync(Guid conversationId, string? compressedContext, DateTime? compressedAt, CancellationToken ct = default);
 }
