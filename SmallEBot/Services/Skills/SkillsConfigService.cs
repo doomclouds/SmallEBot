@@ -12,6 +12,10 @@ public interface ISkillsConfigService
     Task ImportUserSkillFromFileContentsAsync(string? id, IReadOnlyDictionary<string, string> fileContents, CancellationToken ct = default);
     /// <summary>Returns the raw content of SKILL.md for the given skill id, or null if not found.</summary>
     Task<string?> GetSkillContentAsync(string id, CancellationToken ct = default);
+    /// <summary>Create a new skill directory and return its absolute path.</summary>
+    Task<string> CreateSkillAsync(string skillId, CancellationToken ct = default);
+    /// <summary>Write a file to a skill directory.</summary>
+    Task WriteSkillFileAsync(string skillId, string relativePath, string content, CancellationToken ct = default);
 }
 
 public class SkillsConfigService(ILogger<SkillsConfigService> log, IVirtualFileSystem vfs) : ISkillsConfigService
@@ -194,6 +198,32 @@ public class SkillsConfigService(ILogger<SkillsConfigService> log, IVirtualFileS
         if (File.Exists(userPath))
             return await File.ReadAllTextAsync(userPath, ct);
         return null;
+    }
+
+    public async Task<string> CreateSkillAsync(string skillId, CancellationToken ct = default)
+    {
+        var safeId = SanitizeSkillId(skillId);
+        var userPath = Path.Combine(VfsRoot, UserSkillsDir);
+        Directory.CreateDirectory(userPath);
+        var skillDir = Path.Combine(userPath, safeId);
+        Directory.CreateDirectory(skillDir);
+        await Task.CompletedTask;
+        return Path.GetFullPath(skillDir);
+    }
+
+    public async Task WriteSkillFileAsync(string skillId, string relativePath, string content, CancellationToken ct = default)
+    {
+        var safeId = SanitizeSkillId(skillId);
+        var userPath = Path.Combine(VfsRoot, UserSkillsDir);
+        var skillDir = Path.Combine(userPath, safeId);
+        var fullPath = Path.GetFullPath(Path.Combine(skillDir, relativePath));
+        var skillRoot = Path.GetFullPath(skillDir);
+        if (!fullPath.StartsWith(skillRoot, StringComparison.OrdinalIgnoreCase))
+            throw new UnauthorizedAccessException("Cannot write outside skill directory.");
+        var dir = Path.GetDirectoryName(fullPath);
+        if (!string.IsNullOrEmpty(dir))
+            Directory.CreateDirectory(dir);
+        await File.WriteAllTextAsync(fullPath, content, ct);
     }
 
     private static string SanitizeSkillId(string id)
