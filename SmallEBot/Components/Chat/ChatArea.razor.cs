@@ -1,6 +1,4 @@
 using SmallEBot.Components.Chat.ViewModels.Bubbles;
-using SmallEBot.Components.Chat.ViewModels.Streaming;
-using SmallEBot.Services.Presentation;
 
 namespace SmallEBot.Components.Chat;
 

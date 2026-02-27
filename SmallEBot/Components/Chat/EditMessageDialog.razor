@@ -22,7 +22,7 @@
                              OnRemoveAttachment="@RemoveAttachmentItem"
                              OnRemoveSkill="@RemoveSkill" />
             <MudTextField Value="_content"
-                         ValueChanged="@((string v) => _ = HandleInputChanged(v))"
+                         ValueChanged="@((string v) => HandleInputChanged(v))"
                          Immediate="true"
                          Label="Message"
                          Placeholder="@("Use @ for files, / for skills")"
@@ -141,7 +141,7 @@
         StateHasChanged();
     }
 
-    private async Task OnAttachmentSelected(string value)
+    private Task OnAttachmentSelected(string value)
     {
         if (_popoverKind == "file")
         {
@@ -163,6 +163,7 @@
         _syncInputValueInNextRender = true;
         _popoverOpen = false;
         StateHasChanged();
+        return Task.CompletedTask;
     }
 
     private void RemoveAttachmentItem(AttachmentItem item)
@@ -182,7 +183,7 @@
     private void Save() => MudDialog.Close(DialogResult.Ok(new EditMessageResult(
         _content.Trim(),
         _attachmentItems.OfType<ResolvedPathAttachment>().Select(x => x.Path).ToList(),
-        new List<string>(_requestedSkillIds))));
+        [.._requestedSkillIds])));
 
     public void Dispose()
     {

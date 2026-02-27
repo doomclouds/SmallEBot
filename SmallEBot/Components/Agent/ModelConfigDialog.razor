@@ -1,6 +1,5 @@
 @* SmallEBot/Components/Agent/ModelConfigDialog.razor *@
 @using SmallEBot.Core.Models
-@using SmallEBot.Services.Agent
 @inject IModelConfigService ModelConfig
 @inject AgentCacheService AgentCache
 @inject ISnackbar Snackbar
@@ -66,13 +65,13 @@
                 <MudCheckBox @bind-Value="_editingModel.SupportsThinking" Label="Supports Thinking" />
             </div>
             <div class="d-flex gap-2">
-                <MudButton OnClick="SaveModel" Color="Color.Primary" Variant="Variant.Filled" Disabled="@(!IsEditValid())">Save</MudButton>
+                <MudButton OnClick="@SaveModel" Color="Color.Primary" Variant="Variant.Filled" Disabled="@(!IsEditValid())">Save</MudButton>
                 <MudButton OnClick="@(() => _editingModel = null)">Cancel</MudButton>
             </div>
         }
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="OnCloseOrCancelClick">
+        <MudButton OnClick="@OnCloseOrCancelClick">
             @if (_editingModel == null) { <span>Close</span> } else { <span>Cancel edit</span> }
         </MudButton>
         @if (_editingModel == null)

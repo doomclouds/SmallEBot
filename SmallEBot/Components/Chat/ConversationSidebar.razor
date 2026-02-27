@@ -12,7 +12,7 @@
     <div class="pa-2">
         <MudTextField T="string"
                      Value="@_searchText"
-                     ValueChanged="@((string? v) => OnSearchTextChanged(v))"
+                     ValueChanged="@((string v) => OnSearchTextChanged(v))"
                      Placeholder="Search by title..."
                      Variant="Variant.Outlined"
                      Margin="Margin.Dense"
@@ -84,8 +84,7 @@
     protected override void OnParametersSet()
     {
         _open = Open;
-        if (SearchQuery != _searchText)
-            _searchText = SearchQuery;
+        _searchText = SearchQuery;
     }
 
     private async Task CreateNew() => await OnCreate.InvokeAsync();

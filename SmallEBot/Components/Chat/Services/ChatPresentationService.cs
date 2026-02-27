@@ -1,5 +1,5 @@
 // SmallEBot/Components/Chat/Services/ChatPresentationService.cs
-using SmallEBot.Application.Streaming;
+
 using SmallEBot.Components.Chat.ViewModels.Bubbles;
 using SmallEBot.Components.Chat.ViewModels.Reasoning;
 using SmallEBot.Components.Chat.ViewModels.Streaming;
@@ -113,7 +113,7 @@ public sealed class ChatPresentationService
     {
         // Handle think blocks
         if (item.ThinkBlock is { } tb)
-            return new ReasoningStepView { IsThink = true, Text = tb.Content ?? "" };
+            return new ReasoningStepView { IsThink = true, Text = tb.Content };
         // Handle tool calls
         if (item.ToolCall is { } tc)
             return new ReasoningStepView
@@ -126,7 +126,7 @@ public sealed class ChatPresentationService
             };
         // Handle message content (actual text from assistant)
         if (item.Message is { } msg)
-            return new ReasoningStepView { IsThink = false, Text = msg.Content ?? "" };
+            return new ReasoningStepView { IsThink = false, Text = msg.Content };
         return null;
     }
 

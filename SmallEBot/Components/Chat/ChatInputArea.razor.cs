@@ -5,7 +5,7 @@ using SmallEBot.Models;
 
 namespace SmallEBot.Components.Chat;
 
-public partial class ChatInputArea : IDisposable
+public partial class ChatInputArea
 {
     [Parameter] public string InputText { get; set; } = "";
     [Parameter] public EventCallback<string> InputTextChanged { get; set; }
@@ -27,8 +27,6 @@ public partial class ChatInputArea : IDisposable
     [Parameter] public EventCallback<string> InputTextWithPopover { get; set; }
 
     private AttachmentPopover? _popoverRef;
-    private bool _suggestionKeysAttached;
-    private DotNetObjectReference<ChatInputArea>? _suggestionKeysDotNetRef;
 
     private bool IsInputDisabled => string.IsNullOrWhiteSpace(InputText) ||
                                     Attachments.OfType<PendingUploadAttachment>().Any();
@@ -38,10 +36,11 @@ public partial class ChatInputArea : IDisposable
         await InputTextChanged.InvokeAsync(value);
     }
 
-    private async Task OnPopoverOpenChanged(bool open)
+    private Task OnPopoverOpenChanged(bool open)
     {
         if (!open)
             PopoverOpen = false;
+        return Task.CompletedTask;
     }
 
     private async Task OnAttachmentSelected(string value)
@@ -58,10 +57,5 @@ public partial class ChatInputArea : IDisposable
     {
         if (_popoverRef != null)
             await _popoverRef.HandleKeyFromInputAsync(key);
-    }
-
-    public void Dispose()
-    {
-        _suggestionKeysDotNetRef?.Dispose();
     }
 }

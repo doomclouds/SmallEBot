@@ -1,5 +1,4 @@
 @* SmallEBot/Components/Agent/ModelSelectorMenu.razor *@
-@using SmallEBot.Services.Agent
 @inject IModelConfigService ModelConfig
 @inject AgentCacheService AgentCache
 @implements IDisposable
@@ -32,7 +31,7 @@
             </MudMenuItem>
         }
         <MudDivider />
-        <MudMenuItem OnClick="OpenModelSettings">
+        <MudMenuItem OnClick="@OpenModelSettings">
             <MudIcon Icon="@Icons.Material.Filled.Settings" Size="Size.Small" Class="mr-1" />
             Manage Models...
         </MudMenuItem>

@@ -17,12 +17,6 @@ public partial class MessageList
     private ElementReference _scrollRef;
     private bool _scrollToBottomRequested;
 
-    public Task ScrollToBottomAsync()
-    {
-        _scrollToBottomRequested = true;
-        return Task.CompletedTask;
-    }
-
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (_scrollToBottomRequested)
@@ -34,9 +28,5 @@ public partial class MessageList
             }
             catch { /* ignore if JS not loaded */ }
         }
-    }
-
-    public void Dispose()
-    {
     }
 }

@@ -1,5 +1,3 @@
-using System.IO;
-
 namespace SmallEBot.Services.Workspace;
 
 /// <summary>Watches workspace for file system changes.</summary>

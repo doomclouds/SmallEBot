@@ -95,7 +95,8 @@ public sealed class CommandRunner(ITerminalConfigService terminalConfig) : IComm
                 psi.Environment[key] = value;
         }
 
-        using var process = new Process { StartInfo = psi };
+        using var process = new Process();
+        process.StartInfo = psi;
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         cts.CancelAfter(effectiveTimeout);
 

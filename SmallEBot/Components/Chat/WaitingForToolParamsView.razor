@@ -51,7 +51,7 @@
     private int _currentIndex;
     private Timer? _rotateTimer;
     private readonly Random _rnd = new();
-    private readonly object _rndLock = new();
+    private readonly Lock _rndLock = new();
 
     protected override void OnInitialized()
     {

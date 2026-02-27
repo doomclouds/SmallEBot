@@ -30,8 +30,8 @@ else
                         <ChatArea Bubbles="@(ConversationService.GetChatBubbles(_selectedConversation!))"
                                   ConversationId="_selectedConversation.Id"
                                   UserName="_userName"
-                                  OnMessageSent="RefreshSidebar"
-                                  OnBeforeSend="RefreshCurrentConversation" />
+                                  OnMessageSent="@RefreshSidebar"
+                                  OnBeforeSend="@RefreshCurrentConversation" />
                     </div>
                 </div>
             }

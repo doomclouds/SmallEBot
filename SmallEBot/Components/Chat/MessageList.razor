@@ -1,7 +1,6 @@
 @* Message list: renders user and assistant bubbles *@
 @using SmallEBot.Components.Chat.ViewModels.Bubbles
 @inject IJSRuntime JS
-@implements IDisposable
 
 <div @ref="_scrollRef" class="smallebot-chat-scroll">
     @foreach (var bubble in Bubbles)
@@ -26,7 +25,3 @@
         <UserBubbleViewComponent Model="@PendingUserMessage" ShowEditButton="false" />
     }
 </div>
-
-@code {
-    // Code-behind in MessageList.razor.cs
-}
