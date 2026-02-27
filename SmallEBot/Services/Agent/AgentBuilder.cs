@@ -64,10 +64,11 @@ public sealed class AgentBuilder(
         return _agent;
     }
 
-    public async Task InvalidateAsync()
+    public Task InvalidateAsync()
     {
         _agent = null;
         _allTools = null;
+        return Task.CompletedTask;
     }
 
     public async Task<int> GetContextWindowTokensAsync(CancellationToken ct = default)

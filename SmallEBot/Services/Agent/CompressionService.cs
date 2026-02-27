@@ -13,8 +13,6 @@ namespace SmallEBot.Services.Agent;
 /// <summary>Compresses conversation history by calling LLM with compact skill prompt.</summary>
 public sealed class CompressionService(IAgentBuilder agentBuilder, ILogger<CompressionService> logger) : ICompressionService
 {
-    private readonly IAgentBuilder _agentBuilder = agentBuilder;
-
     private const string CompactPrompt = """
                                          You are compressing conversation history to save context space.
 
@@ -93,7 +91,7 @@ public sealed class CompressionService(IAgentBuilder agentBuilder, ILogger<Compr
 
         try
         {
-            var agent = await _agentBuilder.GetOrCreateAgentAsync(useThinking: false, ct);
+            var agent = await agentBuilder.GetOrCreateAgentAsync(useThinking: false, ct);
             var chatMessages = new List<AIChatMessage>
             {
                 new(ChatRole.System, CompactPrompt),
@@ -103,7 +101,7 @@ public sealed class CompressionService(IAgentBuilder agentBuilder, ILogger<Compr
             var chatOptions = new ChatOptions { Reasoning = null };
             var runOptions = new ChatClientAgentRunOptions(chatOptions);
             var result = await agent.RunAsync(chatMessages, null, runOptions, ct);
-            logger.LogInformation("Compression generated summary: {Length} chars", result.Text?.Length ?? 0);
+            logger.LogInformation("Compression generated summary: {Length} chars", result.Text.Length);
             return result.Text;
         }
         catch (Exception ex)

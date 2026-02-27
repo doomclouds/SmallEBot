@@ -4,7 +4,6 @@ using System.Text.Json;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using SmallEBot.Application.Context;
-using SmallEBot.Application.Conversation;
 using SmallEBot.Application.Streaming;
 using SmallEBot.Core.Models;
 using SmallEBot.Core.Repositories;
@@ -47,18 +46,18 @@ public sealed class AgentRunnerAdapter(
             ? allToolCalls.Where(t => t.CreatedAt > conversation.CompressedAt.Value).ToList()
             : allToolCalls;
 
-        var toolResultMaxLength = agentConfig.GetToolResultMaxLength();
+        var toolResultMaxLength = await agentConfig.GetToolResultMaxLengthAsync(cancellationToken);
         var toolCallsByTurn = toolCalls
             .Where(tc => tc.TurnId != null)
             .GroupBy(tc => tc.TurnId!.Value)
-            .ToDictionary(g => g.Key, g => (IReadOnlyList<Core.Entities.ToolCall>)g.OrderBy(tc => tc.SortOrder).ToList());
+            .ToDictionary(g => g.Key, IReadOnlyList<Core.Entities.ToolCall> (g) => g.OrderBy(tc => tc.SortOrder).ToList());
         var maxInputTokens = (int)(await agentBuilder.GetContextWindowTokensAsync(cancellationToken) * 0.8);
         var coreMessages = history.ToList();
         var trimResult = contextWindowManager.TrimToFit(coreMessages, maxInputTokens);
         var frameworkMessages = new List<ChatMessage>();
         foreach (var m in trimResult.Messages)
         {
-            var content = m.Content ?? "";
+            var content = m.Content;
             // Append tool summaries to assistant messages
             if (m.Role == "assistant" && m.TurnId != null && toolCallsByTurn.TryGetValue(m.TurnId.Value, out var turnToolCalls))
             {
@@ -115,7 +114,7 @@ public sealed class AgentRunnerAdapter(
                             yield return new ThinkStreamUpdate(reasoningContent.Text);
                             break;
                         case FunctionCallContent fnCall:
-                            var callId = fnCall.CallId ?? Guid.NewGuid().ToString("N");
+                            var callId = fnCall.CallId;
                             toolTimers[callId] = Stopwatch.StartNew();
                             toolNames[callId] = fnCall.Name;
                             yield return new ToolCallStreamUpdate(
@@ -231,13 +230,13 @@ public sealed class AgentRunnerAdapter(
     private static string FormatValueCompact(JsonElement value) => value.ValueKind switch
     {
         JsonValueKind.String => $"\"{value.GetString()}\"",
-        JsonValueKind.Number => value.ToString() ?? "",
+        JsonValueKind.Number => value.ToString(),
         JsonValueKind.True => "true",
         JsonValueKind.False => "false",
         JsonValueKind.Null => "null",
         JsonValueKind.Array => $"[{value.GetArrayLength()} items]",
         JsonValueKind.Object => "{...}",
-        _ => value.ToString() ?? ""
+        _ => value.ToString()
     };
 
     /// <summary>Builds compact tool summary: [Tool: Name(key=val, ...)] → result</summary>

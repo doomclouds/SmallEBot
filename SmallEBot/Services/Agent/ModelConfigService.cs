@@ -3,20 +3,13 @@ using SmallEBot.Core.Models;
 
 namespace SmallEBot.Services.Agent;
 
-public sealed class ModelConfigService : IModelConfigService
+public sealed class ModelConfigService(IConfiguration config) : IModelConfigService
 {
-    private readonly string _filePath;
-    private readonly IConfiguration _config;
+    private readonly string _filePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, ".agents", "models.json");
     private readonly SemaphoreSlim _lock = new(1, 1);
     private ModelsFile? _cache;
 
     public event Action? OnChanged;
-
-    public ModelConfigService(IConfiguration config)
-    {
-        _config = config;
-        _filePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, ".agents", "models.json");
-    }
 
     public async Task<IReadOnlyList<ModelConfig>> GetAllAsync(CancellationToken ct = default)
     {
@@ -125,9 +118,9 @@ public sealed class ModelConfigService : IModelConfigService
 
     private ModelsFile MigrateFromConfig()
     {
-        var baseUrl = _config["Anthropic:BaseUrl"] ?? "https://api.deepseek.com/anthropic";
-        var model = _config["Anthropic:Model"] ?? "deepseek-reasoner";
-        var contextWindow = _config.GetValue("Anthropic:ContextWindowTokens", 128000);
+        var baseUrl = config["Anthropic:BaseUrl"] ?? "https://api.deepseek.com/anthropic";
+        var model = config["Anthropic:Model"] ?? "deepseek-reasoner";
+        var contextWindow = config.GetValue("Anthropic:ContextWindowTokens", 128000);
 
         string apiKeySource;
         if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("DeepseekKey")))
@@ -135,10 +128,10 @@ public sealed class ModelConfigService : IModelConfigService
         else if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY")))
             apiKeySource = "env:ANTHROPIC_API_KEY";
         else
-            apiKeySource = _config["Anthropic:ApiKey"] ?? "";
+            apiKeySource = config["Anthropic:ApiKey"] ?? "";
 
         var id = SanitizeId(model);
-        var config = new ModelConfig(
+        var config1 = new ModelConfig(
             Id: id,
             Name: model,
             Provider: "anthropic-compatible",
@@ -151,7 +144,7 @@ public sealed class ModelConfigService : IModelConfigService
         return new ModelsFile
         {
             DefaultModelId = id,
-            Models = new Dictionary<string, ModelConfig> { [id] = config }
+            Models = new Dictionary<string, ModelConfig> { [id] = config1 }
         };
     }
 

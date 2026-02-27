@@ -24,7 +24,7 @@ public class AgentCacheService(
 
         var allMessages = await conversationRepository.GetMessagesForConversationAsync(conversationId, ct);
         var toolCalls = await conversationRepository.GetToolCallsForConversationAsync(conversationId, ct);
-        var toolResultMaxLength = agentConfig.GetToolResultMaxLength();
+        var toolResultMaxLength = await agentConfig.GetToolResultMaxLengthAsync(ct);
 
         // Filter messages by CompressedAt - only send messages after compression timestamp to LLM
         var filteredMessages = conversation?.CompressedAt != null
@@ -38,7 +38,7 @@ public class AgentCacheService(
         // Truncate tool results to match what's actually sent to LLM
         var truncatedToolCalls = filteredToolCalls.Select(t => new ToolCallWithTruncatedResult
         {
-            ToolName = t.ToolName ?? "",
+            ToolName = t.ToolName,
             Arguments = t.Arguments ?? "",
             Result = TruncateToolResult(t.Result, toolResultMaxLength) ?? ""
         }).ToList();
@@ -59,12 +59,6 @@ public class AgentCacheService(
         if (contextWindow <= 0) return new ContextUsageEstimate(0, usedTokens, contextWindow);
         var ratio = Math.Min(1.0, usedTokens / (double)contextWindow);
         return new ContextUsageEstimate(Math.Round(ratio, 3), usedTokens, contextWindow);
-    }
-
-    public async Task<double> GetEstimatedContextUsageAsync(Guid conversationId, CancellationToken ct = default)
-    {
-        var d = await GetEstimatedContextUsageDetailAsync(conversationId, ct);
-        return d?.Ratio ?? 0.0;
     }
 
     /// <summary>Format token count for tooltip, e.g. 128000 -> "128k", 10500 -> "10.5k".</summary>
@@ -91,14 +85,14 @@ public class AgentCacheService(
         var payload = new RequestPayloadForTokenCount
         {
             System = systemPrompt,
-            Messages = messages.Select(m => new MessageItemForTokenCount { Role = m.Role, Content = m.Content ?? "" }).ToList(),
+            Messages = messages.Select(m => new MessageItemForTokenCount { Role = m.Role, Content = m.Content }).ToList(),
             ToolCalls = toolCalls.Select(t => new ToolCallItemForTokenCount
             {
-                ToolName = t.ToolName ?? "",
-                Arguments = t.Arguments ?? "",
-                Result = t.Result ?? ""
+                ToolName = t.ToolName,
+                Arguments = t.Arguments,
+                Result = t.Result
             }).ToList(),
-            ThinkBlocks = thinkBlocks.Select(b => new ThinkBlockItemForTokenCount { Content = b.Content ?? "" }).ToList()
+            ThinkBlocks = thinkBlocks.Select(b => new ThinkBlockItemForTokenCount { Content = b.Content }).ToList()
         };
         return System.Text.Json.JsonSerializer.Serialize(payload);
     }

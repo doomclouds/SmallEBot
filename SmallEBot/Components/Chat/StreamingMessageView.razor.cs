@@ -1,5 +1,3 @@
 namespace SmallEBot.Components.Chat;
 
-public partial class StreamingMessageView
-{
-}
+public partial class StreamingMessageView;

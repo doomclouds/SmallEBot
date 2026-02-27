@@ -5,9 +5,6 @@ namespace SmallEBot.Application.Context;
 /// <summary>Manages context window for conversations.</summary>
 public interface IContextWindowManager
 {
-    /// <summary>Estimate total tokens for messages.</summary>
-    int EstimateTokens(IReadOnlyList<ChatMessage> messages);
-
     /// <summary>Trim messages to fit within token limit.</summary>
     TrimResult TrimToFit(IReadOnlyList<ChatMessage> messages, int maxTokens);
 }

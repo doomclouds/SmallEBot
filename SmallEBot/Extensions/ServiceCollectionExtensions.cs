@@ -64,7 +64,6 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IToolProvider, SkillGenerationToolProvider>();
         services.AddScoped<IToolProviderAggregator, ToolProviderAggregator>();
         services.AddSingleton<ITaskListCache, TaskListCache>();
-        services.AddSingleton<ITaskListWatcher, TaskListWatcher>();
         services.AddSingleton<IModelConfigService, ModelConfigService>();
         services.AddSingleton<AgentConfigService>();
         services.AddSingleton<IAgentConfigService>(sp => sp.GetRequiredService<AgentConfigService>());

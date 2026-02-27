@@ -69,7 +69,7 @@ public sealed class SkillGenerationToolProvider(
         try
         {
             var filesCreated = new List<string>();
-            var skillDir = await skillsConfig.CreateSkillAsync(input.SkillId, CancellationToken.None);
+            await skillsConfig.CreateSkillAsync(input.SkillId, CancellationToken.None);
 
             // Create SKILL.md
             var skillContent = BuildSkillContent(input);
@@ -131,15 +131,15 @@ public sealed class SkillGenerationToolProvider(
 
     private static string BuildSkillContent(GenerateSkillInput input)
     {
-        return $""""
----
-name: {input.Name}
-description: {input.Description}
----
+        return $"""
+                ---
+                name: {input.Name}
+                description: {input.Description}
+                ---
 
-# {input.Name}
+                # {input.Name}
 
-{input.Instructions}
-"""";
+                {input.Instructions}
+                """;
     }
 }
