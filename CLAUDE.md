@@ -90,6 +90,10 @@ Blazor UI → SignalR → ConversationService → IAgentConversationService
 - `/skillId` — Injects directive to call `ReadSkill(skillId)`; model fetches skill via tools
 - Drag-and-drop — Uploads to `temp/`, deduplicated by hash
 
+### Circuit Context
+
+Blazor Server uses Circuits to track user connections. The `ICurrentCircuitAccessor` pattern captures the current Circuit for context association (e.g., command confirmations are tied to specific user sessions). See `SmallEBot/Services/Circuit/README.md` for details.
+
 ### Chat UI Architecture
 
 The ChatArea uses a State Container + Events pattern for clean separation of concerns:

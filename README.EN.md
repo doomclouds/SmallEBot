@@ -7,9 +7,10 @@ A local AI assistant built with ASP.NET Core Blazor Server. **Runs locally on yo
 ## Features
 
 - **Multi-conversation**: Create, switch, and delete conversations; history stored per user. Sidebar supports search by conversation title.
-- **Streaming chat**: Real-time streaming of assistant replies with optional reasoning/tool-call visibility.
+- **Streaming chat**: Real-time streaming of assistant replies with collapsible reasoning/tool-call panel.
 - **Edit & regenerate**: Edit a user message and resend (discards later turns); or regenerate an AI reply (discards that reply and all later content).
-- **Thinking mode**: Toggle extended reasoning (e.g. DeepSeek Reasoner) via Anthropic thinking support.
+- **Thinking mode**: Toggle extended reasoning (e.g. DeepSeek Reasoner) via Anthropic thinking support. Reasoning is displayed in a collapsible panel, followed by the final text response.
+- **Model switching**: Switch between multiple configured models via the app bar dropdown.
 - **MCP tools**: Connect to Model Context Protocol servers for extended capabilities (filesystem, web search, databases, etc.).
 - **Skills**: File-based skills under workspace `.agents/vfs/sys.skills/` and `.agents/vfs/skills/` (read-only in workspace); create custom skills via app UI or add to `skills/` with YAML frontmatter.
 - **Terminal**: Execute shell commands via `ExecuteCommand` tool. Configurable command blacklist. Optional command confirmation and whitelist.
@@ -176,7 +177,11 @@ In the chat input:
 
 ### Thinking Mode
 
-Click the "Thinking" button next to the input to toggle. When enabled, the assistant shows its reasoning process (requires a model that supports thinking).
+Click the "Thinking" button next to the input to toggle. When enabled, the assistant shows its reasoning process in a collapsible panel, followed by the final text response (requires a model that supports thinking, e.g., DeepSeek Reasoner).
+
+### Model Switching
+
+Use the dropdown in the app bar to switch between configured models. Models are configured in `.agents/models.json` via Settings or managed through the model configuration dialog.
 
 ### Conversation Sidebar
 
