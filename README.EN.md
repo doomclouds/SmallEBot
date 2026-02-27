@@ -16,6 +16,7 @@ A local AI assistant built with ASP.NET Core Blazor Server. **Runs locally on yo
 - **Terminal**: Execute shell commands via `ExecuteCommand` tool. Configurable command blacklist. Optional command confirmation and whitelist.
 - **Workspace**: Agent file tools and ExecuteCommand scoped to `.agents/vfs/`. Browse files via the Workspace drawer (refreshes via FileSystemWatcher).
 - **Task list**: Assistant can manage a task list per conversation via tools; Task List drawer stays in sync.
+- **Context compression**: Automatically compresses conversation history when context reaches threshold. Manual compress via button. Summary merged with existing context, injected into system prompt.
 - **Themes**: Multiple UI themes (dark, light, terminal style, etc.) with persistence.
 - **No login**: First visit asks for a username; data is scoped by that name.
 
