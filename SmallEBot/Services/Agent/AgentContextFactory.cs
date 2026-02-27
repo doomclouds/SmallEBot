@@ -46,6 +46,8 @@ public sealed class AgentContextFactory(
         var blacklistBlock = BuildTerminalBlacklistBlock(blacklist);
         if (!string.IsNullOrEmpty(blacklistBlock)) sections.Add(blacklistBlock);
 
+        sections.Add(GetContextCompressionSection());
+
         _cachedSystemPrompt = string.Join("\n\n", sections);
         return _cachedSystemPrompt;
     }
@@ -261,6 +263,22 @@ public sealed class AgentContextFactory(
         **Do not use file tools on these paths:**
         - `temp/` — reserved for **file uploads** only. Do not use `{Tn.ReadFile}`, `{Tn.WriteFile}`, `{Tn.ListFiles}`, `{Tn.AppendFile}`, `{Tn.CopyFile}`, `{Tn.CopyDirectory}`, `{Tn.GrepFiles}`, or `{Tn.GrepContent}` on `temp/` or any path under it.
         - `sys.skills/` and `skills/` — use only `{Tn.ReadSkill}`, `{Tn.ReadSkillFile}`, and `{Tn.ListSkillFiles}` for content under these directories; do not use the generic file tools above on them.
+        """;
+
+    private static string GetContextCompressionSection() => $"""
+        # Context Compression
+
+        `{Tn.CompactContext}()` — Compresses conversation history into a summary to save context space.
+
+        **When to use:**
+        - User explicitly requests: `/compact`, "压缩上下文", "compress context"
+        - Context usage is high (shown in UI percentage)
+        - Before starting a new task in a long conversation
+
+        **Behavior:**
+        - Compresses messages before the current compression timestamp
+        - Summary is automatically added to system prompt as "Conversation Summary"
+        - Returns success status and count of compressed messages
         """;
 
     // ── Dynamic blocks ────────────────────────────────────────────────────────
