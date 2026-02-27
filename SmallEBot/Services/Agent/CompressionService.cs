@@ -19,15 +19,13 @@ public sealed class CompressionService(IAgentBuilder agentBuilder, ILogger<Compr
                                          You are compressing conversation history to save context space.
 
                                          ## Input
-                                         You will receive conversation messages (user + assistant + tool calls).
+                                         You will receive:
+                                         1. Previous summary (if exists) - already compressed content
+                                         2. New conversation messages to compress
 
                                          ## Task
-                                         Generate a structured summary preserving:
-
-                                         1. **Key Decisions**: Important choices made and why
-                                         2. **Files Modified**: Paths and what changed (briefly)
-                                         3. **Current State**: What's been accomplished, what's pending
-                                         4. **Important Context**: Names, values, configurations that matter
+                                         Generate a MERGED summary that combines the previous summary with the new messages.
+                                         Preserve all important information, update state as needed.
 
                                          ## Format
                                          Use this compact format:
@@ -48,36 +46,49 @@ public sealed class CompressionService(IAgentBuilder agentBuilder, ILogger<Compr
                                          ## Context
                                          - [key=value pairs or important notes]
 
-                                         Keep total output under 500 tokens. Focus on what's needed to continue the work.
+                                         Keep total output under 800 tokens. Focus on what's needed to continue the work.
                                          """;
 
     public async Task<string?> GenerateSummaryAsync(
         IReadOnlyList<EntityChatMessage> messages,
         IReadOnlyList<EntityToolCall> toolCalls,
         int toolResultMaxLength,
+        string? existingSummary = null,
         CancellationToken ct = default)
     {
-        if (messages.Count == 0 && toolCalls.Count == 0)
-            return null;
+        if (messages.Count == 0 && toolCalls.Count == 0 && string.IsNullOrEmpty(existingSummary))
+            return existingSummary;
 
         var sb = new StringBuilder();
-        sb.AppendLine("## Conversation to Compress");
-        sb.AppendLine();
 
-        // Add messages (exclude replaced ones)
-        foreach (var msg in messages.Where(m => m.ReplacedByMessageId == null))
+        // Include existing summary if present
+        if (!string.IsNullOrEmpty(existingSummary))
         {
-            var role = msg.Role == "user" ? "User" : "Assistant";
-            sb.AppendLine($"[{role}]: {msg.Content}");
+            sb.AppendLine("## Previous Summary (merge with new messages)");
+            sb.AppendLine(existingSummary);
             sb.AppendLine();
         }
 
-        // Add tool calls with truncated results
-        foreach (var tc in toolCalls)
+        if (messages.Count > 0 || toolCalls.Count > 0)
         {
-            var result = TruncateResult(tc.Result, toolResultMaxLength);
-            sb.AppendLine($"[Tool: {tc.ToolName}] -> {result}");
+            sb.AppendLine("## New Messages to Compress");
             sb.AppendLine();
+
+            // Add messages (exclude replaced ones)
+            foreach (var msg in messages.Where(m => m.ReplacedByMessageId == null))
+            {
+                var role = msg.Role == "user" ? "User" : "Assistant";
+                sb.AppendLine($"[{role}]: {msg.Content}");
+                sb.AppendLine();
+            }
+
+            // Add tool calls with truncated results
+            foreach (var tc in toolCalls)
+            {
+                var result = TruncateResult(tc.Result, toolResultMaxLength);
+                sb.AppendLine($"[Tool: {tc.ToolName}] -> {result}");
+                sb.AppendLine();
+            }
         }
 
         try

@@ -237,10 +237,12 @@ public sealed class AgentConversationService(
                 return false;
             }
 
+            // Pass existing summary to merge with new messages
             var summary = await compressionService.GenerateSummaryAsync(
                 messagesToCompress,
                 toolCallsToCompress,
                 toolResultMaxProvider.GetToolResultMaxLength(),
+                conversation.CompressedContext,
                 ct);
 
             if (string.IsNullOrWhiteSpace(summary))

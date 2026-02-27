@@ -9,11 +9,13 @@ public interface ICompressionService
     /// <param name="messages">Chat messages to compress.</param>
     /// <param name="toolCalls">Tool calls to include in compression.</param>
     /// <param name="toolResultMaxLength">Maximum length for truncated tool results.</param>
+    /// <param name="existingSummary">Existing compressed summary to merge with new content.</param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>Compressed summary, or null if compression failed.</returns>
     Task<string?> GenerateSummaryAsync(
         IReadOnlyList<ChatMessage> messages,
         IReadOnlyList<ToolCall> toolCalls,
         int toolResultMaxLength,
+        string? existingSummary = null,
         CancellationToken ct = default);
 }

@@ -64,10 +64,12 @@ public sealed class CompressionToolProvider(
             ? toolCalls.ToList()
             : toolCalls.Where(t => t.CreatedAt > conversation.CompressedAt.Value).ToList();
 
+        // Pass existing summary to merge with new messages
         var summary = await compressionService.GenerateSummaryAsync(
             messagesToCompress,
             toolCallsToCompress,
             agentConfig.GetToolResultMaxLength(),
+            conversation.CompressedContext,
             ct);
 
         if (string.IsNullOrWhiteSpace(summary))
