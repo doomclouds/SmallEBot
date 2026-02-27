@@ -8,4 +8,10 @@ public interface IAgentConfigService
 
     /// <summary>Synchronous version for convenience.</summary>
     int GetToolResultMaxLength();
+
+    /// <summary>Context usage ratio threshold (0.0-1.0) that triggers automatic compression. Default: 0.8 (80%).</summary>
+    Task<double> GetCompressionThresholdAsync(CancellationToken ct = default);
+
+    /// <summary>Synchronous version for convenience.</summary>
+    double GetCompressionThreshold();
 }
