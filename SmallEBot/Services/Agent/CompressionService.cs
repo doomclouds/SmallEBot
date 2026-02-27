@@ -1,13 +1,20 @@
 using System.Text;
+using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
+using SmallEBot.Application.Conversation;
 using SmallEBot.Core.Entities;
+
+// Aliases to avoid ambiguity between Microsoft.Extensions.AI and SmallEBot.Core.Entities
+using AIChatMessage = Microsoft.Extensions.AI.ChatMessage;
+using EntityChatMessage = SmallEBot.Core.Entities.ChatMessage;
+using EntityToolCall = SmallEBot.Core.Entities.ToolCall;
 
 namespace SmallEBot.Services.Agent;
 
 /// <summary>Compresses conversation history by calling LLM with compact skill prompt.</summary>
 public sealed class CompressionService : ICompressionService
 {
-    private readonly IChatClient _chatClient;
+    private readonly IAgentBuilder _agentBuilder;
 
     private const string CompactPrompt = """
 You are compressing conversation history to save context space.
@@ -45,24 +52,25 @@ Use this compact format:
 Keep total output under 500 tokens. Focus on what's needed to continue the work.
 """;
 
-    public CompressionService(IChatClient chatClient)
+    public CompressionService(IAgentBuilder agentBuilder)
     {
-        _chatClient = chatClient;
+        _agentBuilder = agentBuilder;
     }
 
     public async Task<string?> GenerateSummaryAsync(
-        IReadOnlyList<ChatMessage> messages,
-        IReadOnlyList<ToolCall> toolCalls,
+        IReadOnlyList<EntityChatMessage> messages,
+        IReadOnlyList<EntityToolCall> toolCalls,
         int toolResultMaxLength,
         CancellationToken ct = default)
     {
-        if (messages.Count == 0)
+        if (messages.Count == 0 && toolCalls.Count == 0)
             return null;
 
         var sb = new StringBuilder();
         sb.AppendLine("## Conversation to Compress");
         sb.AppendLine();
 
+        // Add messages (exclude replaced ones)
         foreach (var msg in messages.Where(m => m.ReplacedByMessageId == null))
         {
             var role = msg.Role == "user" ? "User" : "Assistant";
@@ -70,6 +78,7 @@ Keep total output under 500 tokens. Focus on what's needed to continue the work.
             sb.AppendLine();
         }
 
+        // Add tool calls with truncated results
         foreach (var tc in toolCalls)
         {
             var result = TruncateResult(tc.Result, toolResultMaxLength);
@@ -77,16 +86,19 @@ Keep total output under 500 tokens. Focus on what's needed to continue the work.
             sb.AppendLine();
         }
 
-        var messagesForLlm = new List<ChatMessage>
-        {
-            new(ChatRole.System, CompactPrompt),
-            new(ChatRole.User, sb.ToString())
-        };
-
         try
         {
-            var response = await _chatClient.CompleteAsync(messagesForLlm, cancellationToken: ct);
-            return response.Message.Text;
+            var agent = await _agentBuilder.GetOrCreateAgentAsync(useThinking: false, ct);
+            var chatMessages = new List<AIChatMessage>
+            {
+                new(ChatRole.System, CompactPrompt),
+                new(ChatRole.User, sb.ToString())
+            };
+
+            var chatOptions = new ChatOptions { Reasoning = null };
+            var runOptions = new ChatClientAgentRunOptions(chatOptions);
+            var result = await agent.RunAsync(chatMessages, null, runOptions, ct);
+            return result.Text;
         }
         catch
         {

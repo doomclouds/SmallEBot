@@ -1,9 +1,10 @@
 using System.Text.Json;
+using SmallEBot.Application.Conversation;
 
 namespace SmallEBot.Services.Agent;
 
 /// <summary>Loads agent configuration from .agents/agent.json. Falls back to defaults if file missing or invalid.</summary>
-public sealed class AgentConfigService : IAgentConfigService
+public sealed class AgentConfigService : IAgentConfigService, IToolResultMaxProvider
 {
     private const int DefaultToolResultMaxLength = 500;
     private const int MinToolResultMaxLength = 100;

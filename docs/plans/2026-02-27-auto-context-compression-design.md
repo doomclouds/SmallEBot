@@ -33,7 +33,7 @@ Add to `Conversations` table:
 
 ## Components
 
-### 1. Compact Skill (`.agents/sys.skills/compact/SKILL.md`)
+### 1. Compact Skill (`.agents/vfs/sys.skills/compact/SKILL.md`)
 
 Minimal skill containing only the compression workflow prompt for LLM:
 
@@ -151,7 +151,7 @@ Token calc: compressed_context_tokens + post_compression_message_tokens
 | `Services/Agent/AgentCacheService.cs` | Update token estimation |
 | `Core/Repositories/IConversationRepository.cs` | Add method to update compression fields |
 | `Infrastructure/Data/ConversationRepository.cs` | Implement update method |
-| `.agents/sys.skills/compact/SKILL.md` | Create skill file |
+| `.agents/vfs/sys.skills/compact/SKILL.md` | Create skill file |
 
 ## UI Interaction
 

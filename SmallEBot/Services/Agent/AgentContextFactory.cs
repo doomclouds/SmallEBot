@@ -1,12 +1,14 @@
 using SmallEBot.Core;
+using SmallEBot.Core.Repositories;
 using SmallEBot.Models;
+using SmallEBot.Services.Conversation;
 using SmallEBot.Services.Skills;
 using SmallEBot.Services.Terminal;
 using Tn = SmallEBot.Services.Agent.Tools.BuiltInToolNames;
 
 namespace SmallEBot.Services.Agent;
 
-/// <summary>Builds the agent system prompt (base instructions + skills block + terminal blacklist) for the Agent Builder.</summary>
+/// <summary>Builds the agent system prompt (base instructions + skills block + terminal blacklist + compressed context) for the Agent Builder.</summary>
 public interface IAgentContextFactory
 {
     /// <summary>Builds system prompt from base instructions and skills metadata; caches result.</summary>
@@ -16,7 +18,11 @@ public interface IAgentContextFactory
     string? GetCachedSystemPrompt();
 }
 
-public sealed class AgentContextFactory(ISkillsConfigService skillsConfig, ITerminalConfigService terminalConfig) : IAgentContextFactory
+public sealed class AgentContextFactory(
+    ISkillsConfigService skillsConfig,
+    ITerminalConfigService terminalConfig,
+    ICurrentConversationService currentConversation,
+    IConversationRepository conversationRepository) : IAgentContextFactory
 {
     private string? _cachedSystemPrompt;
 
@@ -27,6 +33,13 @@ public sealed class AgentContextFactory(ISkillsConfigService skillsConfig, ITerm
 
         var sections = new List<string> { BuildBaseInstructions() };
 
+        // Add compressed context if available
+        var compressedContext = await GetCompressedContextAsync(ct);
+        if (!string.IsNullOrEmpty(compressedContext))
+        {
+            sections.Add($"# Conversation Summary\n\n{compressedContext}");
+        }
+
         var skillsBlock = BuildSkillsBlock(skills);
         if (!string.IsNullOrEmpty(skillsBlock)) sections.Add(skillsBlock);
 
@@ -35,6 +48,15 @@ public sealed class AgentContextFactory(ISkillsConfigService skillsConfig, ITerm
 
         _cachedSystemPrompt = string.Join("\n\n", sections);
         return _cachedSystemPrompt;
+    }
+
+    private async Task<string?> GetCompressedContextAsync(CancellationToken ct)
+    {
+        var conversationId = currentConversation.CurrentConversationId;
+        if (conversationId == null) return null;
+
+        var conversation = await conversationRepository.GetByIdAsync(conversationId.Value, "", ct);
+        return conversation?.CompressedContext;
     }
 
     public string? GetCachedSystemPrompt() => _cachedSystemPrompt;

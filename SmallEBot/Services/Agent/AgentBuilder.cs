@@ -11,7 +11,7 @@ public interface IAgentBuilder
 {
     Task<AIAgent> GetOrCreateAgentAsync(bool useThinking, CancellationToken ct = default);
     Task InvalidateAsync();
-    int GetContextWindowTokens();
+    Task<int> GetContextWindowTokensAsync(CancellationToken ct = default);
     /// <summary>Last built system prompt for token estimation; null if not built yet.</summary>
     string? GetCachedSystemPromptForTokenCount();
 }
@@ -70,9 +70,16 @@ public sealed class AgentBuilder(
         _allTools = null;
     }
 
-    public int GetContextWindowTokens() => _contextWindowTokens > 0
-        ? _contextWindowTokens
-        : 128000;
+    public async Task<int> GetContextWindowTokensAsync(CancellationToken ct = default)
+    {
+        // If already cached from agent creation, return it
+        if (_contextWindowTokens > 0)
+            return _contextWindowTokens;
+
+        // Otherwise, read from config
+        var config = await modelConfig.GetDefaultAsync(ct);
+        return config?.ContextWindow ?? 128000;
+    }
 
     public string? GetCachedSystemPromptForTokenCount() => contextFactory.GetCachedSystemPrompt();
 

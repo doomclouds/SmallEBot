@@ -101,4 +101,13 @@ public interface IAgentConversationService
         string? commandConfirmationContextId = null,
         IReadOnlyList<string>? attachedPaths = null,
         IReadOnlyList<string>? requestedSkillIds = null);
+
+    /// <summary>Fired when compression starts. UI should show compression indicator and disable input.</summary>
+    event Action<Guid>? CompressionStarted;
+
+    /// <summary>Fired when compression completes. UI should hide indicator and re-enable input.</summary>
+    event Action<Guid, bool>? CompressionCompleted; // conversationId, success
+
+    /// <summary>Manually trigger compression for a conversation.</summary>
+    Task<bool> CompactConversationAsync(Guid conversationId, CancellationToken ct = default);
 }

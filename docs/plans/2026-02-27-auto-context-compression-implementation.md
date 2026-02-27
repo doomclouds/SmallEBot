@@ -259,12 +259,12 @@ git commit -m "feat(agent): implement CompressionThreshold in AgentConfigService
 ### Task 7: Create Compact Skill File
 
 **Files:**
-- Create: `SmallEBot/.agents/sys.skills/compact/SKILL.md`
+- Create: `SmallEBot/.agents/vfs/sys.skills/compact/SKILL.md`
 
 **Step 1: Create skill directory and file**
 
 ```bash
-mkdir -p SmallEBot/.agents/sys.skills/compact
+mkdir -p SmallEBot/.agents/vfs/sys.skills/compact
 ```
 
 **Step 2: Write SKILL.md content**
@@ -316,13 +316,13 @@ Keep total output under 500 tokens. Focus on what's needed to continue the work.
 
 **Step 3: Verify file exists**
 
-Run: `cat SmallEBot/.agents/sys.skills/compact/SKILL.md`
+Run: `cat SmallEBot/.agents/vfs/sys.skills/compact/SKILL.md`
 Expected: File content displayed
 
 **Step 4: Commit**
 
 ```bash
-git add SmallEBot/.agents/sys.skills/compact/SKILL.md
+git add SmallEBot/.agents/vfs/sys.skills/compact/SKILL.md
 git commit -m "feat(skills): add compact skill for context compression"
 ```
 

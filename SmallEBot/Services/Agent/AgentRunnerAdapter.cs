@@ -4,6 +4,7 @@ using System.Text.Json;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using SmallEBot.Application.Context;
+using SmallEBot.Application.Conversation;
 using SmallEBot.Application.Streaming;
 using SmallEBot.Core.Models;
 using SmallEBot.Core.Repositories;
@@ -18,7 +19,9 @@ public sealed class AgentRunnerAdapter(
     IAgentBuilder agentBuilder,
     ITurnContextFragmentBuilder fragmentBuilder,
     IContextWindowManager contextWindowManager,
-    IAgentConfigService agentConfig) : IAgentRunner
+    IAgentConfigService agentConfig,
+    ICompressionService compressionService,
+    ICompressionEventTrigger compressionEventTrigger) : IAgentRunner
 {
     public async IAsyncEnumerable<StreamUpdate> RunStreamingAsync(
         Guid conversationId,
@@ -29,14 +32,32 @@ public sealed class AgentRunnerAdapter(
         IReadOnlyList<string>? requestedSkillIds = null)
     {
         var agent = await agentBuilder.GetOrCreateAgentAsync(useThinking, cancellationToken);
-        var history = await conversationRepository.GetMessagesForConversationAsync(conversationId, cancellationToken);
-        var toolCalls = await conversationRepository.GetToolCallsForConversationAsync(conversationId, cancellationToken);
+
+        // Auto-compression check
+        await CheckAndCompressAsync(conversationId, cancellationToken);
+
+        // Get conversation to check CompressedAt for filtering
+        var conversation = await conversationRepository.GetByIdAsync(conversationId, "", cancellationToken);
+
+        // Load all history and filter by CompressedAt
+        var allHistory = await conversationRepository.GetMessagesForConversationAsync(conversationId, cancellationToken);
+        var allToolCalls = await conversationRepository.GetToolCallsForConversationAsync(conversationId, cancellationToken);
+
+        // Filter history by CompressedAt - only send messages after compression timestamp to LLM
+        var history = conversation?.CompressedAt != null
+            ? allHistory.Where(m => m.CreatedAt > conversation.CompressedAt.Value).ToList()
+            : allHistory;
+
+        var toolCalls = conversation?.CompressedAt != null
+            ? allToolCalls.Where(t => t.CreatedAt > conversation.CompressedAt.Value).ToList()
+            : allToolCalls;
+
         var toolResultMaxLength = agentConfig.GetToolResultMaxLength();
         var toolCallsByTurn = toolCalls
             .Where(tc => tc.TurnId != null)
             .GroupBy(tc => tc.TurnId!.Value)
             .ToDictionary(g => g.Key, g => (IReadOnlyList<Core.Entities.ToolCall>)g.OrderBy(tc => tc.SortOrder).ToList());
-        var maxInputTokens = (int)(agentBuilder.GetContextWindowTokens() * 0.8);
+        var maxInputTokens = (int)(await agentBuilder.GetContextWindowTokensAsync(cancellationToken) * 0.8);
         var coreMessages = history.ToList();
         var trimResult = contextWindowManager.TrimToFit(coreMessages, maxInputTokens);
         var frameworkMessages = new List<ChatMessage>();
@@ -238,4 +259,97 @@ public sealed class AgentRunnerAdapter(
         }
         return sb.ToString();
     }
+
+    /// <summary>Check if context exceeds threshold and trigger compression if needed.</summary>
+    private async Task CheckAndCompressAsync(Guid conversationId, CancellationToken ct)
+    {
+        var conversation = await conversationRepository.GetByIdAsync(conversationId, "", ct);
+        if (conversation == null) return;
+
+        // Get current context usage
+        var allMessages = await conversationRepository.GetMessagesForConversationAsync(conversationId, ct);
+        var toolCalls = await conversationRepository.GetToolCallsForConversationAsync(conversationId, ct);
+        var toolResultMaxLength = agentConfig.GetToolResultMaxLength();
+
+        // Filter by CompressedAt
+        var filteredMessages = conversation.CompressedAt != null
+            ? allMessages.Where(m => m.CreatedAt > conversation.CompressedAt.Value).ToList()
+            : allMessages;
+
+        var filteredToolCalls = conversation.CompressedAt != null
+            ? toolCalls.Where(t => t.CreatedAt > conversation.CompressedAt.Value).ToList()
+            : toolCalls;
+
+        // Estimate tokens
+        var systemPrompt = agentBuilder.GetCachedSystemPromptForTokenCount() ?? "";
+        var compressedContextTokens = conversation.CompressedContext != null
+            ? EstimateTokens(conversation.CompressedContext)
+            : 0;
+
+        var messageTokens = filteredMessages.Sum(m => EstimateTokens(m.Content ?? "") + 4);
+        var toolCallTokens = filteredToolCalls.Sum(t =>
+            EstimateTokens(t.ToolName ?? "") +
+            EstimateTokens(t.Arguments ?? "") +
+            EstimateTokens(TruncateToolResult(t.Result, toolResultMaxLength)));
+
+        var totalTokens = EstimateTokens(systemPrompt) + compressedContextTokens + messageTokens + toolCallTokens;
+        var contextWindow = await agentBuilder.GetContextWindowTokensAsync(ct);
+        var threshold = agentConfig.GetCompressionThreshold();
+
+        if (contextWindow > 0 && totalTokens / (double)contextWindow >= threshold)
+        {
+            // Trigger compression
+            await CompressConversationAsync(conversationId, allMessages, toolCalls, conversation.CompressedAt, ct);
+        }
+    }
+
+    /// <summary>Compress conversation history and store summary.</summary>
+    private async Task CompressConversationAsync(
+        Guid conversationId,
+        List<Core.Entities.ChatMessage> allMessages,
+        List<Core.Entities.ToolCall> allToolCalls,
+        DateTime? existingCompressedAt,
+        CancellationToken ct)
+    {
+        // Get messages to compress (those before existing CompressedAt, or all if first compression)
+        var messagesToCompress = existingCompressedAt != null
+            ? allMessages.Where(m => m.CreatedAt <= existingCompressedAt.Value).ToList()
+            : allMessages;
+
+        var toolCallsToCompress = existingCompressedAt != null
+            ? allToolCalls.Where(t => t.CreatedAt <= existingCompressedAt.Value).ToList()
+            : allToolCalls;
+
+        if (messagesToCompress.Count == 0) return;
+
+        // Trigger UI event - compression started
+        compressionEventTrigger.OnCompressionStarted(conversationId);
+
+        try
+        {
+            var toolResultMaxLength = agentConfig.GetToolResultMaxLength();
+            var summary = await compressionService.GenerateSummaryAsync(
+                messagesToCompress,
+                toolCallsToCompress,
+                toolResultMaxLength,
+                ct);
+
+            if (!string.IsNullOrWhiteSpace(summary))
+            {
+                await conversationRepository.UpdateCompressionAsync(conversationId, summary, DateTime.UtcNow, ct);
+                compressionEventTrigger.OnCompressionCompleted(conversationId, true);
+            }
+            else
+            {
+                compressionEventTrigger.OnCompressionCompleted(conversationId, false);
+            }
+        }
+        catch
+        {
+            compressionEventTrigger.OnCompressionCompleted(conversationId, false);
+        }
+    }
+
+    /// <summary>Rough token estimate: ~4 chars per token.</summary>
+    private static int EstimateTokens(string text) => text.Length / 4;
 }

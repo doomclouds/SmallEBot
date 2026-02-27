@@ -17,15 +17,27 @@ public class AgentCacheService(
 
     public async Task InvalidateAgentAsync() => await agentBuilder.InvalidateAsync();
 
-    /// <summary>Estimated context usage for UI: ratio and token counts (e.g. for tooltip "8% · 10k/128k"). Includes system, messages, tool calls (name + arguments + result), and think blocks.</summary>
+    /// <summary>Estimated context usage for UI: ratio and token counts (e.g. for tooltip "8% · 10k/128k"). Includes system, messages, tool calls (name + arguments + result), think blocks, and compressed context.</summary>
     public async Task<ContextUsageEstimate?> GetEstimatedContextUsageDetailAsync(Guid conversationId, CancellationToken ct = default)
     {
-        var messages = await conversationRepository.GetMessagesForConversationAsync(conversationId, ct);
+        // Get conversation to check CompressedAt
+        var conversation = await conversationRepository.GetByIdAsync(conversationId, "", ct);
+
+        var allMessages = await conversationRepository.GetMessagesForConversationAsync(conversationId, ct);
         var toolCalls = await conversationRepository.GetToolCallsForConversationAsync(conversationId, ct);
         var toolResultMaxLength = agentConfig.GetToolResultMaxLength();
 
+        // Filter messages by CompressedAt - only send messages after compression timestamp to LLM
+        var filteredMessages = conversation?.CompressedAt != null
+            ? allMessages.Where(m => m.CreatedAt > conversation.CompressedAt.Value).ToList()
+            : allMessages;
+
+        var filteredToolCalls = conversation?.CompressedAt != null
+            ? toolCalls.Where(t => t.CreatedAt > conversation.CompressedAt.Value).ToList()
+            : toolCalls;
+
         // Truncate tool results to match what's actually sent to LLM
-        var truncatedToolCalls = toolCalls.Select(t => new ToolCallWithTruncatedResult
+        var truncatedToolCalls = filteredToolCalls.Select(t => new ToolCallWithTruncatedResult
         {
             ToolName = t.ToolName ?? "",
             Arguments = t.Arguments ?? "",
@@ -33,10 +45,18 @@ public class AgentCacheService(
         }).ToList();
 
         var systemPrompt = agentBuilder.GetCachedSystemPromptForTokenCount() ?? FallbackSystemPromptForTokenCount;
-        var json = SerializeRequestJsonForTokenCount(systemPrompt, messages, truncatedToolCalls, []);
+
+        // Include compressed context in token count
+        var compressedContextTokens = 0;
+        if (!string.IsNullOrEmpty(conversation?.CompressedContext))
+        {
+            compressedContextTokens = tokenizer.CountTokens(conversation.CompressedContext);
+        }
+
+        var json = SerializeRequestJsonForTokenCount(systemPrompt, filteredMessages, truncatedToolCalls, []);
         var rawTokens = tokenizer.CountTokens(json);
-        var usedTokens = (int)Math.Ceiling(rawTokens * 1.05);
-        var contextWindow = agentBuilder.GetContextWindowTokens();
+        var usedTokens = (int)Math.Ceiling(rawTokens * 1.05) + compressedContextTokens;
+        var contextWindow = await agentBuilder.GetContextWindowTokensAsync(ct);
         if (contextWindow <= 0) return new ContextUsageEstimate(0, usedTokens, contextWindow);
         var ratio = Math.Min(1.0, usedTokens / (double)contextWindow);
         return new ContextUsageEstimate(Math.Round(ratio, 3), usedTokens, contextWindow);

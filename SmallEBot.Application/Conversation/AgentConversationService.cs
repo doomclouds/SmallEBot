@@ -9,8 +9,14 @@ public sealed class AgentConversationService(
     IConversationRepository repository,
     IAgentRunner agentRunner,
     ICommandConfirmationContext commandConfirmationContext,
-    IConversationTaskContext conversationTaskContext) : IAgentConversationService
+    IConversationTaskContext conversationTaskContext,
+    ICompressionService compressionService,
+    IToolResultMaxProvider toolResultMaxProvider) : IAgentConversationService
 {
+    public event Action<Guid>? CompressionStarted;
+    public event Action<Guid, bool>? CompressionCompleted;
+
+    private readonly HashSet<Guid> _compressingConversations = [];
     public Task<ConversationEntity> CreateConversationAsync(string userName, CancellationToken cancellationToken = default) =>
         repository.CreateAsync(userName, "New conversation", cancellationToken);
 
@@ -191,6 +197,67 @@ public sealed class AgentConversationService(
         finally
         {
             conversationTaskContext.SetConversationId(null);
+        }
+    }
+
+    public async Task<bool> CompactConversationAsync(Guid conversationId, CancellationToken ct = default)
+    {
+        if (_compressingConversations.Contains(conversationId))
+            return false;
+
+        _compressingConversations.Add(conversationId);
+        CompressionStarted?.Invoke(conversationId);
+
+        try
+        {
+            var conversation = await repository.GetByIdAsync(conversationId, "", ct);
+            if (conversation == null)
+            {
+                CompressionCompleted?.Invoke(conversationId, false);
+                return false;
+            }
+
+            var allMessages = await repository.GetMessagesForConversationAsync(conversationId, ct);
+            var toolCalls = await repository.GetToolCallsForConversationAsync(conversationId, ct);
+
+            var messagesToCompress = conversation.CompressedAt != null
+                ? allMessages.Where(m => m.CreatedAt <= conversation.CompressedAt.Value).ToList()
+                : allMessages;
+
+            var toolCallsToCompress = conversation.CompressedAt != null
+                ? toolCalls.Where(t => t.CreatedAt <= conversation.CompressedAt.Value).ToList()
+                : toolCalls;
+
+            if (messagesToCompress.Count == 0)
+            {
+                CompressionCompleted?.Invoke(conversationId, false);
+                return false;
+            }
+
+            var summary = await compressionService.GenerateSummaryAsync(
+                messagesToCompress,
+                toolCallsToCompress,
+                toolResultMaxProvider.GetToolResultMaxLength(),
+                ct);
+
+            if (string.IsNullOrWhiteSpace(summary))
+            {
+                CompressionCompleted?.Invoke(conversationId, false);
+                return false;
+            }
+
+            await repository.UpdateCompressionAsync(conversationId, summary, DateTime.UtcNow, ct);
+            CompressionCompleted?.Invoke(conversationId, true);
+            return true;
+        }
+        catch
+        {
+            CompressionCompleted?.Invoke(conversationId, false);
+            return false;
+        }
+        finally
+        {
+            _compressingConversations.Remove(conversationId);
         }
     }
 }

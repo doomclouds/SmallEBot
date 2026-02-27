@@ -19,6 +19,7 @@
 @inject IJSRuntime JS
 @inject ISnackbar Snackbar
 @inject ILogger<ChatArea> Log
+@inject ICompressionEventTrigger CompressionEventTrigger
 @implements IDisposable
 
 <MudPaper Class="pa-4 pb-1 smallebot-chat-paper" Elevation="0">
@@ -38,7 +39,9 @@
                         ShowWaitingForToolParams="@_showWaitingForToolParams"
                         WaitingElapsed="@(_showWaitingForToolParams && _waitingForToolParamsSince.HasValue ? DateTime.UtcNow - _waitingForToolParamsSince.Value : TimeSpan.Zero)"
                         WaitingInReasoning="@_waitingInReasoning"
-                        ShowToolCalls="@ShowToolCalls" />
+                        ShowToolCalls="@ShowToolCalls"
+                        IsCompressing="@_compressing"
+                        CompressionMessage="@_compressionMessage" />
     </div>
 
     <div class="mt-2">
@@ -87,7 +90,7 @@
     private bool _scrollToBottomRequested;
     private int _bubbleCountBeforeSend;
     private CancellationTokenSource? _sendCts;
-    private string _contextPercentText = "0%";
+    private string _contextPercentText = "—";
     private string? _contextUsageTooltip;
     private bool _popoverOpen;
     private string _popoverKind = "file";
@@ -99,6 +102,8 @@
     private readonly List<string> _requestedSkillIds = [];
     private DotNetObjectReference<ChatArea>? _dropZoneDotNetRef;
     private bool _justSelectedAttachment;
+    private bool _compressing;
+    private string _compressionMessage = "";
 
     private async Task HandleInputChanged(string v)
     {
@@ -572,6 +577,9 @@
                 _dropZoneDotNetRef?.Dispose();
                 _dropZoneDotNetRef = null;
             }
+            // Subscribe to compression events
+            CompressionEventTrigger.CompressionStarted += OnCompressionStarted;
+            CompressionEventTrigger.CompressionCompleted += OnCompressionCompleted;
         }
         if (_scrollToBottomRequested)
         {
@@ -653,9 +661,36 @@
         return lastUser?.Message.Content.Trim() == _pendingUserMessage.Trim();
     }
 
+    private void OnCompressionStarted(Guid conversationId)
+    {
+        if (conversationId != ConversationId) return;
+        _compressing = true;
+        _compressionMessage = "Compressing context...";
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void OnCompressionCompleted(Guid conversationId, bool success)
+    {
+        if (conversationId != ConversationId) return;
+        _compressing = false;
+        _compressionMessage = success ? "Context compressed" : "Compression failed";
+        // Clear message after a delay
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(2000);
+            _compressionMessage = "";
+            await InvokeAsync(StateHasChanged);
+        });
+        // Refresh context usage after compression
+        _contextRefreshRequested = true;
+        InvokeAsync(StateHasChanged);
+    }
+
     public void Dispose()
     {
         StopWaitingCheckTimer();
+        CompressionEventTrigger.CompressionStarted -= OnCompressionStarted;
+        CompressionEventTrigger.CompressionCompleted -= OnCompressionCompleted;
         try { _ = JS.InvokeVoidAsync("SmallEBot.detachDropZone", "smallebot-chat-drop-zone"); } catch { /* ignore */ }
         _dropZoneDotNetRef?.Dispose();
         _dropZoneDotNetRef = null;
