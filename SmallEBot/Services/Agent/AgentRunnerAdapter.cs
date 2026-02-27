@@ -17,7 +17,8 @@ public sealed class AgentRunnerAdapter(
     IConversationRepository conversationRepository,
     IAgentBuilder agentBuilder,
     ITurnContextFragmentBuilder fragmentBuilder,
-    IContextWindowManager contextWindowManager) : IAgentRunner
+    IContextWindowManager contextWindowManager,
+    IAgentConfigService agentConfig) : IAgentRunner
 {
     public async IAsyncEnumerable<StreamUpdate> RunStreamingAsync(
         Guid conversationId,
@@ -29,12 +30,26 @@ public sealed class AgentRunnerAdapter(
     {
         var agent = await agentBuilder.GetOrCreateAgentAsync(useThinking, cancellationToken);
         var history = await conversationRepository.GetMessagesForConversationAsync(conversationId, cancellationToken);
+        var toolCalls = await conversationRepository.GetToolCallsForConversationAsync(conversationId, cancellationToken);
+        var toolResultMaxLength = agentConfig.GetToolResultMaxLength();
+        var toolCallsByTurn = toolCalls
+            .Where(tc => tc.TurnId != null)
+            .GroupBy(tc => tc.TurnId!.Value)
+            .ToDictionary(g => g.Key, g => (IReadOnlyList<Core.Entities.ToolCall>)g.OrderBy(tc => tc.SortOrder).ToList());
         var maxInputTokens = (int)(agentBuilder.GetContextWindowTokens() * 0.8);
         var coreMessages = history.ToList();
         var trimResult = contextWindowManager.TrimToFit(coreMessages, maxInputTokens);
-        var frameworkMessages = trimResult.Messages
-            .Select(m => new ChatMessage(ToChatRole(m.Role), m.Content))
-            .ToList();
+        var frameworkMessages = new List<ChatMessage>();
+        foreach (var m in trimResult.Messages)
+        {
+            var content = m.Content ?? "";
+            // Append tool summaries to assistant messages
+            if (m.Role == "assistant" && m.TurnId != null && toolCallsByTurn.TryGetValue(m.TurnId.Value, out var turnToolCalls))
+            {
+                content += BuildToolSummary(turnToolCalls, toolResultMaxLength);
+            }
+            frameworkMessages.Add(new ChatMessage(ToChatRole(m.Role), content));
+        }
 
         var hasAttachments = (attachedPaths?.Count ?? 0) + (requestedSkillIds?.Count ?? 0) > 0;
         if (hasAttachments)
@@ -169,5 +184,58 @@ public sealed class AgentRunnerAdapter(
         {
             return value.ToString();
         }
+    }
+
+    private static string TruncateToolResult(string? result, int maxLength)
+    {
+        if (result == null) return "null";
+        if (result.Length <= maxLength) return result;
+        return result[..maxLength] + "... [truncated]";
+    }
+
+    /// <summary>Parses JSON arguments and formats as compact key=value pairs to save tokens.</summary>
+    private static string FormatArgumentsCompact(string? arguments)
+    {
+        if (string.IsNullOrWhiteSpace(arguments)) return "";
+        try
+        {
+            using var doc = JsonDocument.Parse(arguments);
+            var props = doc.RootElement.EnumerateObject()
+                .Select(p => $"{p.Name}={FormatValueCompact(p.Value)}")
+                .ToArray();
+            return string.Join(", ", props);
+        }
+        catch
+        {
+            // Fallback: just show first 50 chars
+            return arguments.Length <= 50 ? arguments : arguments[..50] + "...";
+        }
+    }
+
+    private static string FormatValueCompact(JsonElement value) => value.ValueKind switch
+    {
+        JsonValueKind.String => $"\"{value.GetString()}\"",
+        JsonValueKind.Number => value.ToString() ?? "",
+        JsonValueKind.True => "true",
+        JsonValueKind.False => "false",
+        JsonValueKind.Null => "null",
+        JsonValueKind.Array => $"[{value.GetArrayLength()} items]",
+        JsonValueKind.Object => "{...}",
+        _ => value.ToString() ?? ""
+    };
+
+    /// <summary>Builds compact tool summary: [Tool: Name(key=val, ...)] → result</summary>
+    private static string BuildToolSummary(IReadOnlyList<Core.Entities.ToolCall> toolCalls, int resultMaxLength)
+    {
+        if (toolCalls.Count == 0) return "";
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine();
+        foreach (var tc in toolCalls)
+        {
+            var args = FormatArgumentsCompact(tc.Arguments);
+            var result = TruncateToolResult(tc.Result, resultMaxLength);
+            sb.AppendLine($"[Tool: {tc.ToolName}({args})] → {result}");
+        }
+        return sb.ToString();
     }
 }
