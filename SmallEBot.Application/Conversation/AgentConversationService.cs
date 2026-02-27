@@ -212,7 +212,7 @@ public sealed class AgentConversationService(
 
         try
         {
-            var conversation = await repository.GetByIdAsync(conversationId, "", ct);
+            var conversation = await repository.GetByIdNoUserCheckAsync(conversationId, ct);
             if (conversation == null)
             {
                 CompressionCompleted?.Invoke(conversationId, false);
