@@ -10,7 +10,8 @@ public record ContextUsageEstimate(double Ratio, int UsedTokens, int ContextWind
 public class AgentCacheService(
     IConversationRepository conversationRepository,
     IAgentBuilder agentBuilder,
-    ITokenizer tokenizer) : IAsyncDisposable
+    ITokenizer tokenizer,
+    IAgentConfigService agentConfig) : IAsyncDisposable
 {
     private const string FallbackSystemPromptForTokenCount = "You are SmallEBot, a helpful personal assistant. Be concise and friendly. When the user asks for the current time or date, use the GetCurrentTime tool. Use any other available MCP tools when they help answer the user.";
 
@@ -20,10 +21,19 @@ public class AgentCacheService(
     public async Task<ContextUsageEstimate?> GetEstimatedContextUsageDetailAsync(Guid conversationId, CancellationToken ct = default)
     {
         var messages = await conversationRepository.GetMessagesForConversationAsync(conversationId, ct);
-        // var toolCalls = await conversationRepository.GetToolCallsForConversationAsync(conversationId, ct);
-        // var thinkBlocks = await conversationRepository.GetThinkBlocksForConversationAsync(conversationId, ct);
+        var toolCalls = await conversationRepository.GetToolCallsForConversationAsync(conversationId, ct);
+        var toolResultMaxLength = agentConfig.GetToolResultMaxLength();
+
+        // Truncate tool results to match what's actually sent to LLM
+        var truncatedToolCalls = toolCalls.Select(t => new ToolCallWithTruncatedResult
+        {
+            ToolName = t.ToolName ?? "",
+            Arguments = t.Arguments ?? "",
+            Result = TruncateToolResult(t.Result, toolResultMaxLength) ?? ""
+        }).ToList();
+
         var systemPrompt = agentBuilder.GetCachedSystemPromptForTokenCount() ?? FallbackSystemPromptForTokenCount;
-        var json = SerializeRequestJsonForTokenCount(systemPrompt, messages, [], []);
+        var json = SerializeRequestJsonForTokenCount(systemPrompt, messages, truncatedToolCalls, []);
         var rawTokens = tokenizer.CountTokens(json);
         var usedTokens = (int)Math.Ceiling(rawTokens * 1.05);
         var contextWindow = agentBuilder.GetContextWindowTokens();
@@ -46,10 +56,17 @@ public class AgentCacheService(
         return $"{k:F1}k";
     }
 
+    private static string? TruncateToolResult(string? result, int maxLength)
+    {
+        if (result == null) return null;
+        if (result.Length <= maxLength) return result;
+        return result[..maxLength] + "... [truncated]";
+    }
+
     private static string SerializeRequestJsonForTokenCount(
         string systemPrompt,
         List<Core.Entities.ChatMessage> messages,
-        List<Core.Entities.ToolCall> toolCalls,
+        List<ToolCallWithTruncatedResult> toolCalls,
         List<Core.Entities.ThinkBlock> thinkBlocks)
     {
         var payload = new RequestPayloadForTokenCount
@@ -113,5 +130,12 @@ public class AgentCacheService(
     {
         [JsonPropertyName("content")]
         public string Content { get; set; } = "";
+    }
+
+    private sealed class ToolCallWithTruncatedResult
+    {
+        public string ToolName { get; set; } = "";
+        public string Arguments { get; set; } = "";
+        public string Result { get; set; } = "";
     }
 }
