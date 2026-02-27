@@ -53,6 +53,8 @@ public sealed class AgentContextFactory(ISkillsConfigService skillsConfig, ITerm
             GetShellSection(),
             GetTaskListSection(),
             GetSkillsSection(),
+            GetConversationSection(),
+            GetSkillGenerationSection(),
             GetTempFilesSection(),
         ]);
 
@@ -189,6 +191,40 @@ public sealed class AgentContextFactory(ISkillsConfigService skillsConfig, ITerm
         - `{Tn.ReadSkill}(skillId)` → reads the skill's `SKILL.md`
         - `{Tn.ReadSkillFile}(skillId, relativePath)` → reads another file inside the skill folder (e.g. `references/guide.md`)
         - `{Tn.ListSkillFiles}(skillId, path?)` → lists contents of a skill folder
+        """;
+
+    private static string GetConversationSection() => $"""
+        # Conversation Analysis
+
+        Tools: `{Tn.ReadConversationData}`.
+
+        Use `{Tn.ReadConversationData}` to analyze the current conversation's execution history when:
+        - The user wants to create or improve a skill based on conversation patterns
+        - Understanding what tools and approaches worked well
+        - Identifying reusable patterns for skill generation
+
+        Returns timeline-sorted events including user messages, assistant responses, thinking blocks, and tool calls with results.
+        """;
+
+    private static string GetSkillGenerationSection() => $$"""
+        # Skill Generation
+
+        Tools: `{{Tn.GenerateSkill}}`.
+
+        Use `{{Tn.GenerateSkill}}` when the user wants to create a new skill based on analyzed patterns. Parameters:
+        - `skillId`: lowercase-hyphen format (e.g., 'my-weekly-report')
+        - `name`: display name
+        - `description`: what the skill does and when to use it (< 1024 chars)
+        - `instructions`: step-by-step guidance (markdown)
+        - `examples`: optional array of {filename, content}
+        - `references`: optional array of {filename, content}
+        - `scripts`: optional array of {filename, content}
+
+        **Workflow for skill creation:**
+        1. Call `{{Tn.ReadConversationData}}` to analyze patterns
+        2. Design skill structure based on successful patterns
+        3. Call `{{Tn.GenerateSkill}}` with complete skill definition
+        4. Confirm to user where skill was created
         """;
 
     private static string GetTempFilesSection() => $"""
