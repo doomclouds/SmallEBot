@@ -520,7 +520,10 @@ h1:focus {
     min-width: 2.5rem;
 }
 .tool-call-header-right .mud-typography-caption {
+    margin: 0;
     line-height: 1;
+    display: inline-flex;
+    align-items: center;
 }
 .waiting-tool-params-row {
     display: flex;
