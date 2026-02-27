@@ -12,7 +12,7 @@ A local AI assistant built with ASP.NET Core Blazor Server. **Runs locally on yo
 - **Thinking mode**: Toggle extended reasoning (e.g. DeepSeek Reasoner) via Anthropic thinking support. Reasoning is displayed in a collapsible panel, followed by the final text response.
 - **Model switching**: Switch between multiple configured models via the app bar dropdown.
 - **MCP tools**: Connect to Model Context Protocol servers for extended capabilities (filesystem, web search, databases, etc.).
-- **Skills**: File-based skills under workspace `.agents/vfs/sys.skills/` and `.agents/vfs/skills/` (read-only in workspace); create custom skills via app UI or add to `skills/` with YAML frontmatter.
+- **Skills**: File-based skills under workspace `.agents/vfs/sys.skills/` and `.agents/vfs/skills/` (read-only in workspace); create custom skills via app UI, add to `skills/` with YAML frontmatter, or generate new skills based on conversation patterns.
 - **Terminal**: Execute shell commands via `ExecuteCommand` tool. Configurable command blacklist. Optional command confirmation and whitelist.
 - **Workspace**: Agent file tools and ExecuteCommand scoped to `.agents/vfs/`. Browse files via the Workspace drawer (refreshes via FileSystemWatcher).
 - **Task list**: Assistant can manage a task list per conversation via tools; Task List drawer stays in sync.
@@ -243,6 +243,8 @@ The assistant can use the following tools:
 | `ListTasks` | View task list |
 | `CompleteTask(taskId)` | Mark task as done |
 | `ClearTasks` | Clear task list |
+| `ReadConversationData()` | Get timeline of current conversation (messages, tool calls, thinking) |
+| `GenerateSkill(...)` | Create new skill from analyzed patterns |
 
 ## Development Commands
 

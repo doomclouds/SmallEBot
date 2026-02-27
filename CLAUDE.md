@@ -83,6 +83,8 @@ Blazor UI → SignalR → ConversationService → IAgentConversationService
 | `ReadSkill/ReadSkillFile/ListSkillFiles` | Skill file access |
 | `ExecuteCommand` | Shell command execution (with optional confirmation) |
 | `SetTaskList/ListTasks/CompleteTask/ClearTasks` | Task list management |
+| `ReadConversationData()` | Timeline of current conversation (messages, tool calls, thinking) |
+| `GenerateSkill(...)` | Create new skill from analyzed patterns |
 
 ### Context Attachments
 

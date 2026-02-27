@@ -12,7 +12,7 @@
 - **思考模式**：支持 DeepSeek Reasoner 等推理模型的扩展思考功能。思考过程显示在可折叠面板中，随后显示最终文本回复
 - **模型切换**：通过应用栏下拉菜单在多个配置的模型之间切换
 - **MCP 工具**：连接 Model Context Protocol 服务器，扩展文件系统、网络搜索、数据库等能力
-- **技能系统**：基于文件的技能扩展，技能位于工作区 `.agents/vfs/sys.skills/` 与 `.agents/vfs/skills/`（工作区内只读）
+- **技能系统**：基于文件的技能扩展，技能位于工作区 `.agents/vfs/sys.skills/` 与 `.agents/vfs/skills/`（工作区内只读）；支持根据对话模式自动生成新技能
 - **终端执行**：通过 `ExecuteCommand` 工具执行 shell 命令，支持命令黑名单、确认机制和白名单
 - **工作区**：文件操作和命令执行限定在 `.agents/vfs/` 工作区，通过侧边栏浏览文件（支持 FileSystemWatcher 刷新）
 - **任务列表**：助手可通过工具维护当前对话的任务列表，侧边栏任务抽屉实时同步
@@ -243,6 +243,8 @@ dotnet user-secrets set "Anthropic:ApiKey" "your-api-key"
 | `ListTasks` | 查看任务列表 |
 | `CompleteTask(taskId)` | 标记任务完成 |
 | `ClearTasks` | 清空任务列表 |
+| `ReadConversationData()` | 获取当前对话的时间线（消息、工具调用、思考过程） |
+| `GenerateSkill(...)` | 根据分析的模式创建新技能 |
 
 ## 开发命令
 
