@@ -173,15 +173,19 @@ public sealed class AgentContextFactory(ISkillsConfigService skillsConfig, ITerm
         - **Always check `ExitCode` and `Stderr`.** Non-zero exit or non-empty `Stderr` requires investigation.
         """;
 
-    private static string GetTaskListSection() =>
-        "# Task List\n\n"
-        + "Tools: `" + Tn.ClearTasks + "`, `" + Tn.SetTaskList + "([{title, description?}, …])`, `" + Tn.ListTasks + "`, `" + Tn.CompleteTask + "(id)`, `" + Tn.CompleteTasks + "([id, …])`.\n\n"
-        + "Use for work with 3+ distinct steps.\n\n"
-        + "**Workflow:**\n"
-        + "1. `" + Tn.ClearTasks + "` → `" + Tn.SetTaskList + "` to lay out the plan\n"
-        + "2. Execute task(s) → call `" + Tn.CompleteTask + "(id)` immediately after each; or use `" + Tn.CompleteTasks + "([id1, id2, ...])` to mark multiple done at once\n"
-        + "3. Both return { nextTask, remaining } — use `nextTask.id` directly without calling `" + Tn.ListTasks + "` again\n"
-        + "4. Proceed to the next task immediately; do not pause unless the user asked you to";
+    private static string GetTaskListSection() => $$"""
+        # Task List
+
+        Tools: `{{Tn.ClearTasks}}`, `{{Tn.SetTaskList}}([{title, description?}, …])`, `{{Tn.ListTasks}}`, `{{Tn.CompleteTask}}(id)`, `{{Tn.CompleteTasks}}([id, …])`.
+
+        Use for work with 3+ distinct steps.
+
+        **Workflow:**
+        1. `{{Tn.ClearTasks}}` → `{{Tn.SetTaskList}}` to lay out the plan
+        2. Execute task(s) → call `{{Tn.CompleteTask}}(id)` immediately after each; or use `{{Tn.CompleteTasks}}([id1, id2, ...])` to mark multiple done at once
+        3. Both return { nextTask, remaining } — use `nextTask.id` directly without calling `{{Tn.ListTasks}}` again
+        4. Proceed to the next task immediately; do not pause unless the user asked you to
+        """;
 
     private static string GetSkillsSection() => $"""
         # Skills
