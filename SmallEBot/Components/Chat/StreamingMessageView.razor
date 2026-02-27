@@ -12,7 +12,7 @@
                 {
                     var toolCount = steps.Count(x => !x.IsThink);
                     var panelTitle = toolCount > 0 ? $"💭 Reasoning ({toolCount} tool calls)" : "💭 Reasoning";
-                    <MudExpansionPanels Class="mt-2" Elevation="0">
+                    <MudExpansionPanels Class="mt-2 smallebot-reasoning-panel" Elevation="0">
                         <MudExpansionPanel expanded="false" Text="@panelTitle">
                             <div class="d-flex flex-column gap-3">
                                 <ReasoningBlockView Steps="@steps" />

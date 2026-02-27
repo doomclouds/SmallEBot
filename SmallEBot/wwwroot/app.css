@@ -219,6 +219,30 @@ html, body {
     color: var(--seb-text-secondary);
 }
 
+/* Reasoning expansion panel - align header with content below */
+.smallebot-reasoning-panel {
+    margin-left: -16px;
+    margin-right: -16px;
+}
+.smallebot-reasoning-panel .mud-expansion-panel {
+    padding: 0;
+}
+.smallebot-reasoning-panel .mud-expansion-panel-header {
+    padding: 12px 16px;
+}
+.smallebot-reasoning-panel .mud-expansion-panel-content {
+    padding: 0 16px 12px 16px;
+}
+.smallebot-reasoning-panel .mud-expand-panel {
+    padding: 0;
+}
+.smallebot-reasoning-panel .mud-expand-panel .mud-expand-panel-header {
+    padding: 12px 16px;
+}
+.smallebot-reasoning-panel .mud-expand-panel .mud-expand-panel-content {
+    padding: 0 16px 12px 16px;
+}
+
 .smallebot-chat-paper .mud-chat-bubble .mud-typography-caption {
     color: var(--seb-text-secondary);
     font-family: var(--seb-font-ui);
