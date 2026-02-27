@@ -85,6 +85,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<MarkdownService>();
         services.AddScoped<KeyboardShortcutService>();
         services.AddScoped<ChatState>();
+        services.AddScoped<IContextUsageEstimator>(sp => sp.GetRequiredService<AgentCacheService>());
         services.AddScoped<ChatPresentationService>();
         services.AddSingleton<IContextWindowManager, ContextWindowManager>();
         services.AddSingleton<ITokenizer>(sp =>

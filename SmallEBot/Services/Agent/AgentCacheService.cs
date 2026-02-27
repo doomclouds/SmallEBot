@@ -1,17 +1,16 @@
 using System.Text.Json.Serialization;
+using SmallEBot.Application.Conversation;
+using SmallEBot.Core.Models;
 using SmallEBot.Core.Repositories;
 
 namespace SmallEBot.Services.Agent;
 
-/// <summary>Estimated context usage: ratio (0–1), used tokens, and context window size.</summary>
-public record ContextUsageEstimate(double Ratio, int UsedTokens, int ContextWindowTokens);
-
-/// <summary>Host service for agent cache invalidation and context usage estimation (UI).</summary>
+/// <summary>Host service for agent cache invalidation and context usage estimation (UI). Implements IContextUsageEstimator for compression threshold checking.</summary>
 public class AgentCacheService(
     IConversationRepository conversationRepository,
     IAgentBuilder agentBuilder,
     ITokenizer tokenizer,
-    IAgentConfigService agentConfig) : IAsyncDisposable
+    IAgentConfigService agentConfig) : IAsyncDisposable, IContextUsageEstimator
 {
     private const string FallbackSystemPromptForTokenCount = "You are SmallEBot, a helpful personal assistant. Be concise and friendly. When the user asks for the current time or date, use the GetCurrentTime tool. Use any other available MCP tools when they help answer the user.";
 

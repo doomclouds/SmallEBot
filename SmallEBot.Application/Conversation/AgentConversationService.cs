@@ -13,7 +13,7 @@ public sealed class AgentConversationService(
     ICompressionService compressionService,
     IToolResultMaxProvider toolResultMaxProvider,
     ICompressionThresholdProvider compressionThresholdProvider,
-    AgentCacheService agentCacheService) : IAgentConversationService
+    IContextUsageEstimator contextUsageEstimator) : IAgentConversationService
 {
     public event Action<Guid>? CompressionStarted;
     public event Action<Guid, bool>? CompressionCompleted;
@@ -266,8 +266,8 @@ public sealed class AgentConversationService(
     /// <summary>Check if context exceeds threshold and compress if needed. Call before streaming to show UI indicator.</summary>
     public async Task<bool> CheckAndCompactIfNeededAsync(Guid conversationId, CancellationToken ct = default)
     {
-        // Use AgentCacheService for accurate token estimation with tokenizer
-        var estimate = await agentCacheService.GetEstimatedContextUsageDetailAsync(conversationId, ct);
+        // Use IContextUsageEstimator for accurate token estimation with tokenizer
+        var estimate = await contextUsageEstimator.GetEstimatedContextUsageDetailAsync(conversationId, ct);
         if (estimate == null || estimate.ContextWindowTokens <= 0) return false;
 
         var threshold = compressionThresholdProvider.GetCompressionThreshold();
