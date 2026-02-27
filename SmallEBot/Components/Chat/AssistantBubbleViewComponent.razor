@@ -31,15 +31,19 @@
                         {
                             @if (!step.IsThink && !string.IsNullOrEmpty(step.Text))
                             {
-                                <MarkdownContentView Content="@step.Text" />
+                                <div class="smallebot-reasoning-step">
+                                    <MarkdownContentView Content="@step.Text" />
+                                </div>
                             }
                             else if (!step.IsThink && ShowToolCalls)
                             {
-                                <ToolCallView ToolName="@step.ToolName"
-                                              ToolArguments="@step.ToolArguments"
-                                              ToolResult="@step.ToolResult"
-                                              Phase="ToolCallPhase.Completed"
-                                              ShowToolCalls="@ShowToolCalls" />
+                                <div class="smallebot-reasoning-step">
+                                    <ToolCallView ToolName="@step.ToolName"
+                                                  ToolArguments="@step.ToolArguments"
+                                                  ToolResult="@step.ToolResult"
+                                                  Phase="ToolCallPhase.Completed"
+                                                  ShowToolCalls="@ShowToolCalls" />
+                                </div>
                             }
                         }
                     }

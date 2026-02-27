@@ -26,11 +26,13 @@
                 }
                 else if (item.IsText)
                 {
-                    <MarkdownContentView Content="@item.Text" />
+                    <div class="smallebot-reasoning-step">
+                        <MarkdownContentView Content="@item.Text" />
+                    </div>
                 }
                 else if (item.IsReplyTool && ShowToolCalls)
                 {
-                    <div class="tool-call-outer">
+                    <div class="smallebot-reasoning-step">
                         <ToolCallView ToolName="@item.ToolName"
                                       ToolArguments="@item.ToolArguments"
                                       ToolResult="@item.ToolResult"
