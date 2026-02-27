@@ -64,7 +64,7 @@ public sealed class AgentContextFactory(ISkillsConfigService skillsConfig, ITerm
     private static string GetPrinciplesSection() => $"""
         # Principles
 
-        - For multi-step tasks (3+ distinct steps): plan first with `{Tn.ClearTasks}` → `{Tn.SetTaskList}`, then execute step by step, marking each `{Tn.CompleteTask}` before starting the next. Skip the task list for simple single-step work.
+        - For multi-step tasks (3+ distinct steps): plan first with `{Tn.ClearTasks}` → `{Tn.SetTaskList}`, then execute step by step. Mark each task done immediately with `{Tn.CompleteTask}` or batch with `{Tn.CompleteTasks}`. Skip the task list for simple single-step work.
         - When the user says "continue" / "继续" / "接着" / "go on" / "next": call `{Tn.ListTasks}` first — if undone tasks exist, proceed immediately without asking.
         - Read efficiently: search before reading full files; use `startLine`/`endLine` for large files instead of reading everything.
         - Avoid re-reading files or re-running queries you already have results for in this turn.
@@ -173,12 +173,12 @@ public sealed class AgentContextFactory(ISkillsConfigService skillsConfig, ITerm
 
     private static string GetTaskListSection() =>
         "# Task List\n\n"
-        + "Tools: `" + Tn.ClearTasks + "`, `" + Tn.SetTaskList + "([{title, description?}, …])`, `" + Tn.ListTasks + "`, `" + Tn.CompleteTask + "(id)`.\n\n"
+        + "Tools: `" + Tn.ClearTasks + "`, `" + Tn.SetTaskList + "([{title, description?}, …])`, `" + Tn.ListTasks + "`, `" + Tn.CompleteTask + "(id)`, `" + Tn.CompleteTasks + "([id, …])`.\n\n"
         + "Use for work with 3+ distinct steps.\n\n"
         + "**Workflow:**\n"
         + "1. `" + Tn.ClearTasks + "` → `" + Tn.SetTaskList + "` to lay out the plan\n"
-        + "2. Execute a task → call `" + Tn.CompleteTask + "(id)` **immediately** when done; do not batch completions\n"
-        + "3. `" + Tn.CompleteTask + "` returns { ok, task, nextTask } — use `nextTask.id` directly without calling `" + Tn.ListTasks + "` again\n"
+        + "2. Execute task(s) → call `" + Tn.CompleteTask + "(id)` immediately after each; or use `" + Tn.CompleteTasks + "([id1, id2, ...])` to mark multiple done at once\n"
+        + "3. Both return { nextTask, remaining } — use `nextTask.id` directly without calling `" + Tn.ListTasks + "` again\n"
         + "4. Proceed to the next task immediately; do not pause unless the user asked you to";
 
     private static string GetSkillsSection() => $"""

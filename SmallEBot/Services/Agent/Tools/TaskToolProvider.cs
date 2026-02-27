@@ -26,6 +26,7 @@ public sealed class TaskToolProvider(
         yield return AIFunctionFactory.Create(ListTasks);
         yield return AIFunctionFactory.Create(SetTaskList);
         yield return AIFunctionFactory.Create(CompleteTask);
+        yield return AIFunctionFactory.Create(CompleteTasks);
         yield return AIFunctionFactory.Create(ClearTasks);
     }
 
@@ -81,12 +82,60 @@ public sealed class TaskToolProvider(
         var data = taskCache.GetOrLoad(conversationId.Value);
         var task = data.Tasks.FirstOrDefault(t => string.Equals(t.Id, taskId, StringComparison.Ordinal));
         if (task == null)
-            return JsonSerializer.Serialize(new { ok = false, error = "Task not found" });
+            return JsonSerializer.Serialize(new { ok = false, error = "Task not found" }, JsonOptions);
         task.Done = true;
         taskCache.Update(conversationId.Value, data);
         var nextTask = data.Tasks.FirstOrDefault(t => !t.Done);
         var remaining = data.Tasks.Count(t => !t.Done);
         return JsonSerializer.Serialize(new { ok = true, task, nextTask, remaining }, JsonOptions);
+    }
+
+    [Description("Mark multiple tasks as done by their ids. Pass taskIds: a JSON array of task id strings. Example: [\"abc123\",\"def456\"]. Returns { \"ok\": true, \"completed\": [ { ... }, ... ], \"failed\": [ { \"id\", \"error\" }, ... ], \"nextTask\": { ... } | null, \"remaining\": N }. Use this instead of calling CompleteTask multiple times when marking several tasks done at once.")]
+    private string CompleteTasks(string taskIdsJson)
+    {
+        var conversationId = taskContext.GetConversationId();
+        if (conversationId == null)
+            return "Error: Task list is not available (no conversation context).";
+        List<string>? ids;
+        try
+        {
+            ids = JsonSerializer.Deserialize<List<string>>(taskIdsJson, JsonOptions);
+        }
+        catch
+        {
+            return "Error: Invalid JSON. Pass an array of task id strings, e.g. [\"id1\",\"id2\"].";
+        }
+        if (ids == null || ids.Count == 0)
+            return "Error: taskIdsJson must be a non-empty array of task id strings.";
+
+        var data = taskCache.GetOrLoad(conversationId.Value);
+        var completed = new List<TaskItem>();
+        var failed = new List<object>();
+
+        foreach (var id in ids)
+        {
+            var task = data.Tasks.FirstOrDefault(t => string.Equals(t.Id, id, StringComparison.Ordinal));
+            if (task == null)
+            {
+                failed.Add(new { id, error = "Task not found" });
+            }
+            else if (task.Done)
+            {
+                failed.Add(new { id, error = "Task already done" });
+            }
+            else
+            {
+                task.Done = true;
+                completed.Add(task);
+            }
+        }
+
+        if (completed.Count > 0)
+            taskCache.Update(conversationId.Value, data);
+
+        var nextTask = data.Tasks.FirstOrDefault(t => !t.Done);
+        var remaining = data.Tasks.Count(t => !t.Done);
+        return JsonSerializer.Serialize(new { ok = true, completed, failed, nextTask, remaining }, JsonOptions);
     }
 
     [Description("Clear all tasks for the current conversation. Call this before SetTaskList when starting a new task breakdown to remove old tasks. Returns { \"ok\": true }.")]

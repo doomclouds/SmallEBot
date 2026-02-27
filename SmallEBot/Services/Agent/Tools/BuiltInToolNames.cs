@@ -28,10 +28,11 @@ internal static class BuiltInToolNames
     public const string GetCurrentTime = nameof(GetCurrentTime);
 
     // Task management (TaskToolProvider)
-    public const string ClearTasks   = nameof(ClearTasks);
-    public const string SetTaskList  = nameof(SetTaskList);
-    public const string ListTasks    = nameof(ListTasks);
-    public const string CompleteTask = nameof(CompleteTask);
+    public const string ClearTasks    = nameof(ClearTasks);
+    public const string SetTaskList   = nameof(SetTaskList);
+    public const string ListTasks     = nameof(ListTasks);
+    public const string CompleteTask  = nameof(CompleteTask);
+    public const string CompleteTasks = nameof(CompleteTasks);
 
     // Skills (SkillToolProvider)
     public const string ReadSkill      = nameof(ReadSkill);
