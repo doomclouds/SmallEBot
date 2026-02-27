@@ -110,4 +110,7 @@ public interface IAgentConversationService
 
     /// <summary>Manually trigger compression for a conversation.</summary>
     Task<bool> CompactConversationAsync(Guid conversationId, CancellationToken ct = default);
+
+    /// <summary>Check if compression is needed and compress if threshold exceeded. Call before streaming to ensure context is ready. Returns true if compression was performed.</summary>
+    Task<bool> CheckAndCompactIfNeededAsync(Guid conversationId, CancellationToken ct = default);
 }

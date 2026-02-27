@@ -69,11 +69,11 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<AgentConfigService>();
         services.AddSingleton<IAgentConfigService>(sp => sp.GetRequiredService<AgentConfigService>());
         services.AddSingleton<IToolResultMaxProvider>(sp => sp.GetRequiredService<AgentConfigService>());
+        services.AddSingleton<ICompressionThresholdProvider>(sp => sp.GetRequiredService<AgentConfigService>());
         services.AddScoped<ICompressionService, CompressionService>();
         services.AddScoped<CompressionToolProvider>();
         services.AddSingleton<IMcpConnectionManager, McpConnectionManager>();
         services.AddScoped<IAgentBuilder, AgentBuilder>();
-        services.AddSingleton<ICompressionEventTrigger, CompressionEventTrigger>();
         services.AddScoped<IAgentConversationService, AgentConversationService>();
         services.AddScoped<IAgentRunner, AgentRunnerAdapter>();
         services.AddScoped<ITurnContextFragmentBuilder, TurnContextFragmentBuilder>();

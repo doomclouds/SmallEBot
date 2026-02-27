@@ -11,7 +11,8 @@ public sealed class AgentConversationService(
     ICommandConfirmationContext commandConfirmationContext,
     IConversationTaskContext conversationTaskContext,
     ICompressionService compressionService,
-    IToolResultMaxProvider toolResultMaxProvider) : IAgentConversationService
+    IToolResultMaxProvider toolResultMaxProvider,
+    ICompressionThresholdProvider compressionThresholdProvider) : IAgentConversationService
 {
     public event Action<Guid>? CompressionStarted;
     public event Action<Guid, bool>? CompressionCompleted;
@@ -259,5 +260,49 @@ public sealed class AgentConversationService(
         {
             _compressingConversations.Remove(conversationId);
         }
+    }
+
+    /// <summary>Check if context exceeds threshold and compress if needed. Call before streaming to show UI indicator.</summary>
+    public async Task<bool> CheckAndCompactIfNeededAsync(Guid conversationId, CancellationToken ct = default)
+    {
+        var conversation = await repository.GetByIdAsync(conversationId, "", ct);
+        if (conversation == null) return false;
+
+        var allMessages = await repository.GetMessagesForConversationAsync(conversationId, ct);
+        var toolCalls = await repository.GetToolCallsForConversationAsync(conversationId, ct);
+
+        // Filter by CompressedAt
+        var filteredMessages = conversation.CompressedAt != null
+            ? allMessages.Where(m => m.CreatedAt > conversation.CompressedAt.Value).ToList()
+            : allMessages;
+
+        var filteredToolCalls = conversation.CompressedAt != null
+            ? toolCalls.Where(t => t.CreatedAt > conversation.CompressedAt.Value).ToList()
+            : toolCalls;
+
+        // Rough token estimation (~4 chars per token)
+        var messageTokens = filteredMessages.Sum(m => (m.Content ?? "").Length / 4 + 4);
+        var toolCallTokens = filteredToolCalls.Sum(t =>
+            (t.ToolName ?? "").Length / 4 +
+            (t.Arguments ?? "").Length / 4 +
+            Math.Min((t.Result ?? "").Length / 4, toolResultMaxProvider.GetToolResultMaxLength() / 4));
+
+        var compressedContextTokens = conversation.CompressedContext != null
+            ? conversation.CompressedContext.Length / 4
+            : 0;
+
+        var usedTokens = messageTokens + toolCallTokens + compressedContextTokens + 2000; // Add buffer for system prompt
+        var threshold = compressionThresholdProvider.GetCompressionThreshold();
+
+        // Check if we need to compress (rough estimation, use 100k as default context window for check)
+        // Actual check happens in AgentRunnerAdapter with real context window
+        var estimatedRatio = usedTokens / 100000.0;
+
+        if (estimatedRatio >= threshold)
+        {
+            return await CompactConversationAsync(conversationId, ct);
+        }
+
+        return false;
     }
 }

@@ -19,7 +19,6 @@
 @inject IJSRuntime JS
 @inject ISnackbar Snackbar
 @inject ILogger<ChatArea> Log
-@inject ICompressionEventTrigger CompressionEventTrigger
 @implements IDisposable
 
 <MudPaper Class="pa-4 pb-1 smallebot-chat-paper" Elevation="0">
@@ -323,9 +322,45 @@
     {
         if (string.IsNullOrWhiteSpace(_input) || !ConversationId.HasValue) return;
         // Guard and capture synchronously before any await to prevent double submit (e.g. double-click or Enter+click).
-        if (_streaming) return;
+        if (_streaming || _compressing) return;
         var msg = _input.Trim();
         _input = "";
+
+        await OnBeforeSend.InvokeAsync();
+
+        var userName = await UserNameSvc.GetAsync() ?? UserName;
+        if (string.IsNullOrWhiteSpace(userName))
+        {
+            Snackbar.Add("Username is missing. Please refresh and enter your name.", Severity.Warning);
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        // Check and compress context if needed BEFORE creating turn
+        _compressing = true;
+        _compressionMessage = "Checking context...";
+        StateHasChanged();
+
+        try
+        {
+            var compressed = await ConversationPipeline.CheckAndCompactIfNeededAsync(ConversationId!.Value);
+            if (compressed)
+            {
+                // Compression happened, refresh context display
+                _contextRefreshRequested = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.LogWarning(ex, "Failed to check/compress context");
+        }
+        finally
+        {
+            _compressing = false;
+            _compressionMessage = "";
+        }
+
+        // Now proceed with sending the message
         _pendingUserMessage = msg;
         _pendingUserMessageTime = DateTime.UtcNow;
         _bubbleCountBeforeSend = Bubbles.Count;
@@ -339,20 +374,6 @@
         _scrollToBottomRequested = true;
         StartWaitingCheckTimer();
         StateHasChanged();
-
-        await OnBeforeSend.InvokeAsync();
-
-        var userName = await UserNameSvc.GetAsync() ?? UserName;
-        if (string.IsNullOrWhiteSpace(userName))
-        {
-            Snackbar.Add("Username is missing. Please refresh and enter your name.", Severity.Warning);
-            _pendingUserMessage = "";
-            _streaming = false;
-            _sendCts?.Dispose();
-            _sendCts = null;
-            await InvokeAsync(StateHasChanged);
-            return;
-        }
 
         var attachedPaths = _attachmentItems.OfType<ResolvedPathAttachment>().Select(x => x.Path).ToList();
         _attachmentItems.RemoveAll(x => x is ResolvedPathAttachment);
@@ -577,9 +598,9 @@
                 _dropZoneDotNetRef?.Dispose();
                 _dropZoneDotNetRef = null;
             }
-            // Subscribe to compression events
-            CompressionEventTrigger.CompressionStarted += OnCompressionStarted;
-            CompressionEventTrigger.CompressionCompleted += OnCompressionCompleted;
+            // Subscribe to compression events from ConversationPipeline
+            ConversationPipeline.CompressionStarted += OnCompressionStarted;
+            ConversationPipeline.CompressionCompleted += OnCompressionCompleted;
         }
         if (_scrollToBottomRequested)
         {
@@ -689,8 +710,8 @@
     public void Dispose()
     {
         StopWaitingCheckTimer();
-        CompressionEventTrigger.CompressionStarted -= OnCompressionStarted;
-        CompressionEventTrigger.CompressionCompleted -= OnCompressionCompleted;
+        ConversationPipeline.CompressionStarted -= OnCompressionStarted;
+        ConversationPipeline.CompressionCompleted -= OnCompressionCompleted;
         try { _ = JS.InvokeVoidAsync("SmallEBot.detachDropZone", "smallebot-chat-drop-zone"); } catch { /* ignore */ }
         _dropZoneDotNetRef?.Dispose();
         _dropZoneDotNetRef = null;
