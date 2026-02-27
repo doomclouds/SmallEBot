@@ -60,6 +60,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IToolProvider, ShellToolProvider>();
         services.AddSingleton<IToolProvider, TaskToolProvider>();
         services.AddSingleton<IToolProvider, SkillToolProvider>();
+        services.AddSingleton<IToolProvider, ConversationToolProvider>();
+        services.AddSingleton<IToolProvider, SkillGenerationToolProvider>();
         services.AddSingleton<IToolProviderAggregator, ToolProviderAggregator>();
         services.AddSingleton<ITaskListCache, TaskListCache>();
         services.AddSingleton<ITaskListWatcher, TaskListWatcher>();
