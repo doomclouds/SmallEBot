@@ -10,9 +10,9 @@ namespace SmallEBot.Services.Agent.Tools;
 /// <summary>Provides conversation data reading tools.</summary>
 public sealed class ConversationToolProvider(
     IConversationTaskContext taskContext,
-    IConversationRepository repository) : IToolProvider
+    IConversationRepository repository,
+    IAgentConfigService agentConfig) : IToolProvider
 {
-    private const int MaxResultLength = 500;
 
     public string Name => "Conversation";
     public bool IsEnabled => true;
@@ -102,10 +102,11 @@ public sealed class ConversationToolProvider(
         });
     }
 
-    private static string? TruncateResult(string? result)
+    private string? TruncateResult(string? result)
     {
         if (result == null) return null;
-        if (result.Length <= MaxResultLength) return result;
-        return result[..MaxResultLength] + "... [truncated]";
+        var maxLength = agentConfig.GetToolResultMaxLength();
+        if (result.Length <= maxLength) return result;
+        return result[..maxLength] + "... [truncated]";
     }
 }
