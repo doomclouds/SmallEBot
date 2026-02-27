@@ -67,6 +67,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ITaskListWatcher, TaskListWatcher>();
         services.AddSingleton<IModelConfigService, ModelConfigService>();
         services.AddSingleton<IAgentConfigService, AgentConfigService>();
+        services.AddScoped<ICompressionService, CompressionService>();
         services.AddSingleton<IMcpConnectionManager, McpConnectionManager>();
         services.AddScoped<IAgentBuilder, AgentBuilder>();
         services.AddScoped<IAgentConversationService, AgentConversationService>();
