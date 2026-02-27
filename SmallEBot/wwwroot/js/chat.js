@@ -68,6 +68,8 @@ window.SmallEBot.attachChatInputSend = function (wrapperId, dotNetRef) {
     if (!input) return;
     input.addEventListener('keydown', function (e) {
         if (e.key === 'Enter' && !e.shiftKey) {
+            // If suggestion popover is open (has active key handler), don't send - let it handle navigation/selection
+            if (_suggestionKeyHandler) return;
             e.preventDefault();
             dotNetRef.invokeMethodAsync('InvokeSend');
         }

@@ -6,8 +6,12 @@ using SmallEBot.Models;
 
 namespace SmallEBot.Components.Chat;
 
-public partial class ChatInputArea
+public partial class ChatInputArea : IDisposable
 {
+    private const string InputWrapperId = "smallebot-chat-input-wrap";
+
+    [Inject] private IJSRuntime JS { get; set; } = null!;
+
     [Parameter] public string InputText { get; set; } = "";
     [Parameter] public EventCallback<string> InputTextChanged { get; set; }
     [Parameter] public bool IsStreaming { get; set; }
@@ -30,9 +34,47 @@ public partial class ChatInputArea
     [Parameter] public EventCallback<string> InputTextWithPopover { get; set; }
 
     private AttachmentPopover? _popoverRef;
+    private DotNetObjectReference<ChatInputArea>? _suggestionKeysDotNetRef;
+    private bool _suggestionKeysAttached;
+    private bool _prevPopoverOpen;
 
     private bool IsInputDisabled => string.IsNullOrWhiteSpace(InputText) ||
                                     Attachments.OfType<PendingUploadAttachment>().Any();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Attach/detach suggestion key handler when popover state changes
+        if (PopoverOpen != _prevPopoverOpen)
+        {
+            _prevPopoverOpen = PopoverOpen;
+            if (PopoverOpen && !_suggestionKeysAttached)
+            {
+                _suggestionKeysAttached = true;
+                _suggestionKeysDotNetRef = DotNetObjectReference.Create(this);
+                try
+                {
+                    await JS.InvokeVoidAsync("SmallEBot.attachChatInputSuggestionKeys", InputWrapperId, _suggestionKeysDotNetRef);
+                }
+                catch
+                {
+                    _suggestionKeysAttached = false;
+                    _suggestionKeysDotNetRef?.Dispose();
+                    _suggestionKeysDotNetRef = null;
+                }
+            }
+            else if (!PopoverOpen && _suggestionKeysAttached)
+            {
+                try
+                {
+                    await JS.InvokeVoidAsync("SmallEBot.detachChatInputSuggestionKeys", InputWrapperId);
+                }
+                catch { /* ignore */ }
+                _suggestionKeysAttached = false;
+                _suggestionKeysDotNetRef?.Dispose();
+                _suggestionKeysDotNetRef = null;
+            }
+        }
+    }
 
     private async Task OnInputTextChanged(string value)
     {
@@ -70,5 +112,10 @@ public partial class ChatInputArea
         {
             await _popoverRef.HandleKeyFromInputAsync(e.Key);
         }
+    }
+
+    public void Dispose()
+    {
+        _suggestionKeysDotNetRef?.Dispose();
     }
 }
