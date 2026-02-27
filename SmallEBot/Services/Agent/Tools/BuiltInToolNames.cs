@@ -38,4 +38,10 @@ internal static class BuiltInToolNames
     public const string ReadSkill      = nameof(ReadSkill);
     public const string ReadSkillFile  = nameof(ReadSkillFile);
     public const string ListSkillFiles = nameof(ListSkillFiles);
+
+    // Conversation analysis (ConversationToolProvider)
+    public const string ReadConversationData = nameof(ReadConversationData);
+
+    // Skill generation (SkillGenerationToolProvider)
+    public const string GenerateSkill = nameof(GenerateSkill);
 }
