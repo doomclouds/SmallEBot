@@ -376,6 +376,7 @@
         _sendCts = new CancellationTokenSource();
         _scrollToBottomRequested = true;
         StartWaitingCheckTimer();
+        RefreshBubbleViews(); // Create pending user bubble immediately
         StateHasChanged();
 
         var attachedPaths = _attachmentItems.OfType<ResolvedPathAttachment>().Select(x => x.Path).ToList();
