@@ -9,6 +9,10 @@ public sealed class AgentConfigService : IAgentConfigService
     private const int MinToolResultMaxLength = 100;
     private const int MaxToolResultMaxLength = 10000;
 
+    private const double DefaultCompressionThreshold = 0.8;
+    private const double MinCompressionThreshold = 0.5;
+    private const double MaxCompressionThreshold = 0.95;
+
     private static readonly JsonSerializerOptions ReadOptions = new()
     {
         PropertyNameCaseInsensitive = true
@@ -60,8 +64,47 @@ public sealed class AgentConfigService : IAgentConfigService
         }
     }
 
+    public double GetCompressionThreshold()
+    {
+        if (!File.Exists(_filePath))
+            return DefaultCompressionThreshold;
+        try
+        {
+            var json = File.ReadAllText(_filePath);
+            var data = JsonSerializer.Deserialize<AgentConfigFile>(json, ReadOptions);
+            var raw = data?.CompressionThreshold ?? 0;
+            return raw >= MinCompressionThreshold
+                ? Math.Clamp(raw, MinCompressionThreshold, MaxCompressionThreshold)
+                : DefaultCompressionThreshold;
+        }
+        catch
+        {
+            return DefaultCompressionThreshold;
+        }
+    }
+
+    public async Task<double> GetCompressionThresholdAsync(CancellationToken ct = default)
+    {
+        if (!File.Exists(_filePath))
+            return DefaultCompressionThreshold;
+        try
+        {
+            var json = await File.ReadAllTextAsync(_filePath, ct);
+            var data = JsonSerializer.Deserialize<AgentConfigFile>(json, ReadOptions);
+            var raw = data?.CompressionThreshold ?? 0;
+            return raw >= MinCompressionThreshold
+                ? Math.Clamp(raw, MinCompressionThreshold, MaxCompressionThreshold)
+                : DefaultCompressionThreshold;
+        }
+        catch
+        {
+            return DefaultCompressionThreshold;
+        }
+    }
+
     private sealed class AgentConfigFile
     {
         public int ToolResultMaxLength { get; set; } = DefaultToolResultMaxLength;
+        public double CompressionThreshold { get; set; } = DefaultCompressionThreshold;
     }
 }
