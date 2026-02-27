@@ -524,6 +524,7 @@ h1:focus {
     line-height: 1;
     display: inline-flex;
     align-items: center;
+    transform: translateY(1px);
 }
 .waiting-tool-params-row {
     display: flex;
