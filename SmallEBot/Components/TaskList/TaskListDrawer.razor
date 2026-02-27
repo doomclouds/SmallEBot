@@ -1,7 +1,7 @@
 @implements IDisposable
 @inject ICurrentConversationService CurrentConversation
 @inject ITaskListService TaskListService
-@inject ITaskListWatcher TaskListWatcher
+@inject ITaskListCache TaskListCache
 
 <div class="task-list-drawer">
     <div class="task-list-drawer-header">
@@ -95,14 +95,12 @@
 
     private void SubscribeToChanges()
     {
-        TaskListWatcher.OnChange += HandleChange;
-        TaskListWatcher.Start();
+        TaskListCache.OnChange += HandleChange;
     }
 
     private void UnsubscribeFromChanges()
     {
-        TaskListWatcher.OnChange -= HandleChange;
-        TaskListWatcher.Stop();
+        TaskListCache.OnChange -= HandleChange;
     }
 
     private async void HandleChange(TaskListChangeEvent e)

@@ -10,6 +10,9 @@ public interface ITaskListCache
     TaskListData GetOrLoad(Guid conversationId);
     void Update(Guid conversationId, TaskListData data);
     void Remove(Guid conversationId);
+
+    /// <summary>Fired when a task list file changes (after disk write).</summary>
+    event Action<TaskListChangeEvent>? OnChange;
 }
 
 public sealed class TaskListCache : ITaskListCache, IDisposable
@@ -22,6 +25,9 @@ public sealed class TaskListCache : ITaskListCache, IDisposable
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         WriteIndented = true
     };
+
+    /// <summary>Fired when a task list file changes (after disk write).</summary>
+    public event Action<TaskListChangeEvent>? OnChange;
 
     public TaskListCache()
     {
@@ -61,7 +67,7 @@ public sealed class TaskListCache : ITaskListCache, IDisposable
         if (File.Exists(path)) File.Delete(path);
     }
 
-    /// <summary>Flush a single conversation to disk immediately (so TaskListWatcher + drawer see the change).</summary>
+    /// <summary>Flush a single conversation to disk immediately (so drawer sees the change).</summary>
     private void FlushOne(Guid conversationId)
     {
         if (!_cache.TryGetValue(conversationId, out var data)) return;
@@ -73,6 +79,9 @@ public sealed class TaskListCache : ITaskListCache, IDisposable
             var json = JsonSerializer.Serialize(data, JsonOptions);
             File.WriteAllText(path, json);
             _dirty.TryRemove(conversationId, out _);
+
+            // Fire OnChange event immediately after write - this is the UI to update immediately
+            OnChange?.Invoke(new TaskListChangeEvent(WatcherChangeTypes.Changed, GetFileName(conversationId)));
         }
         catch
         {
@@ -104,6 +113,8 @@ public sealed class TaskListCache : ITaskListCache, IDisposable
 
     private static string GetPath(Guid id) =>
         Path.Combine(AppDomain.CurrentDomain.BaseDirectory, ".agents", "tasks", $"{id:N}.json");
+
+    private static string GetFileName(Guid id) => $"{id:N}.json";
 
     public void Dispose()
     {
