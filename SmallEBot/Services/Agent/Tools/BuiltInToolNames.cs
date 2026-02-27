@@ -44,4 +44,7 @@ internal static class BuiltInToolNames
 
     // Skill generation (SkillGenerationToolProvider)
     public const string GenerateSkill = nameof(GenerateSkill);
+
+    // Context compression (CompressionToolProvider)
+    public const string CompactContext = nameof(CompactContext);
 }
