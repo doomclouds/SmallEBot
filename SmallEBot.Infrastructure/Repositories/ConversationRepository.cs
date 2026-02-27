@@ -341,4 +341,16 @@ public class ConversationRepository(SmallEBotDbContext db) : IConversationReposi
         await db.SaveChangesAsync(ct);
         return (turn.Id, userMsg.Content, turn.IsThinkingMode, userMsg.AttachedPaths, userMsg.RequestedSkillIds);
     }
+
+    public async Task UpdateCompressionAsync(Guid conversationId, string? compressedContext, DateTime? compressedAt, CancellationToken ct = default)
+    {
+        var conv = await db.Conversations.FirstOrDefaultAsync(x => x.Id == conversationId, ct);
+        if (conv == null) return;
+
+        conv.CompressedContext = compressedContext;
+        conv.CompressedAt = compressedAt;
+        conv.UpdatedAt = DateTime.UtcNow;
+
+        await db.SaveChangesAsync(ct);
+    }
 }
