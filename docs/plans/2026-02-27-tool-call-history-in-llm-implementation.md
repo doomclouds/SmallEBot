@@ -248,29 +248,59 @@ public sealed class AgentRunnerAdapter(
     IAgentConfigService agentConfig) : IAgentRunner
 ```
 
-**Step 2: Add helper method for building tool summaries**
+**Step 2: Add helper methods for building tool summaries**
 
-Add this method after `ToJsonString`:
+Add these methods after `ToJsonString`:
 ```csharp
-private string? TruncateToolResult(string? result, int maxLength)
+private static string TruncateToolResult(string? result, int maxLength)
 {
-    if (result == null) return null;
+    if (result == null) return "null";
     if (result.Length <= maxLength) return result;
     return result[..maxLength] + "... [truncated]";
 }
 
-private static string BuildToolSummary(IReadOnlyList<Core.Entities.ToolCall> toolCalls, int maxLength)
+/// <summary>Parses JSON arguments and formats as compact key=value pairs to save tokens.</summary>
+private static string FormatArgumentsCompact(string? arguments)
+{
+    if (string.IsNullOrWhiteSpace(arguments)) return "";
+    try
+    {
+        using var doc = JsonDocument.Parse(arguments);
+        var props = doc.RootElement.EnumerateObject()
+            .Select(p => $"{p.Name}={FormatValueCompact(p.Value)}")
+            .ToArray();
+        return string.Join(", ", props);
+    }
+    catch
+    {
+        // Fallback: just show first 50 chars
+        return arguments.Length <= 50 ? arguments : arguments[..50] + "...";
+    }
+}
+
+private static string FormatValueCompact(JsonElement value) => value.ValueKind switch
+{
+    JsonValueKind.String => $"\"{value.GetString()}\"",
+    JsonValueKind.Number => value.ToString() ?? "",
+    JsonValueKind.True => "true",
+    JsonValueKind.False => "false",
+    JsonValueKind.Null => "null",
+    JsonValueKind.Array => $"[{value.GetArrayLength()} items]",
+    JsonValueKind.Object => "{...}",
+    _ => value.ToString() ?? ""
+};
+
+/// <summary>Builds compact tool summary: [Tool: Name(key=val, ...)] → result</summary>
+private static string BuildToolSummary(IReadOnlyList<Core.Entities.ToolCall> toolCalls, int resultMaxLength)
 {
     if (toolCalls.Count == 0) return "";
     var sb = new System.Text.StringBuilder();
     sb.AppendLine();
-    sb.AppendLine();
     foreach (var tc in toolCalls)
     {
-        var truncatedResult = tc.Result == null
-            ? "null"
-            : (tc.Result.Length <= maxLength ? tc.Result : tc.Result[..maxLength] + "... [truncated]");
-        sb.AppendLine($"\n[Tool: {tc.ToolName}({tc.Arguments})] → {truncatedResult}");
+        var args = FormatArgumentsCompact(tc.Arguments);
+        var result = TruncateToolResult(tc.Result, resultMaxLength);
+        sb.AppendLine($"[Tool: {tc.ToolName}({args})] → {result}");
     }
     return sb.ToString();
 }
