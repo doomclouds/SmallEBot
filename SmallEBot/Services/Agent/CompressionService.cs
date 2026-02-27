@@ -2,7 +2,6 @@ using System.Text;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using SmallEBot.Application.Conversation;
-using SmallEBot.Core.Entities;
 
 // Aliases to avoid ambiguity between Microsoft.Extensions.AI and SmallEBot.Core.Entities
 using AIChatMessage = Microsoft.Extensions.AI.ChatMessage;
@@ -17,40 +16,40 @@ public sealed class CompressionService : ICompressionService
     private readonly IAgentBuilder _agentBuilder;
 
     private const string CompactPrompt = """
-You are compressing conversation history to save context space.
+                                         You are compressing conversation history to save context space.
 
-## Input
-You will receive conversation messages (user + assistant + tool calls).
+                                         ## Input
+                                         You will receive conversation messages (user + assistant + tool calls).
 
-## Task
-Generate a structured summary preserving:
+                                         ## Task
+                                         Generate a structured summary preserving:
 
-1. **Key Decisions**: Important choices made and why
-2. **Files Modified**: Paths and what changed (briefly)
-3. **Current State**: What's been accomplished, what's pending
-4. **Important Context**: Names, values, configurations that matter
+                                         1. **Key Decisions**: Important choices made and why
+                                         2. **Files Modified**: Paths and what changed (briefly)
+                                         3. **Current State**: What's been accomplished, what's pending
+                                         4. **Important Context**: Names, values, configurations that matter
 
-## Format
-Use this compact format:
+                                         ## Format
+                                         Use this compact format:
 
-## Summary
-[1-2 sentences overview]
+                                         ## Summary
+                                         [1-2 sentences overview]
 
-## Decisions
-- [decision]: [reasoning]
+                                         ## Decisions
+                                         - [decision]: [reasoning]
 
-## Files
-- path/to/file: [change summary]
+                                         ## Files
+                                         - path/to/file: [change summary]
 
-## State
-- Done: [items]
-- Pending: [items]
+                                         ## State
+                                         - Done: [items]
+                                         - Pending: [items]
 
-## Context
-- [key=value pairs or important notes]
+                                         ## Context
+                                         - [key=value pairs or important notes]
 
-Keep total output under 500 tokens. Focus on what's needed to continue the work.
-""";
+                                         Keep total output under 500 tokens. Focus on what's needed to continue the work.
+                                         """;
 
     public CompressionService(IAgentBuilder agentBuilder)
     {

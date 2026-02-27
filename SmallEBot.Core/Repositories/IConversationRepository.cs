@@ -6,6 +6,8 @@ namespace SmallEBot.Core.Repositories;
 public interface IConversationRepository
 {
     Task<Conversation?> GetByIdAsync(Guid id, string userName, CancellationToken ct = default);
+    /// <summary>Get conversation by ID without user validation. Used for internal operations like compression check.</summary>
+    Task<Conversation?> GetByIdNoUserCheckAsync(Guid id, CancellationToken ct = default);
     Task<List<Conversation>> GetListAsync(string userName, CancellationToken ct = default);
     Task<List<Conversation>> SearchAsync(
         string userName,

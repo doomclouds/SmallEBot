@@ -19,6 +19,17 @@ public class ConversationRepository(SmallEBotDbContext db) : IConversationReposi
             .Include(x => x.ThinkBlocks.OrderBy(b => b.CreatedAt))
             .FirstOrDefaultAsync(x => x.Id == id && x.UserName == userName, ct);
 
+    /// <summary>Get conversation by ID without user validation. Used for internal operations like compression.</summary>
+    public async Task<Conversation?> GetByIdNoUserCheckAsync(Guid id, CancellationToken ct = default) =>
+        await db.Conversations
+            .AsNoTracking()
+            .AsSplitQuery()
+            .Include(c => c.Turns.OrderBy(t => t.CreatedAt))
+            .Include(x => x.Messages.OrderBy(m => m.CreatedAt))
+            .Include(x => x.ToolCalls.OrderBy(t => t.CreatedAt))
+            .Include(x => x.ThinkBlocks.OrderBy(b => b.CreatedAt))
+            .FirstOrDefaultAsync(x => x.Id == id, ct);
+
     public async Task<List<Conversation>> GetListAsync(string userName, CancellationToken ct = default) =>
         await db.Conversations
             .Where(x => x.UserName == userName)

@@ -265,7 +265,7 @@ public sealed class AgentConversationService(
     /// <summary>Check if context exceeds threshold and compress if needed. Call before streaming to show UI indicator.</summary>
     public async Task<bool> CheckAndCompactIfNeededAsync(Guid conversationId, CancellationToken ct = default)
     {
-        var conversation = await repository.GetByIdAsync(conversationId, "", ct);
+        var conversation = await repository.GetByIdNoUserCheckAsync(conversationId, ct);
         if (conversation == null) return false;
 
         var allMessages = await repository.GetMessagesForConversationAsync(conversationId, ct);
