@@ -346,8 +346,8 @@
             var compressed = await ConversationPipeline.CheckAndCompactIfNeededAsync(ConversationId!.Value);
             if (compressed)
             {
-                // Compression happened, refresh context display
-                _contextRefreshRequested = true;
+                // Compression happened, refresh context display immediately
+                await RefreshContextUsageAsync();
             }
         }
         catch (Exception ex)
@@ -703,8 +703,32 @@
             await InvokeAsync(StateHasChanged);
         });
         // Refresh context usage after compression
-        _contextRefreshRequested = true;
-        InvokeAsync(StateHasChanged);
+        _ = InvokeAsync(RefreshContextUsageAsync);
+    }
+
+    private async Task RefreshContextUsageAsync()
+    {
+        if (!ConversationId.HasValue) return;
+        try
+        {
+            var d = await AgentCache.GetEstimatedContextUsageDetailAsync(ConversationId.Value);
+            if (d != null)
+            {
+                _contextPercentText = $"{d.Ratio:P1}";
+                _contextUsageTooltip = $"Context: {d.Ratio:P1} · {AgentCacheService.FormatTokenCount(d.UsedTokens)}/{AgentCacheService.FormatTokenCount(d.ContextWindowTokens)}";
+            }
+            else
+            {
+                _contextPercentText = "—";
+                _contextUsageTooltip = null;
+            }
+            StateHasChanged();
+        }
+        catch
+        {
+            _contextPercentText = "—";
+            _contextUsageTooltip = null;
+        }
     }
 
     public void Dispose()
