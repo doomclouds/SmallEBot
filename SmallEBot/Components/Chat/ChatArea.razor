@@ -15,6 +15,7 @@
 @inject UserNameService UserNameSvc
 @inject IWorkspaceService WorkspaceService
 @inject ISkillsConfigService SkillsConfigService
+@inject IModelConfigService ModelConfigService
 @inject ChatPresentationService Presentation
 @inject IJSRuntime JS
 @inject ISnackbar Snackbar
@@ -601,6 +602,8 @@
             // Subscribe to compression events from ConversationPipeline
             ConversationPipeline.CompressionStarted += OnCompressionStarted;
             ConversationPipeline.CompressionCompleted += OnCompressionCompleted;
+            // Subscribe to model config changes to refresh context display
+            ModelConfigService.OnChanged += OnModelConfigChanged;
         }
         if (_scrollToBottomRequested)
         {
@@ -731,11 +734,22 @@
         }
     }
 
+    private void OnModelConfigChanged()
+    {
+        // Model changed, refresh context display (different models have different context windows)
+        _ = InvokeAsync(async () =>
+        {
+            await AgentCache.InvalidateAgentAsync();
+            await RefreshContextUsageAsync();
+        });
+    }
+
     public void Dispose()
     {
         StopWaitingCheckTimer();
         ConversationPipeline.CompressionStarted -= OnCompressionStarted;
         ConversationPipeline.CompressionCompleted -= OnCompressionCompleted;
+        ModelConfigService.OnChanged -= OnModelConfigChanged;
         try { _ = JS.InvokeVoidAsync("SmallEBot.detachDropZone", "smallebot-chat-drop-zone"); } catch { /* ignore */ }
         _dropZoneDotNetRef?.Dispose();
         _dropZoneDotNetRef = null;
