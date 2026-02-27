@@ -991,7 +991,274 @@ git commit -m "feat(di): register CompressionToolProvider in DI"
 
 ---
 
-### Task 15: Final Verification
+### Task 15: Add Compression State to IAgentConversationService
+
+**Files:**
+- Modify: `SmallEBot.Application/Conversation/IAgentConversationService.cs`
+
+**Step 1: Add compression events**
+
+Add to the interface:
+
+```csharp
+/// <summary>Fired when compression starts. UI should show compression indicator and disable input.</summary>
+event Action<Guid>? CompressionStarted;
+
+/// <summary>Fired when compression completes. UI should hide indicator and re-enable input.</summary>
+event Action<Guid, bool>? CompressionCompleted; // conversationId, success
+
+/// <summary>Manually trigger compression for a conversation.</summary>
+Task<bool> CompactConversationAsync(Guid conversationId, CancellationToken ct = default);
+```
+
+**Step 2: Build to verify**
+
+Run: `dotnet build --no-restore`
+Expected: Build errors (not implemented) - expected
+
+**Step 3: Commit**
+
+```bash
+git add SmallEBot.Application/Conversation/IAgentConversationService.cs
+git commit -m "feat(app): add compression events to IAgentConversationService"
+```
+
+---
+
+### Task 16: Implement Compression in AgentConversationService
+
+**Files:**
+- Modify: `SmallEBot.Application/Conversation/AgentConversationService.cs`
+
+**Step 1: Add events and fields**
+
+Add to the class:
+
+```csharp
+public event Action<Guid>? CompressionStarted;
+public event Action<Guid, bool>? CompressionCompleted;
+
+private readonly HashSet<Guid> _compressingConversations = [];
+```
+
+**Step 2: Implement CompactConversationAsync**
+
+```csharp
+public async Task<bool> CompactConversationAsync(Guid conversationId, CancellationToken ct = default)
+{
+    if (_compressingConversations.Contains(conversationId))
+        return false;
+
+    _compressingConversations.Add(conversationId);
+    CompressionStarted?.Invoke(conversationId);
+
+    try
+    {
+        var conversation = await _repository.GetByIdAsync(conversationId, _userName, ct);
+        if (conversation == null) return false;
+
+        var allMessages = await _repository.GetMessagesForConversationAsync(conversationId, ct);
+        var toolCalls = await _repository.GetToolCallsForConversationAsync(conversationId, ct);
+
+        var messagesToCompress = conversation.CompressedAt != null
+            ? allMessages.Where(m => m.CreatedAt <= conversation.CompressedAt.Value).ToList()
+            : allMessages;
+
+        var toolCallsToCompress = conversation.CompressedAt != null
+            ? toolCalls.Where(t => t.CreatedAt <= conversation.CompressedAt.Value).ToList()
+            : toolCalls;
+
+        if (messagesToCompress.Count == 0)
+        {
+            CompressionCompleted?.Invoke(conversationId, false);
+            return false;
+        }
+
+        var summary = await _compressionService.GenerateSummaryAsync(
+            messagesToCompress,
+            toolCallsToCompress,
+            _agentConfig.GetToolResultMaxLength(),
+            ct);
+
+        if (string.IsNullOrWhiteSpace(summary))
+        {
+            CompressionCompleted?.Invoke(conversationId, false);
+            return false;
+        }
+
+        await _repository.UpdateCompressionAsync(conversationId, summary, DateTime.UtcNow, ct);
+        CompressionCompleted?.Invoke(conversationId, true);
+        return true;
+    }
+    catch
+    {
+        CompressionCompleted?.Invoke(conversationId, false);
+        return false;
+    }
+    finally
+    {
+        _compressingConversations.Remove(conversationId);
+    }
+}
+```
+
+**Step 3: Add dependencies to constructor**
+
+Add `ICompressionService compressionService` and `IAgentConfigService agentConfig` to constructor, store as fields.
+
+**Step 4: Build to verify**
+
+Run: `dotnet build --no-restore`
+Expected: Build succeeded with 0 errors
+
+**Step 5: Commit**
+
+```bash
+git add SmallEBot.Application/Conversation/AgentConversationService.cs
+git commit -m "feat(app): implement CompactConversationAsync with events"
+```
+
+---
+
+### Task 17: Add Compression Indicator UI
+
+**Files:**
+- Modify: `SmallEBot/Components/Chat/StreamingIndicator.razor`
+
+**Step 1: Add compression state parameter**
+
+Add to parameters:
+
+```csharp
+[Parameter] public bool IsCompressing { get; set; }
+[Parameter] public string? CompressionMessage { get; set; } = "Compressing context...";
+```
+
+**Step 2: Update template to show compression indicator**
+
+Change the template:
+
+```razor
+@if (IsCompressing)
+{
+    <div class="d-flex align-center ga-2 pa-3 mud-width-full">
+        <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Small" />
+        <MudText Typo="Typo.body2" Style="color: var(--mud-palette-text-secondary);">
+            @CompressionMessage
+        </MudText>
+    </div>
+}
+else if (IsStreaming)
+{
+    <StreamingMessageView Items="@StreamingItems"
+                          FallbackText="@FallbackText"
+                          Timestamp="@Timestamp"
+                          OnCancel="@OnCancel"
+                          ShowWaitingForToolParams="@ShowWaitingForToolParams"
+                          WaitingElapsed="@WaitingElapsed"
+                          WaitingInReasoning="@WaitingInReasoning"
+                          ShowToolCalls="@ShowToolCalls" />
+}
+```
+
+**Step 3: Build to verify**
+
+Run: `dotnet build --no-restore`
+Expected: Build succeeded with 0 errors
+
+**Step 4: Commit**
+
+```bash
+git add SmallEBot/Components/Chat/StreamingIndicator.razor
+git commit -m "feat(ui): add compression indicator to StreamingIndicator"
+```
+
+---
+
+### Task 18: Wire Compression Events in ChatArea
+
+**Files:**
+- Modify: `SmallEBot/Components/Chat/ChatArea.razor`
+
+**Step 1: Add compression state fields**
+
+Add after `_streaming` field:
+
+```csharp
+private bool _compressing;
+private string _compressionMessage = "";
+```
+
+**Step 2: Subscribe to compression events**
+
+In `OnInitialized` or similar setup method:
+
+```csharp
+ConversationPipeline.CompressionStarted += OnCompressionStarted;
+ConversationPipeline.CompressionCompleted += OnCompressionCompleted;
+```
+
+**Step 3: Add event handlers**
+
+```csharp
+private void OnCompressionStarted(Guid conversationId)
+{
+    if (conversationId != ConversationId) return;
+    _compressing = true;
+    _compressionMessage = "Compressing context...";
+    InvokeAsync(StateHasChanged);
+}
+
+private void OnCompressionCompleted(Guid conversationId, bool success)
+{
+    if (conversationId != ConversationId) return;
+    _compressing = false;
+    _compressionMessage = success ? "" : "Compression failed";
+    InvokeAsync(StateHasChanged);
+}
+```
+
+**Step 4: Unsubscribe in Dispose**
+
+```csharp
+ConversationPipeline.CompressionStarted -= OnCompressionStarted;
+ConversationPipeline.CompressionCompleted -= OnCompressionCompleted;
+```
+
+**Step 5: Pass compression state to StreamingIndicator**
+
+Update the component:
+
+```razor
+<StreamingIndicator IsStreaming="@_streaming"
+                    IsCompressing="@_compressing"
+                    CompressionMessage="@_compressionMessage"
+                    ... />
+```
+
+**Step 6: Pass compression state to ChatInputArea**
+
+Update the component:
+
+```razor
+<ChatInputArea ... IsStreaming="@(_streaming || _compressing)" ... />
+```
+
+**Step 7: Build to verify**
+
+Run: `dotnet build --no-restore`
+Expected: Build succeeded with 0 errors
+
+**Step 8: Commit**
+
+```bash
+git add SmallEBot/Components/Chat/ChatArea.razor
+git commit -m "feat(ui): wire compression events to ChatArea with input blocking"
+```
+
+---
+
+### Task 19: Final Verification
 
 **Step 1: Full build**
 
@@ -1003,7 +1270,14 @@ Expected: Build succeeded with 0 errors, 0 warnings
 Run: `dotnet run --project SmallEBot`
 Expected: No startup errors related to DI
 
-**Step 3: Final commit if any fixes needed**
+**Step 3: Test compression flow**
+1. Start a conversation
+2. Let context reach 80% (or trigger manually)
+3. Verify: Compression indicator shows
+4. Verify: Input is disabled during compression
+5. Verify: After compression, input is re-enabled
+
+**Step 4: Final commit if any fixes needed**
 
 ```bash
 git add -A
@@ -1030,6 +1304,10 @@ git commit -m "fix: resolve any remaining issues"
 | 12 | Update AgentCacheService | 1 modified |
 | 13 | Update AgentRunnerAdapter | 1 modified |
 | 14 | Register in DI | 1 modified |
-| 15 | Final verification | - |
+| 15 | Add compression events to interface | 1 modified |
+| 16 | Implement compression events | 1 modified |
+| 17 | Add compression indicator UI | 1 modified |
+| 18 | Wire compression events in ChatArea | 1 modified |
+| 19 | Final verification | - |
 
-**Total: 4 new files, 11 modified files**
+**Total: 4 new files, 16 modified files**

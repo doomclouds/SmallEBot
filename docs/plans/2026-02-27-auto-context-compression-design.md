@@ -153,6 +153,24 @@ Token calc: compressed_context_tokens + post_compression_message_tokens
 | `Infrastructure/Data/ConversationRepository.cs` | Implement update method |
 | `.agents/sys.skills/compact/SKILL.md` | Create skill file |
 
+## UI Interaction
+
+During compression, the UI must:
+1. **Show compression indicator**: Display "Compressing context..." with a spinner
+2. **Disable input**: Block new message input until compression completes
+3. **Show completion**: Hide indicator and re-enable input after compression
+
+### Events
+
+- `CompressionStarted(conversationId)`: Fired when compression begins
+- `CompressionCompleted(conversationId, success)`: Fired when compression ends
+
+### Components
+
+- `StreamingIndicator`: Extended with `IsCompressing` and `CompressionMessage` parameters
+- `ChatInputArea`: Uses `IsStreaming || IsCompressing` to disable input
+- `ChatArea`: Subscribes to compression events from `IAgentConversationService`
+
 ## Edge Cases
 
 1. **First compression**: `CompressedAt` is null, compress all messages
