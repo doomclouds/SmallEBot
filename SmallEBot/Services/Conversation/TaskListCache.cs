@@ -65,6 +65,9 @@ public sealed class TaskListCache : ITaskListCache, IDisposable
         _dirty.TryRemove(conversationId, out _);
         var path = GetPath(conversationId);
         if (File.Exists(path)) File.Delete(path);
+
+        // Fire OnChange event so UI (TaskListDrawer) gets notified
+        OnChange?.Invoke(new TaskListChangeEvent(WatcherChangeTypes.Changed, GetFileName(conversationId)));
     }
 
     /// <summary>Flush a single conversation to disk immediately (so drawer sees the change).</summary>

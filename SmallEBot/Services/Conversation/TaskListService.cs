@@ -38,10 +38,7 @@ public sealed class TaskListService(ITaskListCache taskCache) : ITaskListService
     /// <inheritdoc />
     public Task ClearTasksAsync(Guid conversationId, CancellationToken ct = default)
     {
-        taskCache.Remove(conversationId);
-        var path = GetTaskFilePath(conversationId);
-        if (File.Exists(path))
-            File.Delete(path);
+        taskCache.Remove(conversationId); // Also deletes file and fires OnChange
         return Task.CompletedTask;
     }
 
