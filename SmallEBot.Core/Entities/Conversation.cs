@@ -24,8 +24,6 @@ public class Conversation
     /// </summary>
     public DateTime? CompressedAt { get; set; }
 
-    public ICollection<ChatMessage> Messages { get; set; } = new List<ChatMessage>();
-    public ICollection<ToolCall> ToolCalls { get; set; } = new List<ToolCall>();
-    public ICollection<ThinkBlock> ThinkBlocks { get; set; } = new List<ThinkBlock>();
-    public ICollection<ConversationTurn> Turns { get; set; } = new List<ConversationTurn>();
+    // Navigation properties removed - message data now stored in AgentSession
+    // Turn metadata stored in ConversationMetadata.Turns
 }

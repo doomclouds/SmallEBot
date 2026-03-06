@@ -3,7 +3,6 @@ using SmallEBot.Application.Conversation;
 using SmallEBot.Application.Session;
 using SmallEBot.Application.Streaming;
 using SmallEBot.Infrastructure.Data;
-using SmallEBot.Infrastructure.Repositories;
 using SmallEBot.Core.Repositories;
 using SmallEBot.Services.Agent;
 using SmallEBot.Services.Conversation;
@@ -21,12 +20,13 @@ using SmallEBot.Services.Agent.Tools;
 using SmallEBot.Components.Chat.Services;
 using SmallEBot.Components.Chat.State;
 using SmallEBot.Services.Session;
+using SmallEBot.Extensions;
 
 namespace SmallEBot.Extensions;
 
 public static class ServiceCollectionExtensions
 {
-    /// <summary>Registers all SmallEBot Host services: DbContext, repositories, Application pipeline, MCP, Skills, Agent, and UI services.</summary>
+    /// <summary>Registers all SmallEBot Host services: Session file storage, Agent pipeline, MCP, Skills, and UI services.</summary>
     public static IServiceCollection AddSmallEBotHostServices(this IServiceCollection services, IConfiguration configuration)
     {
         var baseDir = AppDomain.CurrentDomain.BaseDirectory;
@@ -38,16 +38,13 @@ public static class ServiceCollectionExtensions
             options.UseSqlite(connectionString);
             options.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.NonTransactionalMigrationOperationWarning));
         });
-        services.AddScoped<IConversationRepository, ConversationRepository>();
-        services.AddScoped<BackfillTurnsService>();
-        services.AddScoped<UserPreferencesService>();
-        services.AddSingleton<IMcpConfigService, McpConfigService>();
-        services.AddScoped<ISkillsConfigService, SkillsConfigService>();
-        services.AddSingleton<ITerminalConfigService, TerminalConfigService>();
+
+        // File-based session services
         services.AddSingleton<ISessionFileService, SessionFileService>();
         services.AddScoped<IAgentSessionReader, AgentSessionReader>();
         services.AddScoped<ISessionManager, SessionManager>();
         services.AddScoped<ISessionAgentManager>(sp => sp.GetRequiredService<SessionManager>());
+
         services.AddSingleton<ICommandConfirmationContext, CommandConfirmationContext>();
         services.AddSingleton<IConversationTaskContext, ConversationTaskContext>();
         services.AddSingleton<ICurrentConversationService, CurrentConversationService>();

@@ -1,5 +1,5 @@
+using Microsoft.Extensions.AI;
 using SmallEBot.Application.Context;
-using SmallEBot.Core.Entities;
 using SmallEBot.Services.Agent;
 
 namespace SmallEBot.Services.Context;
@@ -14,7 +14,9 @@ public sealed class ContextWindowManager(ITokenizer tokenizer) : IContextWindowM
         var total = 0;
         foreach (var msg in messages)
         {
-            total += tokenizer.CountTokens(msg.Content);
+            // Get text content from the message
+            var text = msg.Text ?? "";
+            total += tokenizer.CountTokens(text);
             total += 4; // role overhead estimate
         }
         return total;
@@ -39,7 +41,8 @@ public sealed class ContextWindowManager(ITokenizer tokenizer) : IContextWindowM
         for (var i = messages.Count - 1; i >= 0; i--)
         {
             var msg = messages[i];
-            var msgTokens = tokenizer.CountTokens(msg.Content) + 4;
+            var text = msg.Text ?? "";
+            var msgTokens = tokenizer.CountTokens(text) + 4;
             if (currentTokens + msgTokens <= maxTokens)
             {
                 result.Insert(0, msg);

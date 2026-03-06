@@ -1,4 +1,4 @@
-using SmallEBot.Core.Entities;
+using Microsoft.Extensions.AI;
 
 namespace SmallEBot.Application.Context;
 

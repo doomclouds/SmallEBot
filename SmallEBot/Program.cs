@@ -22,8 +22,6 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<SmallEBotDbContext>();
     db.Database.Migrate();
-    var backfill = scope.ServiceProvider.GetRequiredService<BackfillTurnsService>();
-    await backfill.RunAsync();
 }
 
 if (!app.Environment.IsDevelopment())

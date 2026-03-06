@@ -179,7 +179,7 @@
         StateHasChanged();
     }
 
-    private async Task EditUserMessage(Core.Entities.ChatMessage msg)
+    private async Task EditUserMessage(MessageInfo msg)
     {
         if (_streaming || !ConversationId.HasValue) return;
         var parameters = new DialogParameters

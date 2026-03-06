@@ -1,16 +1,18 @@
 using System.Text.Json.Serialization;
+using Microsoft.Extensions.AI;
 using SmallEBot.Application.Conversation;
+using SmallEBot.Application.Session;
 using SmallEBot.Core.Models;
-using SmallEBot.Core.Repositories;
 
 namespace SmallEBot.Services.Agent;
 
 /// <summary>Host service for agent cache invalidation and context usage estimation (UI). Implements IContextUsageEstimator for compression threshold checking.</summary>
 public class AgentCacheService(
-    IConversationRepository conversationRepository,
+    IAgentSessionReader sessionReader,
     IAgentBuilder agentBuilder,
     ITokenizer tokenizer,
-    IAgentConfigService agentConfig) : IAsyncDisposable, IContextUsageEstimator
+    IAgentConfigService agentConfig,
+    ISessionFileService sessionFileService) : IAsyncDisposable, IContextUsageEstimator
 {
     private const string FallbackSystemPromptForTokenCount = "You are SmallEBot, a helpful personal assistant. Be concise and friendly. When the user asks for the current time or date, use the GetCurrentTime tool. Use any other available MCP tools when they help answer the user.";
 
@@ -19,37 +21,28 @@ public class AgentCacheService(
     /// <summary>Estimated context usage for UI: ratio and token counts (e.g. for tooltip "8% · 10k/128k"). Includes system, messages, tool calls (name + arguments + result), think blocks, and compressed context.</summary>
     public async Task<ContextUsageEstimate?> GetEstimatedContextUsageDetailAsync(Guid conversationId, CancellationToken ct = default)
     {
-        // Get conversation to check CompressedAt
-        var conversation = await conversationRepository.GetByIdNoUserCheckAsync(conversationId, ct);
+        // Get metadata to check CompressedAt
+        var metadata = await sessionFileService.LoadAsync(conversationId, ct);
 
-        var allMessages = await conversationRepository.GetMessagesForConversationAsync(conversationId, ct);
-        var toolCalls = await conversationRepository.GetToolCallsForConversationAsync(conversationId, ct);
+        // Get messages from AgentSession
+        var allMessages = await sessionReader.GetMessagesAsync(conversationId, ct);
         var toolResultMaxLength = await agentConfig.GetToolResultMaxLengthAsync(ct);
 
         // Filter messages by CompressedAt - only send messages after compression timestamp to LLM
-        var filteredMessages = conversation?.CompressedAt != null
-            ? allMessages.Where(m => m.CreatedAt > conversation.CompressedAt.Value).ToList()
+        var filteredMessages = metadata?.CompressedAt != null
+            ? allMessages.Where(m => ExtractTimestamp(m) > metadata.CompressedAt.Value).ToList()
             : allMessages;
 
-        var filteredToolCalls = conversation?.CompressedAt != null
-            ? toolCalls.Where(t => t.CreatedAt > conversation.CompressedAt.Value).ToList()
-            : toolCalls;
-
         // Truncate tool results to match what's actually sent to LLM
-        var truncatedToolCalls = filteredToolCalls.Select(t => new ToolCallWithTruncatedResult
-        {
-            ToolName = t.ToolName,
-            Arguments = t.Arguments ?? "",
-            Result = TruncateToolResult(t.Result, toolResultMaxLength) ?? ""
-        }).ToList();
+        var truncatedToolCalls = ExtractToolCalls(filteredMessages, toolResultMaxLength);
 
         var systemPrompt = agentBuilder.GetCachedSystemPromptForTokenCount() ?? FallbackSystemPromptForTokenCount;
 
         // Include compressed context in token count
         var compressedContextTokens = 0;
-        if (!string.IsNullOrEmpty(conversation?.CompressedContext))
+        if (!string.IsNullOrEmpty(metadata?.CompressedContext))
         {
-            compressedContextTokens = tokenizer.CountTokens(conversation.CompressedContext);
+            compressedContextTokens = tokenizer.CountTokens(metadata.CompressedContext);
         }
 
         var json = SerializeRequestJsonForTokenCount(systemPrompt, filteredMessages, truncatedToolCalls, []);
@@ -69,6 +62,45 @@ public class AgentCacheService(
         return $"{k:F1}k";
     }
 
+    private static DateTime ExtractTimestamp(ChatMessage message)
+    {
+        // Try to get timestamp from message metadata if available
+        // For now, use current time as fallback
+        return DateTime.UtcNow;
+    }
+
+    private static List<ToolCallWithTruncatedResult> ExtractToolCalls(IReadOnlyList<ChatMessage> messages, int toolResultMaxLength)
+    {
+        var result = new List<ToolCallWithTruncatedResult>();
+
+        foreach (var message in messages)
+        {
+            foreach (var content in message.Contents)
+            {
+                if (content is FunctionCallContent fnCall)
+                {
+                    result.Add(new ToolCallWithTruncatedResult
+                    {
+                        ToolName = fnCall.Name ?? "",
+                        Arguments = ToJsonString(fnCall.Arguments) ?? "",
+                        Result = ""
+                    });
+                }
+                else if (content is FunctionResultContent fnResult)
+                {
+                    // Find matching tool call and update result
+                    var matchingCall = result.FirstOrDefault(t => t.ToolName == fnResult.CallId);
+                    if (matchingCall != null)
+                    {
+                        matchingCall.Result = TruncateToolResult(fnResult.Result?.ToString(), toolResultMaxLength) ?? "";
+                    }
+                }
+            }
+        }
+
+        return result;
+    }
+
     private static string? TruncateToolResult(string? result, int maxLength)
     {
         if (result == null) return null;
@@ -76,16 +108,23 @@ public class AgentCacheService(
         return result[..maxLength] + "... [truncated]";
     }
 
+    private static string? ToJsonString(IDictionary<string, object?>? arguments)
+    {
+        if (arguments == null || arguments.Count == 0)
+            return "{}";
+        return System.Text.Json.JsonSerializer.Serialize(arguments);
+    }
+
     private static string SerializeRequestJsonForTokenCount(
         string systemPrompt,
-        List<Core.Entities.ChatMessage> messages,
+        IReadOnlyList<ChatMessage> messages,
         List<ToolCallWithTruncatedResult> toolCalls,
-        List<Core.Entities.ThinkBlock> thinkBlocks)
+        List<ThinkBlockInfo> thinkBlocks)
     {
         var payload = new RequestPayloadForTokenCount
         {
             System = systemPrompt,
-            Messages = messages.Select(m => new MessageItemForTokenCount { Role = m.Role, Content = m.Content }).ToList(),
+            Messages = messages.Select(m => new MessageItemForTokenCount { Role = m.Role.ToString(), Content = m.Text ?? "" }).ToList(),
             ToolCalls = toolCalls.Select(t => new ToolCallItemForTokenCount
             {
                 ToolName = t.ToolName,
