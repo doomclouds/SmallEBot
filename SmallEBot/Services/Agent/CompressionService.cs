@@ -1,12 +1,8 @@
 using System.Text;
+using System.Text.Json;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using SmallEBot.Application.Conversation;
-
-// Aliases to avoid ambiguity between Microsoft.Extensions.AI and SmallEBot.Core.Entities
-using AIChatMessage = Microsoft.Extensions.AI.ChatMessage;
-using EntityChatMessage = SmallEBot.Core.Entities.ChatMessage;
-using EntityToolCall = SmallEBot.Core.Entities.ToolCall;
 
 namespace SmallEBot.Services.Agent;
 
@@ -48,13 +44,12 @@ public sealed class CompressionService(IAgentBuilder agentBuilder, ILogger<Compr
                                          """;
 
     public async Task<string?> GenerateSummaryAsync(
-        IReadOnlyList<EntityChatMessage> messages,
-        IReadOnlyList<EntityToolCall> toolCalls,
+        IReadOnlyList<ChatMessage> messages,
         int toolResultMaxLength,
         string? existingSummary = null,
         CancellationToken ct = default)
     {
-        if (messages.Count == 0 && toolCalls.Count == 0 && string.IsNullOrEmpty(existingSummary))
+        if (messages.Count == 0 && string.IsNullOrEmpty(existingSummary))
             return existingSummary;
 
         var sb = new StringBuilder();
@@ -67,24 +62,42 @@ public sealed class CompressionService(IAgentBuilder agentBuilder, ILogger<Compr
             sb.AppendLine();
         }
 
-        if (messages.Count > 0 || toolCalls.Count > 0)
+        if (messages.Count > 0)
         {
             sb.AppendLine("## New Messages to Compress");
             sb.AppendLine();
 
-            // Add messages (exclude replaced ones)
-            foreach (var msg in messages.Where(m => m.ReplacedByMessageId == null))
+            // Process messages and extract content including tool calls embedded in Contents
+            foreach (var message in messages)
             {
-                var role = msg.Role == "user" ? "User" : "Assistant";
-                sb.AppendLine($"[{role}]: {msg.Content}");
-                sb.AppendLine();
-            }
+                var role = message.Role == ChatRole.User ? "User" : "Assistant";
+                sb.AppendLine($"[{role}]:");
 
-            // Add tool calls with truncated results
-            foreach (var tc in toolCalls)
-            {
-                var result = TruncateResult(tc.Result, toolResultMaxLength);
-                sb.AppendLine($"[Tool: {tc.ToolName}] -> {result}");
+                foreach (var content in message.Contents)
+                {
+                    if (content is TextContent textContent)
+                    {
+                        sb.AppendLine(textContent.Text);
+                    }
+                    else if (content is TextReasoningContent reasoning)
+                    {
+                        var reasoningPreview = reasoning.Text.Length > 200
+                            ? reasoning.Text[..200] + "..."
+                            : reasoning.Text;
+                        sb.AppendLine($"[Thinking]: {reasoningPreview}");
+                    }
+                    else if (content is FunctionCallContent fnCall)
+                    {
+                        sb.AppendLine($"[Tool: {fnCall.Name}]");
+                        sb.AppendLine($"Arguments: {ToJsonString(fnCall.Arguments)}");
+                    }
+                    else if (content is FunctionResultContent fnResult)
+                    {
+                        var result = TruncateResult(fnResult.Result?.ToString(), toolResultMaxLength);
+                        sb.AppendLine($"[Tool Result]: {result}");
+                    }
+                }
+
                 sb.AppendLine();
             }
         }
@@ -92,7 +105,7 @@ public sealed class CompressionService(IAgentBuilder agentBuilder, ILogger<Compr
         try
         {
             var agent = await agentBuilder.GetOrCreateAgentAsync(useThinking: false, ct);
-            var chatMessages = new List<AIChatMessage>
+            var chatMessages = new List<ChatMessage>
             {
                 new(ChatRole.System, CompactPrompt),
                 new(ChatRole.User, sb.ToString())
@@ -116,5 +129,12 @@ public sealed class CompressionService(IAgentBuilder agentBuilder, ILogger<Compr
         if (result == null) return "null";
         if (result.Length <= maxLength) return result;
         return result[..maxLength] + "... [truncated]";
+    }
+
+    private static string ToJsonString(IDictionary<string, object?>? arguments)
+    {
+        if (arguments == null || arguments.Count == 0)
+            return "{}";
+        return JsonSerializer.Serialize(arguments);
     }
 }
