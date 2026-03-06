@@ -87,6 +87,11 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IContextUsageEstimator>(sp => sp.GetRequiredService<AgentCacheService>());
         services.AddScoped<ChatPresentationService>();
         services.AddSingleton<IContextWindowManager, ContextWindowManager>();
+        services.AddSingleton<ITerminalConfigService, TerminalConfigService>();
+        services.AddScoped<ISkillsConfigService, SkillsConfigService>();
+        services.AddScoped<IConversationRepository, ConversationRepository>();
+        services.AddSingleton<IMcpConfigService, McpConfigService>();
+        services.AddSingleton<UserPreferencesService>();
         services.AddSingleton<ITokenizer>(sp =>
         {
             var config = sp.GetRequiredService<IConfiguration>();
