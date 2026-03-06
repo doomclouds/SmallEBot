@@ -16,7 +16,8 @@ public sealed class AgentConversationService(
     ICompressionService compressionService,
     IToolResultMaxProvider toolResultMaxProvider,
     ICompressionThresholdProvider compressionThresholdProvider,
-    IContextUsageEstimator contextUsageEstimator) : IAgentConversationService
+    IContextUsageEstimator contextUsageEstimator,
+    IAgentSessionReader sessionReader) : IAgentConversationService
 {
     public event Action<Guid>? CompressionStarted;
     public event Action<Guid, bool>? CompressionCompleted;
@@ -298,37 +299,26 @@ public sealed class AgentConversationService(
 
         try
         {
-            var conversation = await repository.GetByIdNoUserCheckAsync(conversationId, ct);
-            if (conversation == null)
+            var metadata = await sessionFileService.LoadAsync(conversationId, ct);
+            if (metadata == null)
             {
                 CompressionCompleted?.Invoke(conversationId, false);
                 return false;
             }
 
-            var allMessages = await repository.GetMessagesForConversationAsync(conversationId, ct);
-            var toolCalls = await repository.GetToolCallsForConversationAsync(conversationId, ct);
-
-            // Compress NEW messages since last compression (createdAt > CompressedAt), not already-compressed ones
-            var messagesToCompress = conversation.CompressedAt != null
-                ? allMessages.Where(m => m.CreatedAt > conversation.CompressedAt.Value).ToList()
-                : allMessages;
-
-            var toolCallsToCompress = conversation.CompressedAt != null
-                ? toolCalls.Where(t => t.CreatedAt > conversation.CompressedAt.Value).ToList()
-                : toolCalls;
-
-            if (messagesToCompress.Count == 0)
+            // Get messages from AgentSession
+            var messages = await sessionReader.GetMessagesAsync(conversationId, ct);
+            if (messages.Count == 0)
             {
                 CompressionCompleted?.Invoke(conversationId, false);
                 return false;
             }
 
-            // Pass existing summary to merge with new messages
+            // Generate summary
             var summary = await compressionService.GenerateSummaryAsync(
-                messagesToCompress,
-                toolCallsToCompress,
+                messages,
                 toolResultMaxProvider.GetToolResultMaxLength(),
-                conversation.CompressedContext,
+                metadata.CompressedContext,
                 ct);
 
             if (string.IsNullOrWhiteSpace(summary))
@@ -337,7 +327,11 @@ public sealed class AgentConversationService(
                 return false;
             }
 
-            await repository.UpdateCompressionAsync(conversationId, summary, DateTime.UtcNow, ct);
+            // Update metadata
+            metadata.CompressedContext = summary;
+            metadata.CompressedAt = DateTime.UtcNow;
+            await sessionFileService.SaveAsync(metadata, ct);
+
             CompressionCompleted?.Invoke(conversationId, true);
             return true;
         }
