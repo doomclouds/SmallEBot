@@ -62,7 +62,7 @@ public sealed class TurnContextFragmentBuilder(IWorkspaceService workspace, ISki
             var trimmed = id.Trim();
             if (knownIds.Contains(trimmed))
             {
-                lines.Add($"The user wants you to use the skill \"{trimmed}\". Call ReadSkill(\"{trimmed}\") (and ReadSkillFile / ListSkillFiles as needed) to learn and apply it.");
+                lines.Add($"The user wants you to use the skill \"{trimmed}\". Call load_skill(\"{trimmed}\") (and read_skill_resource as needed) to learn and apply it.");
             }
             else
             {
