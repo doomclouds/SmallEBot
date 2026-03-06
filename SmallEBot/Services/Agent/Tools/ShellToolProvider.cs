@@ -23,7 +23,7 @@ public sealed class ShellToolProvider(
     public IEnumerable<AITool> GetTools()
     {
         var tool = AIFunctionFactory.Create(ExecuteCommand);
-        var requiresConfirmation = terminalConfig.GetRequireCommandConfirmationAsync().GetAwaiter().GetResult();
+        var requiresConfirmation = terminalConfig.GetRequireCommandConfirmation();
 
         if (requiresConfirmation)
         {
