@@ -144,14 +144,12 @@ public sealed class AgentConversationService(
         conversationTaskContext.SetConversationId(conversationId);
         try
         {
-            var updates = new List<StreamUpdate>();
             await foreach (var update in agentRunner.RunStreamingAsync(conversationId, userMessage, useThinking, cancellationToken, attachedPaths, requestedSkillIds))
             {
-                updates.Add(update);
                 await sink.OnNextAsync(update, cancellationToken);
             }
-            var segments = StreamUpdateToSegments.ToSegments(updates, useThinking);
-            await repository.CompleteTurnWithAssistantAsync(conversationId, turnId, segments, cancellationToken);
+            // Assistant response is persisted by AgentRunnerAdapter via sessionManager.PersistSessionAsync
+            // No need to call repository for turn completion
         }
         finally
         {
@@ -201,12 +199,22 @@ public sealed class AgentConversationService(
         CancellationToken cancellationToken = default) =>
         repository.ReplaceUserMessageAsync(conversationId, userName, messageId, newContent, useThinking, attachedPaths, requestedSkillIds, cancellationToken);
 
-    public Task<(Guid TurnId, string UserMessage, bool UseThinking, IReadOnlyList<string> AttachedPaths, IReadOnlyList<string> RequestedSkillIds)?> PrepareTurnForRegenerateAsync(
+    public async Task<(Guid TurnId, string UserMessage, bool UseThinking, IReadOnlyList<string> AttachedPaths, IReadOnlyList<string> RequestedSkillIds)?> PrepareTurnForRegenerateAsync(
         Guid conversationId,
         string userName,
         Guid turnId,
-        CancellationToken cancellationToken = default) =>
-        repository.GetTurnForRegenerateAsync(conversationId, userName, turnId, cancellationToken);
+        CancellationToken cancellationToken = default)
+    {
+        var metadata = await sessionFileService.LoadAsync(conversationId, cancellationToken);
+        if (metadata == null || metadata.UserName != userName) return null;
+
+        var turn = metadata.Turns.FirstOrDefault(t => t.Id == turnId);
+        if (turn == null) return null;
+
+        // User message will be retrieved from AgentSession via AgentSessionReader in Task 4.2.3
+        // Return empty string for now as placeholder
+        return (turn.Id, "", false, turn.AttachedPaths, turn.RequestedSkillIds);
+    }
 
     public async Task ReplaceMessageAndRegenerateAsync(
         Guid conversationId,
