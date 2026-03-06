@@ -28,3 +28,14 @@ public sealed record ToolCallStreamUpdate(
     string? Result = null,
     TimeSpan? Elapsed = null,
     string? Error = null) : StreamUpdate;
+
+/// <summary>
+/// Represents an approval request from the agent.
+/// Sent when a tool wrapped in ApprovalRequiredAIFunction needs user confirmation.
+/// </summary>
+public sealed record ApprovalRequestStreamUpdate(
+    string CallId,
+    string ToolName,
+    string? Arguments,
+    Guid ConversationId,
+    string FunctionCallId) : StreamUpdate;
