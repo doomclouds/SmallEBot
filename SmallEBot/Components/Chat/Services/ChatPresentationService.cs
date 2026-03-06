@@ -295,9 +295,10 @@ public sealed class ChatPresentationService
     public IReadOnlyList<StreamItemView> ConvertToStreamItems(
         IReadOnlyList<StreamUpdate> updates)
     {
-        var result = new List<StreamItemView>();
-        var sortOrder = 0;
-        var pendingToolCalls = new Dictionary<string, ToolCallItemView>();
+        var items = new List<StreamItemView>();
+        var order = 0;
+        // Dictionary stores: CallId -> (Item, Position in items list)
+        var toolCallsInProgress = new Dictionary<string, (ToolCallItemView Item, int Order)>();
 
         string? textBuffer = null;
         string? thinkBuffer = null;
@@ -308,51 +309,53 @@ public sealed class ChatPresentationService
             {
                 case TextStreamUpdate text:
                     // Flush think buffer before text
-                    FlushThinkBuffer(ref thinkBuffer, result, ref sortOrder);
+                    FlushThinkBuffer(ref thinkBuffer, items, ref order);
                     // Merge consecutive text
                     textBuffer = (textBuffer ?? "") + text.Text;
                     break;
 
                 case ThinkStreamUpdate think:
                     // Flush text buffer before think
-                    FlushTextBuffer(ref textBuffer, result, ref sortOrder);
+                    FlushTextBuffer(ref textBuffer, items, ref order);
                     // Merge consecutive think
                     thinkBuffer = (thinkBuffer ?? "") + think.Text;
                     break;
 
                 case ToolCallStreamUpdate tc:
                     // Flush both buffers before tool call
-                    FlushThinkBuffer(ref thinkBuffer, result, ref sortOrder);
-                    FlushTextBuffer(ref textBuffer, result, ref sortOrder);
+                    FlushThinkBuffer(ref thinkBuffer, items, ref order);
+                    FlushTextBuffer(ref textBuffer, items, ref order);
 
-                    if (tc.Phase is ToolCallPhase.Completed or ToolCallPhase.Failed or ToolCallPhase.Cancelled)
+                    if (tc.Phase == ToolCallPhase.Started)
                     {
-                        // Result update: merge into existing tool call
-                        if (tc.CallId != null && pendingToolCalls.TryGetValue(tc.CallId, out var existing))
+                        // Create new tool call item and immediately add to list
+                        var callId = tc.CallId ?? Guid.NewGuid().ToString();
+                        var item = new ToolCallItemView
                         {
-                            pendingToolCalls[tc.CallId] = existing with
+                            CallId = callId,
+                            ToolName = tc.ToolName ?? "unknown",
+                            Arguments = tc.Arguments,
+                            Phase = ToolCallPhase.Started,
+                            SortOrder = order++,
+                            Elapsed = tc.Elapsed
+                        };
+                        toolCallsInProgress[callId] = (item, items.Count);
+                        items.Add(item);  // IMMEDIATELY add to list
+                    }
+                    else if (tc.Phase is ToolCallPhase.Completed or ToolCallPhase.Failed or ToolCallPhase.Cancelled)
+                    {
+                        // Result update: in-place update in items list
+                        var callId = tc.CallId ?? "";
+                        if (toolCallsInProgress.TryGetValue(callId, out var pending))
+                        {
+                            var updated = pending.Item with
                             {
                                 Result = tc.Result,
                                 Phase = tc.Phase,
                                 Elapsed = tc.Elapsed
                             };
-                        }
-                    }
-                    else
-                    {
-                        // Started or intermediate phase: create/update tool call
-                        if (tc.CallId != null)
-                        {
-                            var itemView = new ToolCallItemView
-                            {
-                                CallId = tc.CallId,
-                                ToolName = tc.ToolName ?? "",
-                                Arguments = tc.Arguments,
-                                Phase = tc.Phase,
-                                Elapsed = tc.Elapsed,
-                                SortOrder = sortOrder++
-                            };
-                            pendingToolCalls[tc.CallId] = itemView;
+                            items[pending.Order] = updated;  // IN-PLACE update
+                            toolCallsInProgress.Remove(callId);  // REMOVE from dictionary
                         }
                     }
                     break;
@@ -360,33 +363,30 @@ public sealed class ChatPresentationService
         }
 
         // Flush remaining buffers
-        FlushThinkBuffer(ref thinkBuffer, result, ref sortOrder);
-        FlushTextBuffer(ref textBuffer, result, ref sortOrder);
+        FlushThinkBuffer(ref thinkBuffer, items, ref order);
+        FlushTextBuffer(ref textBuffer, items, ref order);
 
-        // Add all pending tool calls in order
-        result.AddRange(pendingToolCalls.Values.OrderBy(x => x.SortOrder));
-
-        return result;
+        return items;
     }
 
-    private static void FlushTextBuffer(ref string? buffer, List<StreamItemView> result, ref int sortOrder)
+    private static void FlushTextBuffer(ref string? buffer, List<StreamItemView> items, ref int order)
     {
         if (string.IsNullOrEmpty(buffer)) return;
-        result.Add(new TextItemView
+        items.Add(new TextItemView
         {
             Content = buffer,
-            SortOrder = sortOrder++
+            SortOrder = order++
         });
         buffer = null;
     }
 
-    private static void FlushThinkBuffer(ref string? buffer, List<StreamItemView> result, ref int sortOrder)
+    private static void FlushThinkBuffer(ref string? buffer, List<StreamItemView> items, ref int order)
     {
         if (string.IsNullOrEmpty(buffer)) return;
-        result.Add(new ThinkItemView
+        items.Add(new ThinkItemView
         {
             Content = buffer,
-            SortOrder = sortOrder++
+            SortOrder = order++
         });
         buffer = null;
     }
