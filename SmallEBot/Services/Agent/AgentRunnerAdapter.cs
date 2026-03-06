@@ -209,10 +209,12 @@ public sealed class AgentRunnerAdapter(
 
         // Detect approval requests after stream ends
         var response = updates.ToAgentResponse();
+#pragma warning disable MEAI001 // Type is for evaluation purposes only
         var approvalRequests = response.Messages
             .SelectMany(m => m.Contents)
             .OfType<FunctionApprovalRequestContent>()
             .ToList();
+#pragma warning restore MEAI001
 
         foreach (var request in approvalRequests)
         {

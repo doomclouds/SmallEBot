@@ -348,6 +348,23 @@ public sealed class ChatPresentationService
                         }
                     }
                     break;
+
+                case ApprovalRequestStreamUpdate approval:
+                    // Flush both buffers before approval request
+                    FlushThinkBuffer(ref thinkBuffer, items, ref order);
+                    FlushTextBuffer(ref textBuffer, items, ref order);
+
+                    items.Add(new ApprovalItemView
+                    {
+                        CallId = approval.CallId,
+                        ToolName = approval.ToolName,
+                        Arguments = approval.Arguments,
+                        State = ApprovalState.Pending,
+                        ConversationId = approval.ConversationId,
+                        FunctionCallId = approval.FunctionCallId,
+                        SortOrder = order++
+                    });
+                    break;
             }
         }
 
