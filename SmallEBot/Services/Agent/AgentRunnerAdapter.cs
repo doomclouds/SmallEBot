@@ -52,22 +52,111 @@ public sealed class AgentRunnerAdapter(
                 new(ChatRole.User, userMessage)
             };
 
-        // Configure reasoning
-        var reasoningOpt = new ReasoningOptions();
-        if (useThinking)
-        {
-            reasoningOpt.Effort = ReasoningEffort.ExtraHigh;
-            reasoningOpt.Output = ReasoningOutput.Full;
-        }
-        var chatOptions = new ChatOptions { Reasoning = useThinking ? reasoningOpt : null };
-        var runOptions = new ChatClientAgentRunOptions(chatOptions);
+            // Configure reasoning
+            var reasoningOpt = new ReasoningOptions();
+            if (useThinking)
+            {
+                reasoningOpt.Effort = ReasoningEffort.ExtraHigh;
+                reasoningOpt.Output = ReasoningOutput.Full;
+            }
+            var chatOptions = new ChatOptions { Reasoning = useThinking ? reasoningOpt : null };
+            var runOptions = new ChatClientAgentRunOptions(chatOptions);
 
+            var agentUpdates = agent.RunStreamingAsync(messages, session, runOptions, cancellationToken);
+
+            await foreach (var update in ProcessStreamingUpdates(agentUpdates, conversationId, agent, session, cancellationToken))
+            {
+                yield return update;
+            }
+        }
+        finally
+        {
+            // Clear turn context after completion
+            TurnContextProvider.ClearContext();
+        }
+    }
+
+    public async IAsyncEnumerable<StreamUpdate> ContinueWithApprovalAsync(
+        Guid conversationId,
+        string approvalRequestId,
+        bool approved,
+        string? reason,
+        bool useThinking,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        var agent = await agentBuilder.GetOrCreateAgentAsync(useThinking, cancellationToken);
+
+        var (session, _) = await sessionManager.GetOrCreateSessionAsync(
+            conversationId,
+            "user",
+            agent,
+            cancellationToken);
+
+        TurnContextProvider.SetContext(new TurnContext
+        {
+            AttachedPaths = [],
+            RequestedSkillIds = []
+        });
+
+        try
+        {
+            // Create approval response content
+            // Note: FunctionApprovalResponseContent requires:
+            // - id: The approval request ID (FunctionApprovalRequestContent.Id)
+            // - approved: Whether the function call is approved
+            // - functionCall: The FunctionCallContent being approved/rejected
+#pragma warning disable MEAI001 // Type is for evaluation purposes only
+            var functionCall = new FunctionCallContent(
+                callId: approvalRequestId, // Use approval request ID as call ID
+                name: "approval_response");
+            var approvalContent = new FunctionApprovalResponseContent(
+                id: approvalRequestId,
+                approved: approved,
+                functionCall: functionCall)
+            {
+                Reason = reason
+            };
+#pragma warning restore MEAI001
+            var message = new ChatMessage(ChatRole.User, [approvalContent]);
+
+            // Configure reasoning
+            var reasoningOpt = new ReasoningOptions();
+            if (useThinking)
+            {
+                reasoningOpt.Effort = ReasoningEffort.ExtraHigh;
+                reasoningOpt.Output = ReasoningOutput.Full;
+            }
+            var chatOptions = new ChatOptions { Reasoning = useThinking ? reasoningOpt : null };
+            var runOptions = new ChatClientAgentRunOptions(chatOptions);
+
+            var agentUpdates = agent.RunStreamingAsync([message], session, runOptions, cancellationToken);
+
+            await foreach (var update in ProcessStreamingUpdates(agentUpdates, conversationId, agent, session, cancellationToken))
+            {
+                yield return update;
+            }
+        }
+        finally
+        {
+            TurnContextProvider.ClearContext();
+        }
+    }
+
+    private async IAsyncEnumerable<StreamUpdate> ProcessStreamingUpdates(
+        IAsyncEnumerable<AgentResponseUpdate> agentUpdates,
+        Guid conversationId,
+        AIAgent agent,
+        AgentSession session,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
         var toolTimers = new Dictionary<string, Stopwatch>();
         var toolNames = new Dictionary<string, string>();
+        var updates = new List<AgentResponseUpdate>();
 
-        // Run with session (session maintains history internally)
-        await foreach (var update in agent.RunStreamingAsync(messages, session, runOptions, cancellationToken))
+        await foreach (var update in agentUpdates.WithCancellation(cancellationToken))
         {
+            updates.Add(update);
+
             if (update.Contents is { Count: > 0 } contents)
             {
                 foreach (var content in contents)
@@ -118,14 +207,26 @@ public sealed class AgentRunnerAdapter(
             }
         }
 
+        // Detect approval requests after stream ends
+        var response = updates.ToAgentResponse();
+        var approvalRequests = response.Messages
+            .SelectMany(m => m.Contents)
+            .OfType<FunctionApprovalRequestContent>()
+            .ToList();
+
+        foreach (var request in approvalRequests)
+        {
+            yield return new ApprovalRequestStreamUpdate(
+                CallId: request.FunctionCall.CallId ?? Guid.NewGuid().ToString("N"),
+                ToolName: request.FunctionCall.Name ?? "unknown",
+                Arguments: ToJsonString(request.FunctionCall.Arguments),
+                ConversationId: conversationId,
+                FunctionCallId: request.Id
+            );
+        }
+
         // Persist session after completion
         await sessionManager.PersistSessionAsync(conversationId, session, agent, cancellationToken);
-        }
-        finally
-        {
-            // Clear turn context after completion
-            TurnContextProvider.ClearContext();
-        }
     }
 
     public async Task<string> GenerateTitleAsync(string firstMessage, CancellationToken cancellationToken = default)
