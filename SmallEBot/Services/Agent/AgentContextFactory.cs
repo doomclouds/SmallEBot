@@ -214,9 +214,9 @@ public sealed class AgentContextFactory(
 
         Skills live under the workspace root in `sys.skills/` (system) and `skills/` (user). **Do not use generic file tools** (`{Tn.ReadFile}`, `{Tn.WriteFile}`, `{Tn.ListFiles}`, `{Tn.AppendFile}`, `{Tn.CopyFile}`, `{Tn.CopyDirectory}`, `{Tn.GrepFiles}`, `{Tn.GrepContent}`) on paths under `sys.skills/` or `skills/`. Use only the skill tools below to read or list skill content.
 
-        - `{Tn.ReadSkill}(skillId)` → reads the skill's `SKILL.md`
-        - `{Tn.ReadSkillFile}(skillId, relativePath)` → reads another file inside the skill folder (e.g. `references/guide.md`)
-        - `{Tn.ListSkillFiles}(skillId, path?)` → lists contents of a skill folder
+        - `ReadSkill(skillId)` → reads the skill's `SKILL.md`
+        - `ReadSkillFile(skillId, relativePath)` → reads another file inside the skill folder (e.g. `references/guide.md`)
+        - `ListSkillFiles(skillId, path?)` → lists contents of a skill folder
         """;
 
     private static string GetConversationSection() => $"""
@@ -260,7 +260,7 @@ public sealed class AgentContextFactory(
 
         **Do not use file tools on these paths:**
         - `temp/` — reserved for **file uploads** only. Do not use `{Tn.ReadFile}`, `{Tn.WriteFile}`, `{Tn.ListFiles}`, `{Tn.AppendFile}`, `{Tn.CopyFile}`, `{Tn.CopyDirectory}`, `{Tn.GrepFiles}`, or `{Tn.GrepContent}` on `temp/` or any path under it.
-        - `sys.skills/` and `skills/` — use only `{Tn.ReadSkill}`, `{Tn.ReadSkillFile}`, and `{Tn.ListSkillFiles}` for content under these directories; do not use the generic file tools above on them.
+        - `sys.skills/` and `skills/` — use only `ReadSkill`, `ReadSkillFile`, and `ListSkillFiles` for content under these directories; do not use the generic file tools above on them.
         """;
 
     // ── Dynamic blocks ────────────────────────────────────────────────────────
@@ -271,7 +271,7 @@ public sealed class AgentContextFactory(
         var sb = new System.Text.StringBuilder();
         sb.AppendLine("## Available Skills");
         sb.AppendLine();
-        sb.AppendLine($"To use a skill: `{Tn.ReadSkill}(skillId)` loads `SKILL.md`; `{Tn.ReadSkillFile}(skillId, relativePath)` reads other files in the skill folder; `{Tn.ListSkillFiles}(skillId)` lists its contents. Workspace file operations outside skills use `{Tn.ReadFile}`/`{Tn.WriteFile}` with paths relative to the workspace root. Allowed extensions: {AllowedFileExtensions.List}.");
+        sb.AppendLine($"To use a skill: `ReadSkill(skillId)` loads `SKILL.md`; `ReadSkillFile(skillId, relativePath)` reads other files in the skill folder; `ListSkillFiles(skillId)` lists its contents. Workspace file operations outside skills use `{Tn.ReadFile}`/`{Tn.WriteFile}` with paths relative to the workspace root. Allowed extensions: {AllowedFileExtensions.List}.");
         sb.AppendLine();
         foreach (var s in skills)
             sb.AppendLine($"- **{s.Id}**: {s.Name} — {s.Description}");

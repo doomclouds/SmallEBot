@@ -34,11 +34,6 @@ internal static class BuiltInToolNames
     public const string CompleteTask  = nameof(CompleteTask);
     public const string CompleteTasks = nameof(CompleteTasks);
 
-    // Skills (SkillToolProvider)
-    public const string ReadSkill      = nameof(ReadSkill);
-    public const string ReadSkillFile  = nameof(ReadSkillFile);
-    public const string ListSkillFiles = nameof(ListSkillFiles);
-
     // Conversation analysis (ConversationToolProvider)
     public const string ReadConversationData = nameof(ReadConversationData);
 
