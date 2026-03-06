@@ -12,12 +12,12 @@ using ChatMessage = Microsoft.Extensions.AI.ChatMessage;
 namespace SmallEBot.Services.Agent;
 
 /// <summary>
-/// Host implementation of IAgentRunner: uses ISessionManager to manage AgentSession,
+/// Host implementation of IAgentRunner: uses ISessionAgentManager to manage AgentSession,
 /// runs the agent, and maps updates to StreamUpdate.
 /// </summary>
 public sealed class AgentRunnerAdapter(
     IAgentBuilder agentBuilder,
-    ISessionManager sessionManager,
+    ISessionAgentManager sessionManager,
     ITurnContextFragmentBuilder fragmentBuilder) : IAgentRunner
 {
     public async IAsyncEnumerable<StreamUpdate> RunStreamingAsync(
@@ -46,7 +46,7 @@ public sealed class AgentRunnerAdapter(
                 attachedPaths ?? [],
                 requestedSkillIds ?? [],
                 cancellationToken);
-            //todo 附加信息应该在动态系统提示词中添加
+            // TODO: Consider adding attachment info to dynamic system prompt instead
             if (!string.IsNullOrWhiteSpace(fragment))
             {
                 messages.Add(new ChatMessage(ChatRole.User, fragment));
@@ -141,23 +141,24 @@ public sealed class AgentRunnerAdapter(
         }
     }
 
+    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+
     private static string? ToJsonString(object? value)
     {
         if (value == null) return null;
-        var jsonOptions = new JsonSerializerOptions { WriteIndented = true };
         if (value is string s)
         {
             if (string.IsNullOrWhiteSpace(s)) return s;
             try
             {
                 using var doc = JsonDocument.Parse(s);
-                return JsonSerializer.Serialize(doc.RootElement, jsonOptions);
+                return JsonSerializer.Serialize(doc.RootElement, JsonOptions);
             }
             catch { return s; }
         }
         try
         {
-            return JsonSerializer.Serialize(value, value.GetType(), jsonOptions);
+            return JsonSerializer.Serialize(value, value.GetType(), JsonOptions);
         }
         catch
         {

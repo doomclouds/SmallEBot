@@ -1,9 +1,11 @@
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
+using SmallEBot.Application.Session;
 using SmallEBot.Core.Models;
 
 namespace SmallEBot.Services.Session;
 
-public sealed class SessionFileService : ISessionFileService
+public sealed class SessionFileService(ILogger<SessionFileService> logger) : ISessionFileService
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -11,17 +13,17 @@ public sealed class SessionFileService : ISessionFileService
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
-    private readonly string _sessionsDir;
+    // Sessions stored in .agents/sessions/
+    private readonly string _sessionsDir = Path.Combine(AppContext.BaseDirectory, ".agents", "sessions");
 
-    public SessionFileService()
+    public string SessionsDirectory
     {
-        // Sessions stored in .agents/sessions/
-        var appDir = AppContext.BaseDirectory;
-        _sessionsDir = Path.Combine(appDir, ".agents", "sessions");
-        Directory.CreateDirectory(_sessionsDir);
+        get
+        {
+            Directory.CreateDirectory(_sessionsDir);
+            return _sessionsDir;
+        }
     }
-
-    public string SessionsDirectory => _sessionsDir;
 
     public async Task<ConversationMetadata?> LoadAsync(Guid id, CancellationToken ct = default)
     {
@@ -54,7 +56,7 @@ public sealed class SessionFileService : ISessionFileService
     {
         var summaries = new List<ConversationSummary>();
 
-        foreach (var file in Directory.GetFiles(_sessionsDir, "*.json"))
+        foreach (var file in Directory.GetFiles(SessionsDirectory, "*.json"))
         {
             try
             {
@@ -70,9 +72,10 @@ public sealed class SessionFileService : ISessionFileService
                     });
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // Skip malformed files
+                // Skip malformed or corrupted files, but log for debugging
+                logger.LogWarning(ex, "Failed to parse session file: {FilePath}", file);
             }
         }
 

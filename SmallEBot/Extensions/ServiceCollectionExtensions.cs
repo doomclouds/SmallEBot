@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using SmallEBot.Application.Conversation;
+using SmallEBot.Application.Session;
 using SmallEBot.Application.Streaming;
 using SmallEBot.Infrastructure.Data;
 using SmallEBot.Infrastructure.Repositories;
@@ -45,6 +46,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ITerminalConfigService, TerminalConfigService>();
         services.AddSingleton<ISessionFileService, SessionFileService>();
         services.AddScoped<ISessionManager, SessionManager>();
+        services.AddScoped<ISessionAgentManager>(sp => sp.GetRequiredService<SessionManager>());
         services.AddSingleton<ICommandConfirmationContext, CommandConfirmationContext>();
         services.AddSingleton<IConversationTaskContext, ConversationTaskContext>();
         services.AddSingleton<ICurrentConversationService, CurrentConversationService>();

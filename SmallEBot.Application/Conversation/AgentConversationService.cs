@@ -1,3 +1,4 @@
+using SmallEBot.Application.Session;
 using SmallEBot.Application.Streaming;
 using SmallEBot.Core.Models;
 using SmallEBot.Core.Repositories;
@@ -7,6 +8,8 @@ namespace SmallEBot.Application.Conversation;
 
 public sealed class AgentConversationService(
     IConversationRepository repository,
+    ISessionFileService sessionFileService,
+    ISessionManager sessionManager,
     IAgentRunner agentRunner,
     ICommandConfirmationContext commandConfirmationContext,
     IConversationTaskContext conversationTaskContext,
@@ -19,23 +22,65 @@ public sealed class AgentConversationService(
     public event Action<Guid, bool>? CompressionCompleted;
 
     private readonly HashSet<Guid> _compressingConversations = [];
-    public Task<ConversationEntity> CreateConversationAsync(string userName, CancellationToken cancellationToken = default) =>
-        repository.CreateAsync(userName, "New conversation", cancellationToken);
 
-    public Task<List<ConversationEntity>> GetConversationsAsync(string userName, CancellationToken cancellationToken = default) =>
-        repository.GetListAsync(userName, cancellationToken);
+    public async Task<ConversationEntity> CreateConversationAsync(string userName, CancellationToken cancellationToken = default)
+    {
+        var metadata = await sessionManager.CreateConversationAsync(userName, "New conversation", cancellationToken);
+        return ToEntity(metadata);
+    }
 
-    public Task<List<ConversationEntity>> SearchConversationsAsync(string userName, string query, CancellationToken cancellationToken = default) =>
-        repository.SearchAsync(userName, query, false, cancellationToken);
+    public async Task<List<ConversationEntity>> GetConversationsAsync(string userName, CancellationToken cancellationToken = default)
+    {
+        var summaries = await sessionFileService.ListAsync(userName, cancellationToken);
+        return summaries.Select(s => new ConversationEntity
+        {
+            Id = s.Id,
+            Title = s.Title,
+            UserName = userName,
+            UpdatedAt = s.UpdatedAt
+        }).ToList();
+    }
 
-    public Task<ConversationEntity?> GetConversationAsync(Guid id, string userName, CancellationToken cancellationToken = default) =>
-        repository.GetByIdAsync(id, userName, cancellationToken);
+    public async Task<List<ConversationEntity>> SearchConversationsAsync(string userName, string query, CancellationToken cancellationToken = default)
+    {
+        var summaries = await sessionFileService.SearchAsync(userName, query, cancellationToken);
+        return summaries.Select(s => new ConversationEntity
+        {
+            Id = s.Id,
+            Title = s.Title,
+            UserName = userName,
+            UpdatedAt = s.UpdatedAt
+        }).ToList();
+    }
 
-    public Task<bool> DeleteConversationAsync(Guid id, string userName, CancellationToken cancellationToken = default) =>
-        repository.DeleteAsync(id, userName, cancellationToken);
+    public async Task<ConversationEntity?> GetConversationAsync(Guid id, string userName, CancellationToken cancellationToken = default)
+    {
+        var metadata = await sessionFileService.LoadAsync(id, cancellationToken);
+        if (metadata == null || metadata.UserName != userName) return null;
+        return ToEntity(metadata);
+    }
+
+    public async Task<bool> DeleteConversationAsync(Guid id, string userName, CancellationToken cancellationToken = default)
+    {
+        var metadata = await sessionFileService.LoadAsync(id, cancellationToken);
+        if (metadata == null || metadata.UserName != userName) return false;
+        await sessionFileService.DeleteAsync(id, cancellationToken);
+        return true;
+    }
 
     public Task<int> GetMessageCountAsync(Guid conversationId, CancellationToken cancellationToken = default) =>
         repository.GetMessageCountAsync(conversationId, cancellationToken);
+
+    private static ConversationEntity ToEntity(ConversationMetadata metadata) => new()
+    {
+        Id = metadata.Id,
+        Title = metadata.Title,
+        UserName = metadata.UserName,
+        CreatedAt = metadata.CreatedAt,
+        UpdatedAt = metadata.UpdatedAt,
+        CompressedContext = metadata.CompressedContext,
+        CompressedAt = metadata.CompressedAt
+    };
 
     public async Task<Guid> CreateTurnAndUserMessageAsync(
         Guid conversationId,

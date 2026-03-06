@@ -1,9 +1,10 @@
 using Microsoft.Agents.AI;
+using SmallEBot.Application.Session;
 using SmallEBot.Core.Models;
 
 namespace SmallEBot.Services.Session;
 
-public sealed class SessionManager : ISessionManager
+public sealed class SessionManager : ISessionAgentManager
 {
     private readonly ISessionFileService _fileService;
     private readonly ILogger<SessionManager> _logger;

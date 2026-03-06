@@ -1,6 +1,6 @@
 using SmallEBot.Core.Models;
 
-namespace SmallEBot.Services.Session;
+namespace SmallEBot.Application.Session;
 
 /// <summary>
 /// File-based session persistence service.
