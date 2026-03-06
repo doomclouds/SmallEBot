@@ -106,7 +106,7 @@ public sealed class AgentBuilder : IAgentBuilder
                 Instructions = instructions,
                 Tools = _allTools
             },
-            AIContextProviders = [skillsProvider]
+            AIContextProviders = [skillsProvider, new TurnContextProvider()]
         });
         return _agent;
     }

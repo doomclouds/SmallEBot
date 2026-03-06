@@ -70,17 +70,23 @@ public sealed class AgentSessionReader(
     {
         var messages = new List<ChatMessage>();
 
-        // Navigate to chatHistoryProviderState.messages
-        if (!sessionData.TryGetProperty("chatHistoryProviderState", out var historyState))
+        // Navigate to stateBag.InMemoryChatHistoryProvider.messages
+        if (!sessionData.TryGetProperty("stateBag", out var stateBag))
         {
-            logger.LogDebug("SessionData missing chatHistoryProviderState property");
+            logger.LogDebug("SessionData missing stateBag property");
             return messages;
         }
 
-        if (!historyState.TryGetProperty("messages", out var messagesArray) ||
+        if (!stateBag.TryGetProperty("InMemoryChatHistoryProvider", out var historyProvider))
+        {
+            logger.LogDebug("SessionData stateBag missing InMemoryChatHistoryProvider");
+            return messages;
+        }
+
+        if (!historyProvider.TryGetProperty("messages", out var messagesArray) ||
             messagesArray.ValueKind != JsonValueKind.Array)
         {
-            logger.LogDebug("chatHistoryProviderState missing messages array");
+            logger.LogDebug("InMemoryChatHistoryProvider missing messages array");
             return messages;
         }
 

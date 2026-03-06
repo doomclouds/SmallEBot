@@ -1,60 +1,80 @@
 using SmallEBot.Core;
 using SmallEBot.Services.Skills;
-using SmallEBot.Services.Workspace;
 
 namespace SmallEBot.Services.Conversation;
 
-public sealed class TurnContextFragmentBuilder(IWorkspaceService workspace, ISkillsConfigService skillsConfig) : ITurnContextFragmentBuilder
+public sealed class TurnContextFragmentBuilder(ISkillsConfigService skillsConfig) : ITurnContextFragmentBuilder
 {
-    public async Task<string?> BuildFragmentAsync(
+    public async Task<string?> BuildContextHintAsync(
         IReadOnlyList<string> attachedPaths,
         IReadOnlyList<string> requestedSkillIds,
         CancellationToken ct = default)
     {
-        var filesBlock = await BuildFilesBlockAsync(attachedPaths, ct);
+        var filesBlock = BuildFilesBlock(attachedPaths);
         var skillsBlock = await BuildSkillsBlockAsync(requestedSkillIds, ct);
 
         if (string.IsNullOrWhiteSpace(filesBlock) && string.IsNullOrWhiteSpace(skillsBlock))
             return null;
 
-        var parts = new List<string> { "Attached context for this turn:\n\n" };
+        var parts = new List<string>();
         if (!string.IsNullOrWhiteSpace(filesBlock))
             parts.Add(filesBlock);
         if (!string.IsNullOrWhiteSpace(skillsBlock))
             parts.Add(skillsBlock);
-        parts.Add("\n--- User message below ---\n\n");
-        return string.Join("\n", parts);
+
+        return string.Join("\n\n", parts);
     }
 
-    private async Task<string> BuildFilesBlockAsync(IReadOnlyList<string> attachedPaths, CancellationToken ct)
+    private static string BuildFilesBlock(IReadOnlyList<string> attachedPaths)
     {
+        if (attachedPaths.Count == 0)
+            return "";
+
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var lines = new List<string>();
+        var validPaths = new List<string>();
+
         foreach (var path in attachedPaths)
         {
-            if (string.IsNullOrWhiteSpace(path) || !seen.Add(path.Trim()))
+            if (string.IsNullOrWhiteSpace(path))
                 continue;
             var trimmed = path.Trim();
-            if (!AllowedFileExtensions.IsAllowed(Path.GetExtension(trimmed)))
-            {
-                lines.Add($"File {trimmed} could not be loaded.");
+            if (!seen.Add(trimmed))
                 continue;
-            }
-            var content = await workspace.ReadFileContentAsync(trimmed, ct);
-            if (content == null)
-                lines.Add($"File {trimmed} could not be loaded.");
-            else
-                lines.Add($"--- {trimmed} ---\n{content}");
+            if (!AllowedFileExtensions.IsAllowed(Path.GetExtension(trimmed)))
+                continue;
+            validPaths.Add(trimmed);
         }
-        return lines.Count == 0 ? "" : string.Join("\n\n", lines);
+
+        if (validPaths.Count == 0)
+            return "";
+
+        var lines = new List<string>
+        {
+            "# Attached Files",
+            "",
+            "The following files are attached to this message. Use ReadFile to read their contents when needed:"
+        };
+
+        foreach (var p in validPaths)
+            lines.Add($"- {p}");
+
+        return string.Join("\n", lines);
     }
 
     private async Task<string> BuildSkillsBlockAsync(IReadOnlyList<string> requestedSkillIds, CancellationToken ct)
     {
+        if (requestedSkillIds.Count == 0)
+            return "";
+
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var metadata = await skillsConfig.GetMetadataForAgentAsync(ct);
         var knownIds = new HashSet<string>(metadata.Select(m => m.Id), StringComparer.OrdinalIgnoreCase);
-        var lines = new List<string>();
+        var lines = new List<string>
+        {
+            "# Requested Skills",
+            ""
+        };
+
         foreach (var id in requestedSkillIds)
         {
             if (string.IsNullOrWhiteSpace(id) || !seen.Add(id.Trim()))
@@ -62,13 +82,14 @@ public sealed class TurnContextFragmentBuilder(IWorkspaceService workspace, ISki
             var trimmed = id.Trim();
             if (knownIds.Contains(trimmed))
             {
-                lines.Add($"The user wants you to use the skill \"{trimmed}\". Call load_skill(\"{trimmed}\") (and read_skill_resource as needed) to learn and apply it.");
+                lines.Add($"The user wants you to use the skill \"{trimmed}\". Call load_skill(\"{trimmed}\") to learn and apply it.");
             }
             else
             {
                 lines.Add($"The user requested skill \"{trimmed}\"; it was not found in the skills list.");
             }
         }
-        return lines.Count == 0 ? "" : string.Join("\n", lines);
+
+        return lines.Count <= 2 ? "" : string.Join("\n", lines);
     }
 }

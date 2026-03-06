@@ -42,7 +42,8 @@ public static class ServiceCollectionExtensions
         // File-based session services
         services.AddSingleton<ISessionFileService, SessionFileService>();
         services.AddScoped<IAgentSessionReader, AgentSessionReader>();
-        services.AddScoped<ISessionManager, SessionManager>();
+        services.AddScoped<SessionManager>();
+        services.AddScoped<ISessionManager>(sp => sp.GetRequiredService<SessionManager>());
         services.AddScoped<ISessionAgentManager>(sp => sp.GetRequiredService<SessionManager>());
 
         services.AddSingleton<ICommandConfirmationContext, CommandConfirmationContext>();

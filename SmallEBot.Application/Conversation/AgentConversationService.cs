@@ -119,13 +119,10 @@ public sealed class AgentConversationService(
             RequestedSkillIds = requestedSkillIds?.ToList() ?? []
         };
         metadata.Turns.Add(turn);
+        metadata.UpdatedAt = DateTime.UtcNow;
 
         // Save metadata
         await sessionFileService.SaveAsync(metadata, cancellationToken);
-
-        // Keep repository call for transition period (will be removed in Task 4.5)
-        // Note: Repository uses its own turn ID, so we pass the generated turnId
-        await repository.AddTurnAndUserMessageAsync(conversationId, userName, userMessage, useThinking, newTitle, attachedPaths, requestedSkillIds, cancellationToken);
 
         return turnId;
     }

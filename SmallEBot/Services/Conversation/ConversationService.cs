@@ -39,50 +39,81 @@ public class ConversationService(
 
         var turns = new List<(Guid TurnId, bool IsThinkingMode, MessageInfo UserMessage, IReadOnlyList<TimelineItem> AssistantItems)>();
 
-        // Build turns from messages (user, assistant, user, assistant, ...)
-        for (int i = 0; i < messages.Count; i += 2)
+        // Build function result map by callId
+        var functionResults = new Dictionary<string, FunctionResultContent>();
+        foreach (var msg in messages)
         {
-            var userMsg = messages[i];
-            var assistantMsg = i + 1 < messages.Count ? messages[i + 1] : null;
+            foreach (var content in msg.Contents.OfType<FunctionResultContent>())
+            {
+                if (!string.IsNullOrEmpty(content.CallId))
+                    functionResults[content.CallId] = content;
+            }
+        }
 
-            var turnMetadata = i / 2 < metadata.Turns.Count ? metadata.Turns[i / 2] : null;
+        // Process messages into turns
+        // A turn = user message + all subsequent assistant/tool messages until next user message
+        int turnIndex = 0;
+        for (int i = 0; i < messages.Count; i++)
+        {
+            var msg = messages[i];
 
+            // Skip non-user messages (they're processed as part of the previous user's turn)
+            if (msg.Role != ChatRole.User) continue;
+
+            // Find turn metadata
+            var turnMetadata = turnIndex < metadata.Turns.Count ? metadata.Turns[turnIndex] : null;
+            turnIndex++;
+
+            // Build user message info
             var userMessageInfo = new MessageInfo
             {
                 Id = turnMetadata?.Id ?? Guid.NewGuid(),
                 Role = "user",
-                Content = userMsg.Text ?? "",
+                Content = msg.Text ?? "",
                 CreatedAt = turnMetadata?.CreatedAt ?? DateTime.UtcNow,
                 IsEdited = false,
                 AttachedPaths = turnMetadata?.AttachedPaths ?? [],
                 RequestedSkillIds = turnMetadata?.RequestedSkillIds ?? []
             };
 
+            // Collect all assistant/tool items until next user message
             var assistantItems = new List<TimelineItem>();
             bool isThinkingMode = false;
 
-            if (assistantMsg != null)
+            for (int j = i + 1; j < messages.Count; j++)
             {
-                foreach (var content in assistantMsg.Contents)
+                var nextMsg = messages[j];
+
+                // Stop at next user message
+                if (nextMsg.Role == ChatRole.User) break;
+
+                // Skip system messages (they're context, not conversation)
+                if (nextMsg.Role == ChatRole.System) continue;
+
+                // Process assistant messages (may contain reasoning, text, function calls)
+                if (nextMsg.Role == ChatRole.Assistant)
                 {
-                    if (content is TextReasoningContent reasoning)
+                    foreach (var content in nextMsg.Contents)
                     {
-                        isThinkingMode = true;
-                        assistantItems.Add(new TimelineItem { ThinkBlock = new ThinkBlockInfo { Content = reasoning.Text, CreatedAt = DateTime.UtcNow } });
-                    }
-                    else if (content is TextContent text && !string.IsNullOrEmpty(text.Text))
-                    {
-                        assistantItems.Add(new TimelineItem { Message = new MessageInfo { Id = Guid.NewGuid(), Role = "assistant", Content = text.Text, CreatedAt = DateTime.UtcNow } });
-                    }
-                    else if (content is FunctionCallContent fnCall)
-                    {
-                        assistantItems.Add(new TimelineItem { ToolCall = new ToolCallInfo { ToolName = fnCall.Name ?? "", Arguments = fnCall.Arguments?.ToString(), CreatedAt = DateTime.UtcNow } });
-                    }
-                    else if (content is FunctionResultContent fnResult)
-                    {
-                        assistantItems.Add(new TimelineItem { ToolCall = new ToolCallInfo { ToolName = "", Result = fnResult.Result?.ToString(), CreatedAt = DateTime.UtcNow } });
+                        if (content is TextReasoningContent reasoning)
+                        {
+                            isThinkingMode = true;
+                            assistantItems.Add(new TimelineItem { ThinkBlock = new ThinkBlockInfo { Content = reasoning.Text, CreatedAt = DateTime.UtcNow } });
+                        }
+                        else if (content is TextContent text && !string.IsNullOrEmpty(text.Text))
+                        {
+                            assistantItems.Add(new TimelineItem { Message = new MessageInfo { Id = Guid.NewGuid(), Role = "assistant", Content = text.Text, CreatedAt = DateTime.UtcNow } });
+                        }
+                        else if (content is FunctionCallContent fnCall)
+                        {
+                            var resultText = functionResults.TryGetValue(fnCall.CallId ?? "", out var fnResult)
+                                ? fnResult.Result?.ToString()
+                                : null;
+                            assistantItems.Add(new TimelineItem { ToolCall = new ToolCallInfo { ToolName = fnCall.Name ?? "", Arguments = fnCall.Arguments?.ToString(), Result = resultText, CreatedAt = DateTime.UtcNow } });
+                        }
                     }
                 }
+                // tool role messages contain function results, already processed via functionResults map
             }
 
             turns.Add((turnMetadata?.Id ?? Guid.NewGuid(), isThinkingMode, userMessageInfo, assistantItems));

@@ -17,8 +17,7 @@ namespace SmallEBot.Services.Agent;
 /// </summary>
 public sealed class AgentRunnerAdapter(
     IAgentBuilder agentBuilder,
-    ISessionAgentManager sessionManager,
-    ITurnContextFragmentBuilder fragmentBuilder) : IAgentRunner
+    ISessionAgentManager sessionManager) : IAgentRunner
 {
     public async IAsyncEnumerable<StreamUpdate> RunStreamingAsync(
         Guid conversationId,
@@ -37,22 +36,20 @@ public sealed class AgentRunnerAdapter(
             agent,
             cancellationToken);
 
-        // Build attachments fragment if any
-        var messages = new List<ChatMessage>();
-        var hasAttachments = (attachedPaths?.Count ?? 0) + (requestedSkillIds?.Count ?? 0) > 0;
-        if (hasAttachments)
+        // Set turn context for AIContextProvider
+        TurnContextProvider.SetContext(new TurnContext
         {
-            var fragment = await fragmentBuilder.BuildFragmentAsync(
-                attachedPaths ?? [],
-                requestedSkillIds ?? [],
-                cancellationToken);
-            // TODO: Consider adding attachment info to dynamic system prompt instead
-            if (!string.IsNullOrWhiteSpace(fragment))
+            AttachedPaths = attachedPaths ?? [],
+            RequestedSkillIds = requestedSkillIds ?? []
+        });
+
+        try
+        {
+            // Build messages list (just user message, context provided via AIContextProvider)
+            var messages = new List<ChatMessage>
             {
-                messages.Add(new ChatMessage(ChatRole.User, fragment));
-            }
-        }
-        messages.Add(new ChatMessage(ChatRole.User, userMessage));
+                new(ChatRole.User, userMessage)
+            };
 
         // Configure reasoning
         var reasoningOpt = new ReasoningOptions();
@@ -122,6 +119,12 @@ public sealed class AgentRunnerAdapter(
 
         // Persist session after completion
         await sessionManager.PersistSessionAsync(conversationId, session, agent, cancellationToken);
+        }
+        finally
+        {
+            // Clear turn context after completion
+            TurnContextProvider.ClearContext();
+        }
     }
 
     public async Task<string> GenerateTitleAsync(string firstMessage, CancellationToken cancellationToken = default)

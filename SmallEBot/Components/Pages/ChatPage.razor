@@ -130,7 +130,10 @@ else
             ? await ConvSvc.GetListAsync(_userName!)
             : await ConvSvc.SearchAsync(_userName!, _searchQuery.Trim());
         if (_selectedId.HasValue)
+        {
             _selectedConversation = await ConvSvc.GetByIdAsync(_selectedId.Value, _userName!);
+            _bubbles = await ConvSvc.GetChatBubblesAsync(_selectedId.Value);
+        }
         await InvokeAsync(StateHasChanged);
     }
 
