@@ -40,10 +40,11 @@
                     break;
 
                 case ApprovalItemView approval:
-                    @* Approval request: warning alert *@
-                    <MudAlert Severity="Severity.Warning" Class="mt-2" Dense="true">
-                        Approval required: @approval.ToolName
-                    </MudAlert>
+                    @* Approval request: use ApprovalRequestView component *@
+                    <ApprovalRequestView Model="@approval"
+                                         OnApprove="@(() => OnApprove.InvokeAsync(approval))"
+                                         OnReject="@(() => OnReject.InvokeAsync(approval))"
+                                         IsProcessing="@IsApprovalProcessing" />
                     break;
             }
         }
@@ -62,6 +63,9 @@
     [Parameter] public bool ShowWaitingForToolParams { get; set; }
     [Parameter] public TimeSpan WaitingElapsed { get; set; }
     [Parameter] public bool ShowToolCalls { get; set; } = true;
+    [Parameter] public EventCallback<ApprovalItemView> OnApprove { get; set; }
+    [Parameter] public EventCallback<ApprovalItemView> OnReject { get; set; }
+    [Parameter] public bool IsApprovalProcessing { get; set; }
 
     private static bool CanShowCancel(ToolCallPhase phase) =>
         phase is ToolCallPhase.Started or ToolCallPhase.ArgsReceived or ToolCallPhase.Executing;
