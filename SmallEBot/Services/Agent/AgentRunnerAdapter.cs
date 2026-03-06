@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
@@ -144,7 +145,11 @@ public sealed class AgentRunnerAdapter(
         }
     }
 
-    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        WriteIndented = true,
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping // Allow Chinese and other Unicode chars
+    };
 
     private static string? ToJsonString(object? value)
     {
@@ -159,13 +164,47 @@ public sealed class AgentRunnerAdapter(
             }
             catch { return s; }
         }
+
+        // Handle IDictionary directly for FunctionCallContent.Arguments
+        if (value is System.Collections.IDictionary dict)
+        {
+            try
+            {
+                return JsonSerializer.Serialize(dict, JsonOptions);
+            }
+            catch
+            {
+                // Fallback: manually build JSON
+                return SerializeDictionaryManually(dict);
+            }
+        }
+
         try
         {
-            return JsonSerializer.Serialize(value, value.GetType(), JsonOptions);
+            return JsonSerializer.Serialize(value, JsonOptions);
         }
         catch
         {
             return value.ToString();
         }
+    }
+
+    private static string SerializeDictionaryManually(System.Collections.IDictionary dict)
+    {
+        var entries = new List<string>();
+        foreach (System.Collections.DictionaryEntry entry in dict)
+        {
+            var key = entry.Key?.ToString() ?? "null";
+            var val = entry.Value switch
+            {
+                null => "null",
+                string str => $"\"{str.Replace("\\", "\\\\").Replace("\"", "\\\"")}\"",
+                bool b => b.ToString().ToLower(),
+                int or long or double or float or decimal => entry.Value.ToString(),
+                _ => JsonSerializer.Serialize(entry.Value, JsonOptions)
+            };
+            entries.Add($"\"{key}\": {val}");
+        }
+        return "{\n  " + string.Join(",\n  ", entries) + "\n}";
     }
 }

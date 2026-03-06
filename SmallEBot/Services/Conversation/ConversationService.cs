@@ -1,3 +1,5 @@
+using System.Text.Encodings.Web;
+using System.Text.Json;
 using Microsoft.Extensions.AI;
 using SmallEBot.Application.Session;
 using SmallEBot.Core;
@@ -138,7 +140,10 @@ public class ConversationService(
                             var resultText = functionResults.TryGetValue(fnCall.CallId ?? "", out var fnResult)
                                 ? fnResult.Result?.ToString()
                                 : null;
-                            assistantItems.Add(new TimelineItem { ToolCall = new ToolCallInfo { ToolName = fnCall.Name ?? "", Arguments = fnCall.Arguments?.ToString(), Result = resultText, CreatedAt = DateTime.UtcNow } });
+                            var argsJson = fnCall.Arguments != null
+                                ? JsonSerializer.Serialize(fnCall.Arguments, JsonOptions)
+                                : null;
+                            assistantItems.Add(new TimelineItem { ToolCall = new ToolCallInfo { ToolName = fnCall.Name ?? "", Arguments = argsJson, Result = resultText, CreatedAt = DateTime.UtcNow } });
                         }
                     }
                 }
@@ -160,5 +165,11 @@ public class ConversationService(
         UpdatedAt = metadata.UpdatedAt,
         CompressedContext = metadata.CompressedContext,
         CompressedAt = metadata.CompressedAt
+    };
+
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        WriteIndented = true,
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping // Allow Chinese and other Unicode chars
     };
 }

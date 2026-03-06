@@ -1,3 +1,4 @@
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using SmallEBot.Application.Session;
@@ -10,7 +11,8 @@ public sealed class SessionFileService(ILogger<SessionFileService> logger) : ISe
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping // Allow Chinese and other Unicode chars
     };
 
     // Sessions stored in .agents/sessions/

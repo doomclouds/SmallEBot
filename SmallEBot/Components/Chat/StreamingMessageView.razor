@@ -23,24 +23,13 @@
                     break;
 
                 case ToolCallItemView tool when ShowToolCalls:
-                    @* Tool call: collapsible wrapper, default collapsed, reuse ToolCallView inside *@
-                    <MudExpansionPanels Class="mt-2 smallebot-reasoning-panel" Elevation="0">
-                        <MudExpansionPanel Expanded="false">
-                            <TitleContent>
-                                <div class="d-flex align-center gap-2">
-                                    <MudIcon Icon="@GetToolPhaseIcon(tool.Phase)" Size="Size.Small" Color="@GetToolPhaseColor(tool.Phase)" />
-                                    <MudText Typo="Typo.body2">@tool.ToolName</MudText>
-                                    @if (tool.Elapsed.HasValue)
-                                    {
-                                        <MudText Typo="Typo.caption" Color="Color.Secondary">@FormatElapsed(tool.Elapsed.Value)</MudText>
-                                    }
-                                </div>
-                            </TitleContent>
-                            <ChildContent>
-                                
-                            </ChildContent>
-                        </MudExpansionPanel>
-                    </MudExpansionPanels>
+                    @* Tool call: use ToolCallView directly *@
+                    <ToolCallView ToolName="@tool.ToolName"
+                                  ToolArguments="@tool.Arguments"
+                                  ToolResult="@tool.Result"
+                                  Phase="@tool.Phase"
+                                  Elapsed="@tool.Elapsed"
+                                  ShowToolCalls="@ShowToolCalls" />
                     break;
 
                 case TextItemView text:
