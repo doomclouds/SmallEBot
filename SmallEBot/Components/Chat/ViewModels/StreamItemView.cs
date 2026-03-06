@@ -42,6 +42,17 @@ public record ToolCallItemView : StreamItemView
 }
 
 /// <summary>
+/// Approval state for tracking user interaction.
+/// </summary>
+public enum ApprovalState
+{
+    Pending,
+    Approved,
+    Rejected,
+    Completed
+}
+
+/// <summary>
 /// Approval request - maps from FunctionApprovalRequestContent.
 /// </summary>
 public record ApprovalItemView : StreamItemView
@@ -49,4 +60,7 @@ public record ApprovalItemView : StreamItemView
     public required string CallId { get; init; }
     public required string ToolName { get; init; }
     public string? Arguments { get; init; }
+    public ApprovalState State { get; init; } = ApprovalState.Pending;
+    public Guid ConversationId { get; init; }
+    public string FunctionCallId { get; init; } = "";
 }
