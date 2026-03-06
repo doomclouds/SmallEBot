@@ -28,4 +28,10 @@ public class ConversationMetadata
     /// Serialized AgentSession state from SerializeSessionAsync.
     /// </summary>
     public JsonElement? SessionData { get; set; }
+
+    /// <summary>
+    /// Turn metadata for UI display (attachments, skills).
+    /// AgentSession contains the actual message content.
+    /// </summary>
+    public List<TurnMetadata> Turns { get; set; } = [];
 }
