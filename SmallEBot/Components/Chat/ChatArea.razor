@@ -1,7 +1,7 @@
 @using System.IO
 @using SmallEBot.Application.Conversation
+@using SmallEBot.Components.Chat.ViewModels
 @using SmallEBot.Components.Chat.ViewModels.Bubbles
-@using SmallEBot.Components.Chat.ViewModels.Streaming
 @using SmallEBot.Components.Chat.Services
 @using SmallEBot.Core
 @using SmallEBot.Core.Models
@@ -33,12 +33,10 @@
     @* Only show streaming block while actively streaming; after persist parent refresh shows reply from Bubbles (avoids duplicate AI bubble). *@
     <StreamingIndicator IsStreaming="@_streaming"
                         StreamingItems="@_streamingViews"
-                        FallbackText="@_streamingText"
                         Timestamp="@DateTime.Now"
                         OnCancel="@StopSend"
                         ShowWaitingForToolParams="@_showWaitingForToolParams"
                         WaitingElapsed="@(_showWaitingForToolParams && _waitingForToolParamsSince.HasValue ? DateTime.UtcNow - _waitingForToolParamsSince.Value : TimeSpan.Zero)"
-                        WaitingInReasoning="@_waitingInReasoning"
                         ShowToolCalls="@ShowToolCalls"
                         IsCompressing="@_compressing"
                         CompressionMessage="@_compressionMessage" />
@@ -79,13 +77,11 @@
     private ElementReference _chatScrollRef;
     private string _input = "";
     private bool _streaming;
-    private string _streamingText = "";
     private readonly List<StreamUpdate> _streamingUpdates = [];
-    private IReadOnlyList<StreamingDisplayItemView> _streamingViews = [];
+    private IReadOnlyList<StreamItemView> _streamingViews = [];
     private DateTime? _lastStreamActivityAt;
     private bool _showWaitingForToolParams;
     private DateTime? _waitingForToolParamsSince;
-    private bool _waitingInReasoning;
     private Timer? _waitingCheckTimer;
     private string _pendingUserMessage = "";
     private DateTime _pendingUserMessageTime;
@@ -198,7 +194,6 @@
         _userNameForAction = await UserNameSvc.GetAsync() ?? UserName;
         if (string.IsNullOrWhiteSpace(_userNameForAction)) { Snackbar.Add("Username is missing.", Severity.Warning); return; }
         _streaming = true;
-        _streamingText = "";
         _streamingUpdates.Clear();
         _streamingViews = [];
         _lastStreamActivityAt = null;
@@ -218,7 +213,6 @@
         _userNameForAction = await UserNameSvc.GetAsync() ?? UserName;
         if (string.IsNullOrWhiteSpace(_userNameForAction)) { Snackbar.Add("Username is missing.", Severity.Warning); return; }
         _streaming = true;
-        _streamingText = "";
         _streamingUpdates.Clear();
         _streamingViews = [];
         _lastStreamActivityAt = null;
@@ -269,7 +263,6 @@
                 switch (update)
                 {
                     case TextStreamUpdate t:
-                        _streamingText += t.Text;
                         _streamingUpdates.Add(update);
                         break;
                     case ThinkStreamUpdate:
@@ -277,7 +270,7 @@
                         _streamingUpdates.Add(update);
                         break;
                 }
-                _streamingViews = Presentation.ConvertStreamingUpdates(_streamingUpdates);
+                _streamingViews = Presentation.ConvertToStreamItems(_streamingUpdates);
                 await InvokeAsync(StateHasChanged);
             }
             await runTask;
@@ -368,7 +361,6 @@
         _pendingUserMessageTime = DateTime.UtcNow;
         _bubbleCountBeforeSend = Bubbles.Count;
         _streaming = true;
-        _streamingText = "";
         _streamingUpdates.Clear();
         _streamingViews = [];
         _lastStreamActivityAt = null;
@@ -442,7 +434,6 @@
                 switch (update)
                 {
                     case TextStreamUpdate t:
-                        _streamingText += t.Text;
                         _streamingUpdates.Add(update);
                         break;
                     case ThinkStreamUpdate:
@@ -450,7 +441,7 @@
                         _streamingUpdates.Add(update);
                         break;
                 }
-                _streamingViews = Presentation.ConvertStreamingUpdates(_streamingUpdates);
+                _streamingViews = Presentation.ConvertToStreamItems(_streamingUpdates);
                 await InvokeAsync(StateHasChanged);
             }
             await runTask;
@@ -525,7 +516,7 @@
         {
             _showWaitingForToolParams = true;
             _waitingForToolParamsSince = _lastStreamActivityAt;
-            _waitingInReasoning = !_streamingUpdates.Any(u => u is TextStreamUpdate);
+            // Waiting state - no special reasoning tracking needed with flat structure
         }
         StateHasChanged();
     }

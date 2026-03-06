@@ -701,37 +701,113 @@ dotnet build SmallEBot
 **Step 1: Simplify StreamingMessageView.razor**
 
 ```razor
-@code {
-    [Parameter]
-    public IReadOnlyList<StreamItemView> Items { get; set; } = [];
-}
+@* Streaming assistant message bubble with flat structure using MudBlazor *@
+@using SmallEBot.Components.Chat.ViewModels
 
-<div class="streaming-message">
-    @foreach (var item in Items)
-    {
-        @switch (item)
+<MudChat ChatPosition="ChatBubblePosition.Start" ArrowPosition="ChatArrowPosition.Top" Class="mb-3 smallebot-bubble">
+    <MudChatBubble>
+        <MudText Typo="Typo.caption">SmallEBot · @Timestamp.ToString("g")</MudText>
+
+        @* Flat rendering: each item rendered independently in order *@
+        @foreach (var item in Items.OrderBy(i => i.SortOrder))
         {
-            case ThinkItemView think:
-                <div class="think-block">
-                    <pre>@think.Content</pre>
-                </div>
-            case ToolCallItemView tool:
-                <div class="tool-call">
-                    <div class="tool-header">@tool.ToolName</div>
-                    @if (!string.IsNullOrEmpty(tool.Result))
-                    {
-                        <pre>@tool.Result</pre>
-                    }
-                </div>
-            case TextItemView text:
-                <div class="text-content">@text.Content</div>
-            case ApprovalItemView approval:
-                <div class="approval-request">
-                    <span>Approval required: @approval.ToolName</span>
-                </div>
+            @switch (item)
+            {
+                case ThinkItemView think:
+                    @* Think content: collapsible, default collapsed *@
+                    <MudExpansionPanels Class="mt-2 smallebot-reasoning-panel" Elevation="0">
+                        <MudExpansionPanel Expanded="false" Text="💭 Thinking">
+                            <MudPaper Class="pa-2" Elevation="0" Style="background: var(--mud-palette-background-grey);">
+                                <MudText Typo="Typo.body2" Style="white-space: pre-wrap;">@think.Content</MudText>
+                            </MudPaper>
+                        </MudExpansionPanel>
+                    </MudExpansionPanels>
+
+                case ToolCallItemView tool when ShowToolCalls:
+                    @* Tool call: collapsible wrapper, default collapsed, reuse ToolCallView inside *@
+                    <MudExpansionPanels Class="mt-2 smallebot-reasoning-panel" Elevation="0">
+                        <MudExpansionPanel Expanded="false">
+                            <TitleContent>
+                                <div class="d-flex align-center gap-2">
+                                    <MudIcon Icon="@GetToolPhaseIcon(tool.Phase)" Size="Size.Small" Color="@GetToolPhaseColor(tool.Phase)" />
+                                    <MudText Typo="Typo.body2">@tool.ToolName</MudText>
+                                    @if (tool.Elapsed.HasValue)
+                                    {
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary">@FormatElapsed(tool.Elapsed.Value)</MudText>
+                                    }
+                                </div>
+                            </TitleContent>
+                            <ChildContent>
+                                <ToolCallView ToolName="@tool.ToolName"
+                                              ToolArguments="@tool.Arguments"
+                                              ToolResult="@tool.Result"
+                                              Phase="@tool.Phase"
+                                              Elapsed="@tool.Elapsed"
+                                              ShowToolCalls="true"
+                                              WrapperClass=""
+                                              OnCancel="@(CanShowCancel(tool.Phase) ? OnCancel : EventCallback.Empty)" />
+                            </ChildContent>
+                        </MudExpansionPanel>
+                    </MudExpansionPanels>
+
+                case TextItemView text:
+                    @* Text content: displayed directly (streaming response) *@
+                    <div class="smallebot-reasoning-step">
+                        <MarkdownContentView Content="@text.Content" />
+                    </div>
+
+                case ApprovalItemView approval:
+                    @* Approval request: warning alert *@
+                    <MudAlert Severity="Severity.Warning" Class="mt-2" Dense="true">
+                        Approval required: @approval.ToolName
+                    </MudAlert>
+            }
         }
+
+        @if (ShowWaitingForToolParams)
+        {
+            <WaitingForToolParamsView Elapsed="@WaitingElapsed" OnCancel="@OnCancel" WrapperClass="mt-3" />
+        }
+    </MudChatBubble>
+</MudChat>
+
+@code {
+    [Parameter] public IReadOnlyList<StreamItemView> Items { get; set; } = [];
+    [Parameter] public DateTime Timestamp { get; set; } = DateTime.Now;
+    [Parameter] public EventCallback OnCancel { get; set; }
+    [Parameter] public bool ShowWaitingForToolParams { get; set; }
+    [Parameter] public TimeSpan WaitingElapsed { get; set; }
+    [Parameter] public bool ShowToolCalls { get; set; } = true;
+
+    private static bool CanShowCancel(ToolCallPhase phase) =>
+        phase is ToolCallPhase.Started or ToolCallPhase.ArgsReceived or ToolCallPhase.Executing;
+
+    private static string GetToolPhaseIcon(ToolCallPhase phase) => phase switch
+    {
+        ToolCallPhase.Started => Icons.Material.Filled.HourglassTop,
+        ToolCallPhase.ArgsReceived => Icons.Material.Filled.HourglassBottom,
+        ToolCallPhase.Executing => Icons.Material.Filled.Settings,
+        ToolCallPhase.Completed => Icons.Material.Filled.CheckCircle,
+        ToolCallPhase.Failed => Icons.Material.Filled.Error,
+        ToolCallPhase.Cancelled => Icons.Material.Filled.Cancel,
+        _ => Icons.Material.Filled.Build
+    };
+
+    private static Color GetToolPhaseColor(ToolCallPhase phase) => phase switch
+    {
+        ToolCallPhase.Completed => Color.Success,
+        ToolCallPhase.Failed => Color.Error,
+        ToolCallPhase.Cancelled => Color.Warning,
+        _ => Color.Default
+    };
+
+    private static string FormatElapsed(TimeSpan e)
+    {
+        if (e.TotalMinutes >= 1) return $"{(int)e.TotalMinutes}m {e.Seconds}s";
+        if (e.TotalSeconds >= 1) return $"{e.TotalSeconds:F1}s";
+        return $"{e.TotalMilliseconds:F0}ms";
     }
-</div>
+}
 ```
 
 **Step 2: Build and verify**
