@@ -1,5 +1,6 @@
 // SmallEBot/Components/Chat/Services/ChatPresentationService.cs
 
+using SmallEBot.Components.Chat.ViewModels;
 using SmallEBot.Components.Chat.ViewModels.Bubbles;
 using SmallEBot.Components.Chat.ViewModels.Reasoning;
 using SmallEBot.Components.Chat.ViewModels.Streaming;
@@ -283,5 +284,110 @@ public sealed class ChatPresentationService
         var item = items[0];
         return item.Message is { Role: "assistant" } msg &&
                msg.Content.StartsWith("Error: ", StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Convert StreamUpdate list to flat StreamItemView list.
+    /// Merges consecutive text updates and consecutive think updates.
+    /// Handles tool call lifecycle: Started -> Completed/Failed/Cancelled.
+    /// Returns items ordered by SortOrder.
+    /// </summary>
+    public IReadOnlyList<StreamItemView> ConvertToStreamItems(
+        IReadOnlyList<StreamUpdate> updates)
+    {
+        var result = new List<StreamItemView>();
+        var sortOrder = 0;
+        var pendingToolCalls = new Dictionary<string, ToolCallItemView>();
+
+        string? textBuffer = null;
+        string? thinkBuffer = null;
+
+        foreach (var update in updates)
+        {
+            switch (update)
+            {
+                case TextStreamUpdate text:
+                    // Flush think buffer before text
+                    FlushThinkBuffer(ref thinkBuffer, result, ref sortOrder);
+                    // Merge consecutive text
+                    textBuffer = (textBuffer ?? "") + text.Text;
+                    break;
+
+                case ThinkStreamUpdate think:
+                    // Flush text buffer before think
+                    FlushTextBuffer(ref textBuffer, result, ref sortOrder);
+                    // Merge consecutive think
+                    thinkBuffer = (thinkBuffer ?? "") + think.Text;
+                    break;
+
+                case ToolCallStreamUpdate tc:
+                    // Flush both buffers before tool call
+                    FlushThinkBuffer(ref thinkBuffer, result, ref sortOrder);
+                    FlushTextBuffer(ref textBuffer, result, ref sortOrder);
+
+                    if (tc.Phase is ToolCallPhase.Completed or ToolCallPhase.Failed or ToolCallPhase.Cancelled)
+                    {
+                        // Result update: merge into existing tool call
+                        if (tc.CallId != null && pendingToolCalls.TryGetValue(tc.CallId, out var existing))
+                        {
+                            pendingToolCalls[tc.CallId] = existing with
+                            {
+                                Result = tc.Result,
+                                Phase = tc.Phase,
+                                Elapsed = tc.Elapsed
+                            };
+                        }
+                    }
+                    else
+                    {
+                        // Started or intermediate phase: create/update tool call
+                        if (tc.CallId != null)
+                        {
+                            var itemView = new ToolCallItemView
+                            {
+                                CallId = tc.CallId,
+                                ToolName = tc.ToolName ?? "",
+                                Arguments = tc.Arguments,
+                                Phase = tc.Phase,
+                                Elapsed = tc.Elapsed,
+                                SortOrder = sortOrder++
+                            };
+                            pendingToolCalls[tc.CallId] = itemView;
+                        }
+                    }
+                    break;
+            }
+        }
+
+        // Flush remaining buffers
+        FlushThinkBuffer(ref thinkBuffer, result, ref sortOrder);
+        FlushTextBuffer(ref textBuffer, result, ref sortOrder);
+
+        // Add all pending tool calls in order
+        result.AddRange(pendingToolCalls.Values.OrderBy(x => x.SortOrder));
+
+        return result;
+    }
+
+    private static void FlushTextBuffer(ref string? buffer, List<StreamItemView> result, ref int sortOrder)
+    {
+        if (string.IsNullOrEmpty(buffer)) return;
+        result.Add(new TextItemView
+        {
+            Content = buffer,
+            SortOrder = sortOrder++
+        });
+        buffer = null;
+    }
+
+    private static void FlushThinkBuffer(ref string? buffer, List<StreamItemView> result, ref int sortOrder)
+    {
+        if (string.IsNullOrEmpty(buffer)) return;
+        result.Add(new ThinkItemView
+        {
+            Content = buffer,
+            SortOrder = sortOrder++
+        });
+        buffer = null;
     }
 }
