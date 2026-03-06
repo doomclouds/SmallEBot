@@ -68,8 +68,11 @@ public sealed class AgentConversationService(
         return true;
     }
 
-    public Task<int> GetMessageCountAsync(Guid conversationId, CancellationToken cancellationToken = default) =>
-        repository.GetMessageCountAsync(conversationId, cancellationToken);
+    public async Task<int> GetMessageCountAsync(Guid conversationId, CancellationToken cancellationToken = default)
+    {
+        var metadata = await sessionFileService.LoadAsync(conversationId, cancellationToken);
+        return metadata?.Turns.Count ?? 0;
+    }
 
     private static ConversationEntity ToEntity(ConversationMetadata metadata) => new()
     {
@@ -91,9 +94,39 @@ public sealed class AgentConversationService(
         IReadOnlyList<string>? attachedPaths = null,
         IReadOnlyList<string>? requestedSkillIds = null)
     {
-        var count = await repository.GetMessageCountAsync(conversationId, cancellationToken);
-        var newTitle = count == 0 ? await agentRunner.GenerateTitleAsync(userMessage, cancellationToken) : null;
-        return await repository.AddTurnAndUserMessageAsync(conversationId, userName, userMessage, useThinking, newTitle, attachedPaths, requestedSkillIds, cancellationToken);
+        // Load metadata
+        var metadata = await sessionFileService.LoadAsync(conversationId, cancellationToken);
+        if (metadata == null)
+            throw new InvalidOperationException($"Conversation {conversationId} not found");
+
+        // Generate title for first turn
+        var isFirstTurn = metadata.Turns.Count == 0;
+        string? newTitle = null;
+        if (isFirstTurn)
+        {
+            newTitle = await agentRunner.GenerateTitleAsync(userMessage, cancellationToken);
+            metadata.Title = newTitle;
+        }
+
+        // Create turn metadata
+        var turnId = Guid.NewGuid();
+        var turn = new TurnMetadata
+        {
+            Id = turnId,
+            CreatedAt = DateTime.UtcNow,
+            AttachedPaths = attachedPaths?.ToList() ?? [],
+            RequestedSkillIds = requestedSkillIds?.ToList() ?? []
+        };
+        metadata.Turns.Add(turn);
+
+        // Save metadata
+        await sessionFileService.SaveAsync(metadata, cancellationToken);
+
+        // Keep repository call for transition period (will be removed in Task 4.5)
+        // Note: Repository uses its own turn ID, so we pass the generated turnId
+        await repository.AddTurnAndUserMessageAsync(conversationId, userName, userMessage, useThinking, newTitle, attachedPaths, requestedSkillIds, cancellationToken);
+
+        return turnId;
     }
 
     public async Task StreamResponseAndCompleteAsync(
