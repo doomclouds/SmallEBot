@@ -3,22 +3,22 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
-using SmallEBot.Application.Context;
 using SmallEBot.Application.Streaming;
 using SmallEBot.Core.Models;
-using SmallEBot.Core.Repositories;
 using SmallEBot.Services.Conversation;
+using SmallEBot.Services.Session;
 using ChatMessage = Microsoft.Extensions.AI.ChatMessage;
 
 namespace SmallEBot.Services.Agent;
 
-/// <summary>Host implementation of IAgentRunner: loads history from repository, uses IAgentBuilder to run the agent and map updates to StreamUpdate.</summary>
+/// <summary>
+/// Host implementation of IAgentRunner: uses ISessionManager to manage AgentSession,
+/// runs the agent, and maps updates to StreamUpdate.
+/// </summary>
 public sealed class AgentRunnerAdapter(
-    IConversationRepository conversationRepository,
     IAgentBuilder agentBuilder,
-    ITurnContextFragmentBuilder fragmentBuilder,
-    IContextWindowManager contextWindowManager,
-    IAgentConfigService agentConfig) : IAgentRunner
+    ISessionManager sessionManager,
+    ITurnContextFragmentBuilder fragmentBuilder) : IAgentRunner
 {
     public async IAsyncEnumerable<StreamUpdate> RunStreamingAsync(
         Guid conversationId,
@@ -30,42 +30,15 @@ public sealed class AgentRunnerAdapter(
     {
         var agent = await agentBuilder.GetOrCreateAgentAsync(useThinking, cancellationToken);
 
-        // Get conversation to check CompressedAt for filtering
-        var conversation = await conversationRepository.GetByIdNoUserCheckAsync(conversationId, cancellationToken);
+        // Get or create session (uses AgentSession instead of loading history from repository)
+        var (session, _) = await sessionManager.GetOrCreateSessionAsync(
+            conversationId,
+            "user", // TODO: Get from context
+            agent,
+            cancellationToken);
 
-        // Load all history and filter by CompressedAt
-        var allHistory = await conversationRepository.GetMessagesForConversationAsync(conversationId, cancellationToken);
-        var allToolCalls = await conversationRepository.GetToolCallsForConversationAsync(conversationId, cancellationToken);
-
-        // Filter history by CompressedAt - only send messages after compression timestamp to LLM
-        var history = conversation?.CompressedAt != null
-            ? allHistory.Where(m => m.CreatedAt > conversation.CompressedAt.Value).ToList()
-            : allHistory;
-
-        var toolCalls = conversation?.CompressedAt != null
-            ? allToolCalls.Where(t => t.CreatedAt > conversation.CompressedAt.Value).ToList()
-            : allToolCalls;
-
-        var toolResultMaxLength = await agentConfig.GetToolResultMaxLengthAsync(cancellationToken);
-        var toolCallsByTurn = toolCalls
-            .Where(tc => tc.TurnId != null)
-            .GroupBy(tc => tc.TurnId!.Value)
-            .ToDictionary(g => g.Key, IReadOnlyList<Core.Entities.ToolCall> (g) => g.OrderBy(tc => tc.SortOrder).ToList());
-        var maxInputTokens = (int)(await agentBuilder.GetContextWindowTokensAsync(cancellationToken) * 0.8);
-        var coreMessages = history.ToList();
-        var trimResult = contextWindowManager.TrimToFit(coreMessages, maxInputTokens);
-        var frameworkMessages = new List<ChatMessage>();
-        foreach (var m in trimResult.Messages)
-        {
-            var content = m.Content;
-            // Append tool summaries to assistant messages
-            if (m.Role == "assistant" && m.TurnId != null && toolCallsByTurn.TryGetValue(m.TurnId.Value, out var turnToolCalls))
-            {
-                content += BuildToolSummary(turnToolCalls, toolResultMaxLength);
-            }
-            frameworkMessages.Add(new ChatMessage(ToChatRole(m.Role), content));
-        }
-
+        // Build attachments fragment if any
+        var messages = new List<ChatMessage>();
         var hasAttachments = (attachedPaths?.Count ?? 0) + (requestedSkillIds?.Count ?? 0) > 0;
         if (hasAttachments)
         {
@@ -75,31 +48,26 @@ public sealed class AgentRunnerAdapter(
                 cancellationToken);
             if (!string.IsNullOrWhiteSpace(fragment))
             {
-                frameworkMessages.Add(new ChatMessage(ChatRole.User, fragment));
+                messages.Add(new ChatMessage(ChatRole.User, fragment));
             }
         }
-        frameworkMessages.Add(new ChatMessage(ChatRole.User, userMessage));
+        messages.Add(new ChatMessage(ChatRole.User, userMessage));
 
+        // Configure reasoning
         var reasoningOpt = new ReasoningOptions();
-        if(useThinking)
+        if (useThinking)
         {
             reasoningOpt.Effort = ReasoningEffort.ExtraHigh;
             reasoningOpt.Output = ReasoningOutput.Full;
         }
-        else
-        {
-            reasoningOpt.Effort = null;
-            reasoningOpt.Output = null;
-        }
-        var chatOptions = new ChatOptions
-        {
-            Reasoning = reasoningOpt
-        };
+        var chatOptions = new ChatOptions { Reasoning = useThinking ? reasoningOpt : null };
         var runOptions = new ChatClientAgentRunOptions(chatOptions);
+
         var toolTimers = new Dictionary<string, Stopwatch>();
         var toolNames = new Dictionary<string, string>();
 
-        await foreach (var update in agent.RunStreamingAsync(frameworkMessages, null, runOptions, cancellationToken))
+        // Run with session (session maintains history internally)
+        await foreach (var update in agent.RunStreamingAsync(messages, session, runOptions, cancellationToken))
         {
             if (update.Contents is { Count: > 0 } contents)
             {
@@ -150,6 +118,9 @@ public sealed class AgentRunnerAdapter(
                 yield return new TextStreamUpdate(update.Text);
             }
         }
+
+        // Persist session after completion
+        await sessionManager.PersistSessionAsync(conversationId, session, agent, cancellationToken);
     }
 
     public async Task<string> GenerateTitleAsync(string firstMessage, CancellationToken cancellationToken = default)
@@ -168,14 +139,6 @@ public sealed class AgentRunnerAdapter(
             return firstMessage.Length > 20 ? firstMessage[..20] + "…" : firstMessage;
         }
     }
-
-    private static ChatRole ToChatRole(string role) => role.ToLowerInvariant() switch
-    {
-        "user" => ChatRole.User,
-        "assistant" => ChatRole.Assistant,
-        "system" => ChatRole.System,
-        _ => ChatRole.User
-    };
 
     private static string? ToJsonString(object? value)
     {
@@ -199,58 +162,5 @@ public sealed class AgentRunnerAdapter(
         {
             return value.ToString();
         }
-    }
-
-    private static string TruncateToolResult(string? result, int maxLength)
-    {
-        if (result == null) return "null";
-        if (result.Length <= maxLength) return result;
-        return result[..maxLength] + "... [truncated]";
-    }
-
-    /// <summary>Parses JSON arguments and formats as compact key=value pairs to save tokens.</summary>
-    private static string FormatArgumentsCompact(string? arguments)
-    {
-        if (string.IsNullOrWhiteSpace(arguments)) return "";
-        try
-        {
-            using var doc = JsonDocument.Parse(arguments);
-            var props = doc.RootElement.EnumerateObject()
-                .Select(p => $"{p.Name}={FormatValueCompact(p.Value)}")
-                .ToArray();
-            return string.Join(", ", props);
-        }
-        catch
-        {
-            // Fallback: just show first 50 chars
-            return arguments.Length <= 50 ? arguments : arguments[..50] + "...";
-        }
-    }
-
-    private static string FormatValueCompact(JsonElement value) => value.ValueKind switch
-    {
-        JsonValueKind.String => $"\"{value.GetString()}\"",
-        JsonValueKind.Number => value.ToString(),
-        JsonValueKind.True => "true",
-        JsonValueKind.False => "false",
-        JsonValueKind.Null => "null",
-        JsonValueKind.Array => $"[{value.GetArrayLength()} items]",
-        JsonValueKind.Object => "{...}",
-        _ => value.ToString()
-    };
-
-    /// <summary>Builds compact tool summary: [Tool: Name(key=val, ...)] → result</summary>
-    private static string BuildToolSummary(IReadOnlyList<Core.Entities.ToolCall> toolCalls, int resultMaxLength)
-    {
-        if (toolCalls.Count == 0) return "";
-        var sb = new System.Text.StringBuilder();
-        sb.AppendLine();
-        foreach (var tc in toolCalls)
-        {
-            var args = FormatArgumentsCompact(tc.Arguments);
-            var result = TruncateToolResult(tc.Result, resultMaxLength);
-            sb.AppendLine($"[Tool: {tc.ToolName}({args})] → {result}");
-        }
-        return sb.ToString();
     }
 }
