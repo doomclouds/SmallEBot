@@ -17,11 +17,21 @@ public interface IAgentRunner
     Task<string> GenerateTitleAsync(string firstMessage, CancellationToken cancellationToken = default);
 
     /// <summary>Continue streaming after user approval/rejection of a tool call.</summary>
+    /// <param name="conversationId">The conversation ID</param>
+    /// <param name="functionCallId">The FunctionCallContent.CallId (links the approval response to the original call)</param>
+    /// <param name="functionName">The original function name being approved</param>
+    /// <param name="approvalRequestId">The FunctionApprovalRequestContent.Id</param>
+    /// <param name="approved">Whether the call is approved</param>
+    /// <param name="reason">Optional reason for rejection</param>
+    /// <param name="rawArguments">The original function arguments (required for execution)</param>
+    /// <param name="cancellationToken">Cancellation token</param>
     IAsyncEnumerable<StreamUpdate> ContinueWithApprovalAsync(
         Guid conversationId,
+        string functionCallId,
+        string functionName,
         string approvalRequestId,
         bool approved,
         string? reason = null,
-        bool useThinking = false,
+        IDictionary<string, object?>? rawArguments = null,
         CancellationToken cancellationToken = default);
 }

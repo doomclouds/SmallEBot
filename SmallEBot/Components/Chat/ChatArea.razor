@@ -109,6 +109,8 @@
     private string _compressionMessage = "";
     private readonly Dictionary<string, ApprovalItemView> _pendingApprovals = new();
     private bool _approvalProcessing;
+    private readonly Dictionary<string, TaskCompletionSource<bool>> _approvalWaitHandles = new();
+    private static readonly TimeSpan ApprovalTimeout = TimeSpan.FromMinutes(5);
 
     private async Task HandleInputChanged(string v)
     {
@@ -287,6 +289,7 @@
                             State = ApprovalState.Pending,
                             ConversationId = approval.ConversationId,
                             FunctionCallId = approval.FunctionCallId,
+                            RawArguments = approval.RawArguments,
                             SortOrder = _streamingUpdates.Count
                         };
                         break;
@@ -296,6 +299,49 @@
             }
             await runTask;
             persisted = true;
+
+            // Wait for pending approvals with timeout
+            while (_pendingApprovals.Count > 0)
+            {
+                var pendingApproval = _pendingApprovals.Values.FirstOrDefault(a => a.State == ApprovalState.Pending);
+                if (pendingApproval == null) break;
+
+                var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                _approvalWaitHandles[pendingApproval.CallId] = tcs;
+
+                // Wait for user action or timeout
+                using var cts = new CancellationTokenSource(ApprovalTimeout);
+                try
+                {
+                    var completedTask = await Task.WhenAny(tcs.Task, Task.Delay(Timeout.Infinite, cts.Token));
+                    if (completedTask == tcs.Task)
+                    {
+                        // User responded - continue flow was handled by HandleApprove/HandleReject
+                    }
+                    else
+                    {
+                        // Timeout - auto-reject
+                        _pendingApprovals[pendingApproval.CallId] = pendingApproval with { State = ApprovalState.Rejected };
+                        Snackbar.Add("Approval request timed out after 5 minutes.", Severity.Warning);
+                        break;
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    // Timeout
+                    _pendingApprovals[pendingApproval.CallId] = pendingApproval with { State = ApprovalState.Rejected };
+                    Snackbar.Add("Approval request timed out after 5 minutes.", Severity.Warning);
+                    break;
+                }
+                finally
+                {
+                    _approvalWaitHandles.Remove(pendingApproval.CallId);
+                }
+
+                // Refresh views after approval handling
+                _streamingViews = Presentation.ConvertToStreamItems(_streamingUpdates);
+                await InvokeAsync(StateHasChanged);
+            }
         }
         catch (OperationCanceledException)
         {
@@ -313,6 +359,8 @@
             StopWaitingCheckTimer();
             _sendCts?.Dispose();
             _sendCts = null;
+            _pendingApprovals.Clear();
+            _approvalWaitHandles.Clear();
             if (persisted)
             {
                 _scrollToBottomRequested = true;
@@ -321,12 +369,8 @@
             }
             _streaming = false;
             _showWaitingForToolParams = false;
-            // Only clear streaming updates if no pending approvals
-            if (_pendingApprovals.Count == 0)
-            {
-                _streamingUpdates.Clear();
-                _streamingViews = [];
-            }
+            _streamingUpdates.Clear();
+            _streamingViews = [];
             _scrollToBottomRequested = true;
             await InvokeAsync(StateHasChanged);
         }
@@ -463,8 +507,22 @@
                         break;
                     case ThinkStreamUpdate:
                     case ToolCallStreamUpdate:
-                    case ApprovalRequestStreamUpdate:
                         _streamingUpdates.Add(update);
+                        break;
+                    case ApprovalRequestStreamUpdate approval:
+                        _streamingUpdates.Add(update);
+                        // Add to pending approvals for tracking
+                        _pendingApprovals[approval.CallId] = new ApprovalItemView
+                        {
+                            CallId = approval.CallId,
+                            ToolName = approval.ToolName,
+                            Arguments = approval.Arguments,
+                            State = ApprovalState.Pending,
+                            ConversationId = approval.ConversationId,
+                            FunctionCallId = approval.FunctionCallId,
+                            RawArguments = approval.RawArguments,
+                            SortOrder = _streamingUpdates.Count
+                        };
                         break;
                 }
                 _streamingViews = Presentation.ConvertToStreamItems(_streamingUpdates);
@@ -472,6 +530,48 @@
             }
             await runTask;
             persisted = true;
+
+            // Wait for pending approvals with timeout
+            while (_pendingApprovals.Count > 0)
+            {
+                var pendingApproval = _pendingApprovals.Values.First(a => a.State == ApprovalState.Pending);
+                var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                _approvalWaitHandles[pendingApproval.CallId] = tcs;
+
+                // Wait for user action or timeout
+                using var cts = new CancellationTokenSource(ApprovalTimeout);
+                try
+                {
+                    var completedTask = await Task.WhenAny(tcs.Task, Task.Delay(Timeout.Infinite, cts.Token));
+                    if (completedTask == tcs.Task)
+                    {
+                        // User responded - continue flow was handled by HandleApprove/HandleReject
+                        // The approval item state was updated there
+                    }
+                    else
+                    {
+                        // Timeout - auto-reject
+                        _pendingApprovals[pendingApproval.CallId] = pendingApproval with { State = ApprovalState.Rejected };
+                        Snackbar.Add("Approval request timed out after 5 minutes.", Severity.Warning);
+                        break;
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    // Timeout
+                    _pendingApprovals[pendingApproval.CallId] = pendingApproval with { State = ApprovalState.Rejected };
+                    Snackbar.Add("Approval request timed out after 5 minutes.", Severity.Warning);
+                    break;
+                }
+                finally
+                {
+                    _approvalWaitHandles.Remove(pendingApproval.CallId);
+                }
+
+                // Refresh views after approval handling
+                _streamingViews = Presentation.ConvertToStreamItems(_streamingUpdates);
+                await InvokeAsync(StateHasChanged);
+            }
         }
         catch (OperationCanceledException)
         {
@@ -505,6 +605,8 @@
             StopWaitingCheckTimer();
             _sendCts?.Dispose();
             _sendCts = null;
+            _pendingApprovals.Clear();
+            _approvalWaitHandles.Clear();
             if (persisted)
             {
                 _pendingUserMessage = "";
@@ -800,18 +902,17 @@
 
         try
         {
-            _sendCts = new CancellationTokenSource();
-            _streaming = true;
-            _streamingUpdates.Clear();
-            _streamingViews = [];
+            _sendCts ??= new CancellationTokenSource();
             StartWaitingCheckTimer();
 
             await foreach (var update in AgentRunner.ContinueWithApprovalAsync(
                 approval.ConversationId,
-                approval.FunctionCallId,
+                approval.CallId,           // Original function call ID
+                approval.ToolName,         // Original function name
+                approval.FunctionCallId,   // Approval request ID
                 approved: true,
                 reason: null,
-                UseThinkingMode,
+                approval.RawArguments,     // Original arguments for function execution
                 _sendCts.Token))
             {
                 _lastStreamActivityAt = DateTime.UtcNow;
@@ -832,10 +933,10 @@
                     };
                     _pendingApprovals[newApproval.CallId] = newApprovalView;
                 }
-
-                _streamingUpdates.Add(update);
-                _streamingViews = Presentation.ConvertToStreamItems(_streamingUpdates);
-                await InvokeAsync(StateHasChanged);
+                else
+                {
+                    _streamingUpdates.Add(update);
+                }
             }
 
             // Mark approval as completed
@@ -856,12 +957,15 @@
         finally
         {
             StopWaitingCheckTimer();
-            _sendCts?.Dispose();
-            _sendCts = null;
-            _streaming = false;
             _approvalProcessing = false;
             _scrollToBottomRequested = true;
-            await OnMessageSent.InvokeAsync();
+
+            // Signal the waiting loop to continue
+            if (_approvalWaitHandles.TryGetValue(approval.CallId, out var tcs))
+            {
+                tcs.TrySetResult(true);
+            }
+
             await InvokeAsync(StateHasChanged);
         }
     }
@@ -876,15 +980,17 @@
 
         try
         {
-            // Send rejection response (no continue streaming)
-            _sendCts = new CancellationTokenSource();
+            // Send rejection response
+            _sendCts ??= new CancellationTokenSource();
 
             await foreach (var _ in AgentRunner.ContinueWithApprovalAsync(
                 approval.ConversationId,
-                approval.FunctionCallId,
+                approval.CallId,           // Original function call ID
+                approval.ToolName,         // Original function name
+                approval.FunctionCallId,   // Approval request ID
                 approved: false,
                 reason: "User rejected",
-                UseThinkingMode,
+                rawArguments: null,        // Not needed for rejection
                 _sendCts.Token))
             {
                 // Just consume the response, don't display
@@ -896,8 +1002,11 @@
         }
         finally
         {
-            _sendCts?.Dispose();
-            _sendCts = null;
+            // Signal the waiting loop to continue
+            if (_approvalWaitHandles.TryGetValue(approval.CallId, out var tcs))
+            {
+                tcs.TrySetResult(false);
+            }
         }
     }
 

@@ -63,4 +63,5 @@ public record ApprovalItemView : StreamItemView
     public ApprovalState State { get; init; } = ApprovalState.Pending;
     public Guid ConversationId { get; init; }
     public string FunctionCallId { get; init; } = "";
+    public IDictionary<string, object?>? RawArguments { get; init; }
 }

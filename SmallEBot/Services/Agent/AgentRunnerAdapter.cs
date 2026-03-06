@@ -78,13 +78,18 @@ public sealed class AgentRunnerAdapter(
 
     public async IAsyncEnumerable<StreamUpdate> ContinueWithApprovalAsync(
         Guid conversationId,
+        string functionCallId,
+        string functionName,
         string approvalRequestId,
         bool approved,
         string? reason,
-        bool useThinking,
+        IDictionary<string, object?>? rawArguments,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        var agent = await agentBuilder.GetOrCreateAgentAsync(useThinking, cancellationToken);
+        // Note: Always disable thinking for approval continue to avoid DeepSeek API error
+        // "Missing thinking block in assistant message" - the approval request message
+        // doesn't contain a thinking block, so the continue request must not require one.
+        var agent = await agentBuilder.GetOrCreateAgentAsync(useThinking: false, cancellationToken);
 
         var (session, _) = await sessionManager.GetOrCreateSessionAsync(
             conversationId,
@@ -104,13 +109,14 @@ public sealed class AgentRunnerAdapter(
             // Note: FunctionApprovalResponseContent requires:
             // - id: The approval request ID (FunctionApprovalRequestContent.Id)
             // - approved: Whether the function call is approved
-            // - functionCall: The FunctionCallContent being approved/rejected
+            // - functionCall: The original FunctionCallContent being approved/rejected
 #pragma warning disable MEAI001 // Type is for evaluation purposes only
             var functionCall = new FunctionCallContent(
-                callId: approvalRequestId, // Use approval request ID as call ID
-                name: "approval_response");
+                callId: functionCallId,      // Original call ID from FunctionCallContent
+                name: functionName,          // Original function name
+                arguments: rawArguments);    // Original arguments (REQUIRED for function execution)
             var approvalContent = new FunctionApprovalResponseContent(
-                id: approvalRequestId,
+                id: approvalRequestId,       // The FunctionApprovalRequestContent.Id
                 approved: approved,
                 functionCall: functionCall)
             {
@@ -119,14 +125,8 @@ public sealed class AgentRunnerAdapter(
 #pragma warning restore MEAI001
             var message = new ChatMessage(ChatRole.User, [approvalContent]);
 
-            // Configure reasoning
-            var reasoningOpt = new ReasoningOptions();
-            if (useThinking)
-            {
-                reasoningOpt.Effort = ReasoningEffort.ExtraHigh;
-                reasoningOpt.Output = ReasoningOutput.Full;
-            }
-            var chatOptions = new ChatOptions { Reasoning = useThinking ? reasoningOpt : null };
+            // Don't use reasoning for approval continue (DeepSeek API requirement)
+            var chatOptions = new ChatOptions { Reasoning = null };
             var runOptions = new ChatClientAgentRunOptions(chatOptions);
 
             var agentUpdates = agent.RunStreamingAsync([message], session, runOptions, cancellationToken);
@@ -206,7 +206,8 @@ public sealed class AgentRunnerAdapter(
                                 ToolName: approvalRequest.FunctionCall.Name ?? "unknown",
                                 Arguments: ToJsonString(approvalRequest.FunctionCall.Arguments),
                                 ConversationId: conversationId,
-                                FunctionCallId: approvalRequest.Id
+                                FunctionCallId: approvalRequest.Id,
+                                RawArguments: approvalRequest.FunctionCall.Arguments
                             );
                             break;
 #pragma warning restore MEAI001

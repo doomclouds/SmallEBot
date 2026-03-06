@@ -362,6 +362,7 @@ public sealed class ChatPresentationService
                         State = ApprovalState.Pending,
                         ConversationId = approval.ConversationId,
                         FunctionCallId = approval.FunctionCallId,
+                        RawArguments = approval.RawArguments,
                         SortOrder = order++
                     });
                     break;

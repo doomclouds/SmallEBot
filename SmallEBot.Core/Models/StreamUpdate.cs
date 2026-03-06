@@ -38,4 +38,5 @@ public sealed record ApprovalRequestStreamUpdate(
     string ToolName,
     string? Arguments,
     Guid ConversationId,
-    string FunctionCallId) : StreamUpdate;
+    string FunctionCallId,
+    IDictionary<string, object?>? RawArguments = null) : StreamUpdate;
