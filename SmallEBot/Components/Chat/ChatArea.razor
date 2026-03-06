@@ -1,5 +1,6 @@
 @using System.IO
 @using SmallEBot.Application.Conversation
+@using SmallEBot.Application.Streaming
 @using SmallEBot.Components.Chat.ViewModels
 @using SmallEBot.Components.Chat.ViewModels.Bubbles
 @using SmallEBot.Components.Chat.Services
@@ -8,6 +9,7 @@
 @using SmallEBot.Models
 @using SmallEBot.Services.Circuit
 @inject IAgentConversationService ConversationPipeline
+@inject IAgentRunner AgentRunner
 @inject IDialogService DialogSvc
 @inject IWorkspaceUploadService UploadService
 @inject ICurrentCircuitAccessor CircuitAccessor
@@ -38,8 +40,11 @@
                         ShowWaitingForToolParams="@_showWaitingForToolParams"
                         WaitingElapsed="@(_showWaitingForToolParams && _waitingForToolParamsSince.HasValue ? DateTime.UtcNow - _waitingForToolParamsSince.Value : TimeSpan.Zero)"
                         ShowToolCalls="@ShowToolCalls"
-                        IsCompressing="@_compressing"
-                        CompressionMessage="@_compressionMessage" />
+                    IsCompressing="@_compressing"
+                        CompressionMessage="@_compressionMessage"
+                        OnApprove="@HandleApprove"
+                        OnReject="@HandleReject"
+                        IsApprovalProcessing="@_approvalProcessing" />
     </div>
 
     <div class="mt-2">
@@ -102,6 +107,8 @@
     private bool _justSelectedAttachment;
     private bool _compressing;
     private string _compressionMessage = "";
+    private readonly Dictionary<string, ApprovalItemView> _pendingApprovals = new();
+    private bool _approvalProcessing;
 
     private async Task HandleInputChanged(string v)
     {
@@ -760,6 +767,118 @@
         {
             _contextPercentText = "—";
             _contextUsageTooltip = null;
+        }
+    }
+
+    private async Task HandleApprove(ApprovalItemView approval)
+    {
+        if (_approvalProcessing || !ConversationId.HasValue) return;
+
+        // Update state
+        _pendingApprovals[approval.CallId] = approval with { State = ApprovalState.Approved };
+        _approvalProcessing = true;
+        StateHasChanged();
+
+        try
+        {
+            _sendCts = new CancellationTokenSource();
+            _streaming = true;
+            _streamingUpdates.Clear();
+            _streamingViews = [];
+            StartWaitingCheckTimer();
+
+            await foreach (var update in AgentRunner.ContinueWithApprovalAsync(
+                approval.ConversationId,
+                approval.FunctionCallId,
+                approved: true,
+                reason: null,
+                UseThinkingMode,
+                _sendCts.Token))
+            {
+                _lastStreamActivityAt = DateTime.UtcNow;
+                _showWaitingForToolParams = false;
+
+                if (update is ApprovalRequestStreamUpdate newApproval)
+                {
+                    // New approval request - add to pending
+                    var newApprovalView = new ApprovalItemView
+                    {
+                        CallId = newApproval.CallId,
+                        ToolName = newApproval.ToolName,
+                        Arguments = newApproval.Arguments,
+                        State = ApprovalState.Pending,
+                        ConversationId = newApproval.ConversationId,
+                        FunctionCallId = newApproval.FunctionCallId,
+                        SortOrder = _streamingUpdates.Count
+                    };
+                    _pendingApprovals[newApproval.CallId] = newApprovalView;
+                }
+
+                _streamingUpdates.Add(update);
+                _streamingViews = Presentation.ConvertToStreamItems(_streamingUpdates);
+                await InvokeAsync(StateHasChanged);
+            }
+
+            // Mark approval as completed
+            if (_pendingApprovals.TryGetValue(approval.CallId, out var completed))
+            {
+                _pendingApprovals[approval.CallId] = completed with { State = ApprovalState.Completed };
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancelled
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "Error during approval continue flow");
+            await InvokeAsync(() => Snackbar.Add($"Error: {ex.Message}", Severity.Error));
+        }
+        finally
+        {
+            StopWaitingCheckTimer();
+            _sendCts?.Dispose();
+            _sendCts = null;
+            _streaming = false;
+            _approvalProcessing = false;
+            _scrollToBottomRequested = true;
+            await OnMessageSent.InvokeAsync();
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task HandleReject(ApprovalItemView approval)
+    {
+        if (_approvalProcessing || !ConversationId.HasValue) return;
+
+        // Update state
+        _pendingApprovals[approval.CallId] = approval with { State = ApprovalState.Rejected };
+        StateHasChanged();
+
+        try
+        {
+            // Send rejection response (no continue streaming)
+            _sendCts = new CancellationTokenSource();
+
+            await foreach (var _ in AgentRunner.ContinueWithApprovalAsync(
+                approval.ConversationId,
+                approval.FunctionCallId,
+                approved: false,
+                reason: "User rejected",
+                UseThinkingMode,
+                _sendCts.Token))
+            {
+                // Just consume the response, don't display
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.LogError(ex, "Error sending rejection response");
+        }
+        finally
+        {
+            _sendCts?.Dispose();
+            _sendCts = null;
         }
     }
 
