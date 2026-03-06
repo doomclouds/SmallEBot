@@ -274,8 +274,21 @@
                         break;
                     case ThinkStreamUpdate:
                     case ToolCallStreamUpdate:
-                    case ApprovalRequestStreamUpdate:
                         _streamingUpdates.Add(update);
+                        break;
+                    case ApprovalRequestStreamUpdate approval:
+                        _streamingUpdates.Add(update);
+                        // Add to pending approvals for tracking
+                        _pendingApprovals[approval.CallId] = new ApprovalItemView
+                        {
+                            CallId = approval.CallId,
+                            ToolName = approval.ToolName,
+                            Arguments = approval.Arguments,
+                            State = ApprovalState.Pending,
+                            ConversationId = approval.ConversationId,
+                            FunctionCallId = approval.FunctionCallId,
+                            SortOrder = _streamingUpdates.Count
+                        };
                         break;
                 }
                 _streamingViews = Presentation.ConvertToStreamItems(_streamingUpdates);
@@ -308,8 +321,12 @@
             }
             _streaming = false;
             _showWaitingForToolParams = false;
-            _streamingUpdates.Clear();
-            _streamingViews = [];
+            // Only clear streaming updates if no pending approvals
+            if (_pendingApprovals.Count == 0)
+            {
+                _streamingUpdates.Clear();
+                _streamingViews = [];
+            }
             _scrollToBottomRequested = true;
             await InvokeAsync(StateHasChanged);
         }
