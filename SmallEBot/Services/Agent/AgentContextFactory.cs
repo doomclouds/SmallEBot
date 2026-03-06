@@ -1,4 +1,3 @@
-using SmallEBot.Core;
 using SmallEBot.Core.Repositories;
 using SmallEBot.Models;
 using SmallEBot.Services.Conversation;
@@ -74,7 +73,7 @@ public sealed class AgentContextFactory(
             GetFileToolsSection(),
             GetShellSection(),
             GetTaskListSection(),
-            GetSkillsSection(),
+            GetNativeSkillsSection(),
             GetSkillGenerationSection(),
             GetTempFilesSection(),
         ]);
@@ -208,14 +207,14 @@ public sealed class AgentContextFactory(
         4. Proceed to the next task immediately; do not pause unless the user asked you to
         """;
 
-    private static string GetSkillsSection() => $"""
+    private static string GetNativeSkillsSection() => """
         # Skills
 
-        Skills live under the workspace root in `sys.skills/` (system) and `skills/` (user). **Do not use generic file tools** (`{Tn.ReadFile}`, `{Tn.WriteFile}`, `{Tn.ListFiles}`, `{Tn.AppendFile}`, `{Tn.CopyFile}`, `{Tn.CopyDirectory}`, `{Tn.GrepFiles}`, `{Tn.GrepContent}`) on paths under `sys.skills/` or `skills/`. Use only the skill tools below to read or list skill content.
+        Skills are available through native agent tools:
+        - `load_skill(skillName)` - Load a skill's instructions
+        - `read_skill_resource(skillName, resourcePath)` - Read skill reference files
 
-        - `ReadSkill(skillId)` → reads the skill's `SKILL.md`
-        - `ReadSkillFile(skillId, relativePath)` → reads another file inside the skill folder (e.g. `references/guide.md`)
-        - `ListSkillFiles(skillId, path?)` → lists contents of a skill folder
+        Available skills are listed in the system context. Load relevant skills when needed.
         """;
 
     private static string GetSkillGenerationSection() => $$"""
@@ -245,7 +244,7 @@ public sealed class AgentContextFactory(
 
         **Do not use file tools on these paths:**
         - `temp/` — reserved for **file uploads** only. Do not use `{Tn.ReadFile}`, `{Tn.WriteFile}`, `{Tn.ListFiles}`, `{Tn.AppendFile}`, `{Tn.CopyFile}`, `{Tn.CopyDirectory}`, `{Tn.GrepFiles}`, or `{Tn.GrepContent}` on `temp/` or any path under it.
-        - `sys.skills/` and `skills/` — use only `ReadSkill`, `ReadSkillFile`, and `ListSkillFiles` for content under these directories; do not use the generic file tools above on them.
+        - `sys.skills/` and `skills/` — use native skill tools (`load_skill`, `read_skill_resource`) to access skill content.
         """;
 
     // ── Dynamic blocks ────────────────────────────────────────────────────────
@@ -256,7 +255,7 @@ public sealed class AgentContextFactory(
         var sb = new System.Text.StringBuilder();
         sb.AppendLine("## Available Skills");
         sb.AppendLine();
-        sb.AppendLine($"To use a skill: `ReadSkill(skillId)` loads `SKILL.md`; `ReadSkillFile(skillId, relativePath)` reads other files in the skill folder; `ListSkillFiles(skillId)` lists its contents. Workspace file operations outside skills use `{Tn.ReadFile}`/`{Tn.WriteFile}` with paths relative to the workspace root. Allowed extensions: {AllowedFileExtensions.List}.");
+        sb.AppendLine("To use a skill: `load_skill(skillName)` loads the skill's instructions; `read_skill_resource(skillName, resourcePath)` reads other files in the skill folder. Workspace file operations use the standard file tools with paths relative to the workspace root.");
         sb.AppendLine();
         foreach (var s in skills)
             sb.AppendLine($"- **{s.Id}**: {s.Name} — {s.Description}");
