@@ -46,6 +46,7 @@ public sealed class AgentRunnerAdapter(
                 attachedPaths ?? [],
                 requestedSkillIds ?? [],
                 cancellationToken);
+            //todo 附加信息应该在动态系统提示词中添加
             if (!string.IsNullOrWhiteSpace(fragment))
             {
                 messages.Add(new ChatMessage(ChatRole.User, fragment));

@@ -33,6 +33,8 @@ public sealed class SessionManager : ISessionManager
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
+            // Save metadata to file so PersistSessionAsync can find it
+            await _fileService.SaveAsync(metadata, ct);
             var session = await agent.CreateSessionAsync(ct);
             return (session, metadata);
         }
