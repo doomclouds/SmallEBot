@@ -172,6 +172,7 @@ html, body {
 /* Message bubbles – stagger fade-in */
 .smallebot-bubble {
     animation: seb-fade-in 0.35s ease-out both;
+    min-width: 80%;
 }
 .smallebot-bubble:nth-child(1) { animation-delay: 0.02s; }
 .smallebot-bubble:nth-child(2) { animation-delay: 0.06s; }
