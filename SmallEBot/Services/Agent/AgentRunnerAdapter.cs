@@ -198,6 +198,18 @@ public sealed class AgentRunnerAdapter(
                                 toolNames.Remove(resCallId);
                             }
                             break;
+#pragma warning disable MEAI001 // Type is for evaluation purposes only
+                        case FunctionApprovalRequestContent approvalRequest:
+                            // Yield approval request immediately during streaming
+                            yield return new ApprovalRequestStreamUpdate(
+                                CallId: approvalRequest.FunctionCall.CallId ?? Guid.NewGuid().ToString("N"),
+                                ToolName: approvalRequest.FunctionCall.Name ?? "unknown",
+                                Arguments: ToJsonString(approvalRequest.FunctionCall.Arguments),
+                                ConversationId: conversationId,
+                                FunctionCallId: approvalRequest.Id
+                            );
+                            break;
+#pragma warning restore MEAI001
                     }
                 }
             }
@@ -205,26 +217,6 @@ public sealed class AgentRunnerAdapter(
             {
                 yield return new TextStreamUpdate(update.Text);
             }
-        }
-
-        // Detect approval requests after stream ends
-        var response = updates.ToAgentResponse();
-#pragma warning disable MEAI001 // Type is for evaluation purposes only
-        var approvalRequests = response.Messages
-            .SelectMany(m => m.Contents)
-            .OfType<FunctionApprovalRequestContent>()
-            .ToList();
-#pragma warning restore MEAI001
-
-        foreach (var request in approvalRequests)
-        {
-            yield return new ApprovalRequestStreamUpdate(
-                CallId: request.FunctionCall.CallId ?? Guid.NewGuid().ToString("N"),
-                ToolName: request.FunctionCall.Name ?? "unknown",
-                Arguments: ToJsonString(request.FunctionCall.Arguments),
-                ConversationId: conversationId,
-                FunctionCallId: request.Id
-            );
         }
 
         // Persist session after completion
