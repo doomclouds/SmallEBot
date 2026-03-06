@@ -9,25 +9,37 @@ namespace SmallEBot.Services.Agent.Tools;
 /// <summary>Provides shell command execution tool.</summary>
 public sealed class ShellToolProvider(
     ITerminalConfigService terminalConfig,
-    ICommandConfirmationService confirmationService,
     ICommandRunner commandRunner,
     IVirtualFileSystem vfs) : IToolProvider
 {
+    /// <inheritdoc />
     public string Name => "Shell";
+
+    /// <inheritdoc />
     public bool IsEnabled => true;
 
-    public TimeSpan? GetTimeout(string toolName) => toolName switch
-    {
-        BuiltInToolNames.ExecuteCommand => TimeSpan.FromMinutes(10),
-        _ => null
-    };
-
+    /// <inheritdoc />
+#pragma warning disable MEAI001 // Type is for evaluation purposes only
     public IEnumerable<AITool> GetTools()
     {
-        yield return AIFunctionFactory.Create(ExecuteCommand);
-    }
+        var tool = AIFunctionFactory.Create(ExecuteCommand);
+        var requiresConfirmation = terminalConfig.GetRequireCommandConfirmationAsync().GetAwaiter().GetResult();
 
-    [Description("Run a shell command on the host. Pass the command line (e.g. dotnet build or git status). Optional workingDirectory is relative to the workspace root and defaults to the workspace root. Blocks until the command exits or the configured timeout (see Terminal config). Not allowed if the command matches the terminal blacklist. When confirmation is enabled, you must wait for user approval.")]
+        if (requiresConfirmation)
+        {
+            yield return new ApprovalRequiredAIFunction(tool);
+        }
+        else
+        {
+            yield return tool;
+        }
+    }
+#pragma warning restore MEAI001
+
+    /// <inheritdoc />
+    public TimeSpan? GetTimeout(string toolName) => null;
+
+    [Description("Run a shell command on the host. Pass the command line (e.g. dotnet build or git status). Optional workingDirectory is relative to the workspace root and defaults to the workspace root. Blocks until the command exits or the configured timeout (see Terminal config). Not allowed if the command matches the terminal blacklist.")]
     private async Task<string> ExecuteCommand(string command, string? workingDirectory = null, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(command))
@@ -47,22 +59,6 @@ public sealed class ShellToolProvider(
             if (!Directory.Exists(combined))
                 return "Error: Working directory does not exist.";
             workDir = combined;
-        }
-
-        if (await terminalConfig.GetRequireCommandConfirmationAsync(cancellationToken))
-        {
-            var whitelist = await terminalConfig.GetCommandWhitelistAsync(cancellationToken);
-            var allowedByWhitelist = whitelist.Any(w =>
-                normalized.Equals(w, StringComparison.OrdinalIgnoreCase) ||
-                normalized.StartsWith(w, StringComparison.OrdinalIgnoreCase));
-            if (!allowedByWhitelist)
-            {
-                var timeoutSeconds = await terminalConfig.GetConfirmationTimeoutSecondsAsync(cancellationToken);
-                var result = await confirmationService.RequestConfirmationAsync(normalized, workDir, timeoutSeconds, cancellationToken);
-                if (result != CommandConfirmResult.Allow)
-                    return "Error: Command was not approved (rejected or timed out).";
-                _ = terminalConfig.AddToWhitelistAndSaveAsync(normalized, cancellationToken);
-            }
         }
 
         var timeout = GetTimeout("ExecuteCommand");
