@@ -9,7 +9,6 @@ public sealed class AgentConversationService(
     ISessionFileService sessionFileService,
     ISessionManager sessionManager,
     IAgentRunner agentRunner,
-    ICommandConfirmationContext commandConfirmationContext,
     IConversationTaskContext conversationTaskContext,
     ICompressionService compressionService,
     IToolResultMaxProvider toolResultMaxProvider,
@@ -136,7 +135,6 @@ public sealed class AgentConversationService(
         IReadOnlyList<string>? attachedPaths = null,
         IReadOnlyList<string>? requestedSkillIds = null)
     {
-        commandConfirmationContext.SetCurrentId(commandConfirmationContextId);
         conversationTaskContext.SetConversationId(conversationId);
         try
         {
@@ -144,7 +142,7 @@ public sealed class AgentConversationService(
             {
                 await sink.OnNextAsync(update, cancellationToken);
             }
-            // Assistant response is persisted by AgentRunnerAdapter via sessionManager.PersistSessionAsync
+            // Assistant response is persisted by AgentRunnerAdapter via SessionManager.PersistSessionAsync
             // No need to call repository for turn completion
         }
         finally
@@ -244,7 +242,6 @@ public sealed class AgentConversationService(
         bool useThinking,
         IStreamSink sink,
         CancellationToken cancellationToken = default,
-        string? commandConfirmationContextId = null,
         IReadOnlyList<string>? attachedPaths = null,
         IReadOnlyList<string>? requestedSkillIds = null)
     {
@@ -254,7 +251,6 @@ public sealed class AgentConversationService(
         var effectivePaths = attachedPaths ?? result.Value.AttachedPaths;
         var effectiveSkills = requestedSkillIds ?? result.Value.RequestedSkillIds;
 
-        commandConfirmationContext.SetCurrentId(commandConfirmationContextId);
         conversationTaskContext.SetConversationId(conversationId);
         try
         {
@@ -276,7 +272,6 @@ public sealed class AgentConversationService(
         Guid turnId,
         IStreamSink sink,
         CancellationToken cancellationToken = default,
-        string? commandConfirmationContextId = null,
         IReadOnlyList<string>? attachedPaths = null,
         IReadOnlyList<string>? requestedSkillIds = null)
     {
@@ -286,7 +281,6 @@ public sealed class AgentConversationService(
         var effectivePaths = attachedPaths ?? result.Value.AttachedPaths;
         var effectiveSkills = requestedSkillIds ?? result.Value.RequestedSkillIds;
 
-        commandConfirmationContext.SetCurrentId(commandConfirmationContextId);
         conversationTaskContext.SetConversationId(conversationId);
         try
         {

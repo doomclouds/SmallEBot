@@ -45,7 +45,6 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ISessionManager>(sp => sp.GetRequiredService<SessionManager>());
         services.AddScoped<ISessionAgentManager>(sp => sp.GetRequiredService<SessionManager>());
 
-        services.AddSingleton<ICommandConfirmationContext, CommandConfirmationContext>();
         services.AddSingleton<IConversationTaskContext, ConversationTaskContext>();
         services.AddSingleton<ICurrentConversationService, CurrentConversationService>();
         services.AddSingleton<ITaskListService, TaskListService>();
