@@ -1,13 +1,11 @@
 using SmallEBot.Application.Session;
 using SmallEBot.Application.Streaming;
 using SmallEBot.Core.Models;
-using SmallEBot.Core.Repositories;
 using ConversationEntity = SmallEBot.Core.Entities.Conversation;
 
 namespace SmallEBot.Application.Conversation;
 
 public sealed class AgentConversationService(
-    IConversationRepository repository,
     ISessionFileService sessionFileService,
     ISessionManager sessionManager,
     IAgentRunner agentRunner,
@@ -159,17 +157,25 @@ public sealed class AgentConversationService(
         Guid conversationId,
         Guid turnId,
         IReadOnlyList<AssistantSegment> segments,
-        CancellationToken cancellationToken = default) =>
-        repository.CompleteTurnWithAssistantAsync(conversationId, turnId, segments, cancellationToken);
+        CancellationToken cancellationToken = default)
+    {
+        // Assistant response is persisted by AgentRunnerAdapter via SessionManager.PersistSessionAsync
+        // This method is kept for interface compatibility but does nothing
+        return Task.CompletedTask;
+    }
 
     public Task CompleteTurnWithErrorAsync(
         Guid conversationId,
         Guid turnId,
         string errorMessage,
-        CancellationToken cancellationToken = default) =>
-        repository.CompleteTurnWithErrorAsync(conversationId, turnId, errorMessage, cancellationToken);
+        CancellationToken cancellationToken = default)
+    {
+        // Error handling is managed by AgentSession
+        // This method is kept for interface compatibility but does nothing
+        return Task.CompletedTask;
+    }
 
-    public async Task CompleteTurnWithPartialContentAsync(
+    public Task CompleteTurnWithPartialContentAsync(
         Guid conversationId,
         Guid turnId,
         IReadOnlyList<StreamUpdate> updates,
@@ -177,16 +183,12 @@ public sealed class AgentConversationService(
         string? stoppedOrErrorMessage,
         CancellationToken cancellationToken = default)
     {
-        var segments = StreamUpdateToSegments.ToSegments(updates, useThinking);
-        if (!string.IsNullOrEmpty(stoppedOrErrorMessage))
-            segments.Add(new AssistantSegment(true, false, stoppedOrErrorMessage));
-        if (segments.Count > 0)
-            await repository.CompleteTurnWithAssistantAsync(conversationId, turnId, segments, cancellationToken);
-        else
-            await repository.CompleteTurnWithErrorAsync(conversationId, turnId, stoppedOrErrorMessage ?? "Stopped.", cancellationToken);
+        // Partial content is not persisted - agent response is managed by AgentRunnerAdapter
+        // This method is kept for interface compatibility but does nothing
+        return Task.CompletedTask;
     }
 
-    public Task<(Guid TurnId, string UserMessage, IReadOnlyList<string> AttachedPaths, IReadOnlyList<string> RequestedSkillIds)?> ReplaceUserMessageAsync(
+    public async Task<(Guid TurnId, string UserMessage, IReadOnlyList<string> AttachedPaths, IReadOnlyList<string> RequestedSkillIds)?> ReplaceUserMessageAsync(
         Guid conversationId,
         string userName,
         Guid messageId,
@@ -194,8 +196,24 @@ public sealed class AgentConversationService(
         bool useThinking,
         IReadOnlyList<string>? attachedPaths = null,
         IReadOnlyList<string>? requestedSkillIds = null,
-        CancellationToken cancellationToken = default) =>
-        repository.ReplaceUserMessageAsync(conversationId, userName, messageId, newContent, useThinking, attachedPaths, requestedSkillIds, cancellationToken);
+        CancellationToken cancellationToken = default)
+    {
+        var metadata = await sessionFileService.LoadAsync(conversationId, cancellationToken);
+        if (metadata == null || metadata.UserName != userName) return null;
+
+        var turn = metadata.Turns.FirstOrDefault(t => t.Id == messageId);
+        if (turn == null) return null;
+
+        // Update turn metadata with new attachments/skills
+        turn.AttachedPaths = attachedPaths?.ToList() ?? [];
+        turn.RequestedSkillIds = requestedSkillIds?.ToList() ?? [];
+        metadata.UpdatedAt = DateTime.UtcNow;
+
+        await sessionFileService.SaveAsync(metadata, cancellationToken);
+
+        // Return new content - actual message content is in AgentSession
+        return (turn.Id, newContent, turn.AttachedPaths, turn.RequestedSkillIds);
+    }
 
     public async Task<(Guid TurnId, string UserMessage, bool UseThinking, IReadOnlyList<string> AttachedPaths, IReadOnlyList<string> RequestedSkillIds)?> PrepareTurnForRegenerateAsync(
         Guid conversationId,
@@ -206,12 +224,16 @@ public sealed class AgentConversationService(
         var metadata = await sessionFileService.LoadAsync(conversationId, cancellationToken);
         if (metadata == null || metadata.UserName != userName) return null;
 
-        var turn = metadata.Turns.FirstOrDefault(t => t.Id == turnId);
-        if (turn == null) return null;
+        var turnIndex = metadata.Turns.FindIndex(t => t.Id == turnId);
+        if (turnIndex < 0) return null;
 
-        // User message will be retrieved from AgentSession via AgentSessionReader in Task 4.2.3
-        // Return empty string for now as placeholder
-        return (turn.Id, "", false, turn.AttachedPaths, turn.RequestedSkillIds);
+        var turn = metadata.Turns[turnIndex];
+
+        // Get user message content from AgentSession
+        var userMessage = await sessionReader.GetUserMessageContentAsync(conversationId, turnIndex, cancellationToken);
+        if (string.IsNullOrEmpty(userMessage)) return null;
+
+        return (turn.Id, userMessage, false, turn.AttachedPaths, turn.RequestedSkillIds);
     }
 
     public async Task ReplaceMessageAndRegenerateAsync(
@@ -226,7 +248,7 @@ public sealed class AgentConversationService(
         IReadOnlyList<string>? attachedPaths = null,
         IReadOnlyList<string>? requestedSkillIds = null)
     {
-        var result = await repository.ReplaceUserMessageAsync(conversationId, userName, messageId, newContent, useThinking, attachedPaths, requestedSkillIds, cancellationToken);
+        var result = await ReplaceUserMessageAsync(conversationId, userName, messageId, newContent, useThinking, attachedPaths, requestedSkillIds, cancellationToken);
         if (result == null) return;
 
         var effectivePaths = attachedPaths ?? result.Value.AttachedPaths;
@@ -236,14 +258,11 @@ public sealed class AgentConversationService(
         conversationTaskContext.SetConversationId(conversationId);
         try
         {
-            var updates = new List<StreamUpdate>();
             await foreach (var update in agentRunner.RunStreamingAsync(conversationId, result.Value.UserMessage, useThinking, cancellationToken, effectivePaths, effectiveSkills))
             {
-                updates.Add(update);
                 await sink.OnNextAsync(update, cancellationToken);
             }
-            var segments = StreamUpdateToSegments.ToSegments(updates, useThinking);
-            await repository.CompleteTurnWithAssistantAsync(conversationId, result.Value.TurnId, segments, cancellationToken);
+            // Assistant response is persisted by AgentRunnerAdapter via SessionManager.PersistSessionAsync
         }
         finally
         {
@@ -261,7 +280,7 @@ public sealed class AgentConversationService(
         IReadOnlyList<string>? attachedPaths = null,
         IReadOnlyList<string>? requestedSkillIds = null)
     {
-        var result = await repository.GetTurnForRegenerateAsync(conversationId, userName, turnId, cancellationToken);
+        var result = await PrepareTurnForRegenerateAsync(conversationId, userName, turnId, cancellationToken);
         if (result == null) return;
 
         var effectivePaths = attachedPaths ?? result.Value.AttachedPaths;
@@ -271,14 +290,11 @@ public sealed class AgentConversationService(
         conversationTaskContext.SetConversationId(conversationId);
         try
         {
-            var updates = new List<StreamUpdate>();
             await foreach (var update in agentRunner.RunStreamingAsync(conversationId, result.Value.UserMessage, result.Value.UseThinking, cancellationToken, effectivePaths, effectiveSkills))
             {
-                updates.Add(update);
                 await sink.OnNextAsync(update, cancellationToken);
             }
-            var segments = StreamUpdateToSegments.ToSegments(updates, result.Value.UseThinking);
-            await repository.CompleteTurnWithAssistantAsync(conversationId, result.Value.TurnId, segments, cancellationToken);
+            // Assistant response is persisted by AgentRunnerAdapter via SessionManager.PersistSessionAsync
         }
         finally
         {

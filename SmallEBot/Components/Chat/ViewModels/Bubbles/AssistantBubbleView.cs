@@ -11,5 +11,5 @@ public sealed record AssistantBubbleView : BubbleViewBase
     public required Guid TurnId { get; init; }
     public bool IsThinkingMode { get; init; }
     public bool IsError { get; init; }
-    public IReadOnlyList<SegmentBlockView> Segments { get; init; } = [];
+    public IReadOnlyList<ReasoningStepView> Steps { get; init; } = [];
 }

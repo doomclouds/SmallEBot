@@ -3,7 +3,6 @@ using SmallEBot.Application.Conversation;
 using SmallEBot.Application.Session;
 using SmallEBot.Application.Streaming;
 using SmallEBot.Infrastructure.Data;
-using SmallEBot.Core.Repositories;
 using SmallEBot.Services.Agent;
 using SmallEBot.Services.Conversation;
 using SmallEBot.Services.Mcp;
@@ -90,7 +89,6 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IContextWindowManager, ContextWindowManager>();
         services.AddSingleton<ITerminalConfigService, TerminalConfigService>();
         services.AddScoped<ISkillsConfigService, SkillsConfigService>();
-        services.AddScoped<IConversationRepository, ConversationRepository>();
         services.AddSingleton<IMcpConfigService, McpConfigService>();
         services.AddSingleton<UserPreferencesService>();
         services.AddSingleton<ITokenizer>(sp =>

@@ -1,4 +1,4 @@
-using SmallEBot.Core.Repositories;
+using SmallEBot.Application.Session;
 using SmallEBot.Models;
 using SmallEBot.Services.Conversation;
 using SmallEBot.Services.Skills;
@@ -21,7 +21,7 @@ public sealed class AgentContextFactory(
     ISkillsConfigService skillsConfig,
     ITerminalConfigService terminalConfig,
     ICurrentConversationService currentConversation,
-    IConversationRepository conversationRepository) : IAgentContextFactory
+    ISessionFileService sessionFileService) : IAgentContextFactory
 {
     private string? _cachedSystemPrompt;
 
@@ -54,8 +54,8 @@ public sealed class AgentContextFactory(
         var conversationId = currentConversation.CurrentConversationId;
         if (conversationId == null) return null;
 
-        var conversation = await conversationRepository.GetByIdNoUserCheckAsync(conversationId.Value, ct);
-        return conversation?.CompressedContext;
+        var metadata = await sessionFileService.LoadAsync(conversationId.Value, ct);
+        return metadata?.CompressedContext;
     }
 
     public string? GetCachedSystemPrompt() => _cachedSystemPrompt;

@@ -5,7 +5,6 @@ using SmallEBot.Components.Chat.ViewModels.Bubbles;
 using SmallEBot.Components.Chat.ViewModels.Reasoning;
 using SmallEBot.Components.Chat.ViewModels.Streaming;
 using SmallEBot.Core.Models;
-using SmallEBot.Services.Presentation;
 
 namespace SmallEBot.Components.Chat.Services;
 
@@ -84,29 +83,19 @@ public sealed class ChatPresentationService
 
     private AssistantBubbleView ConvertAssistantBubble(AssistantBubble bubble)
     {
-        // Shell - will be implemented in Phase 4
-        var segments = ReasoningSegmenter.SegmentTurn(bubble.Items, bubble.IsThinkingMode);
+        var steps = bubble.Items
+            .Select(TimelineItemToStepView)
+            .Where(x => x != null)
+            .Cast<ReasoningStepView>()
+            .ToList();
+
         return new AssistantBubbleView
         {
             TurnId = bubble.TurnId,
             CreatedAt = bubble.Items.Count > 0 ? bubble.Items[0].CreatedAt : DateTime.UtcNow,
             IsThinkingMode = bubble.IsThinkingMode,
             IsError = IsErrorReply(bubble.Items),
-            Segments = segments.Select(ConvertSegment).ToList()
-        };
-    }
-
-    private SegmentBlockView ConvertSegment(ReasoningSegmenter.SegmentBlock segment)
-    {
-        // Shell - will be implemented in Phase 4
-        return new SegmentBlockView
-        {
-            IsThinkBlock = segment.IsThinkBlock,
-            Steps = segment.Items
-                .Select(TimelineItemToStepView)
-                .Where(x => x != null)
-                .Cast<ReasoningStepView>()
-                .ToList()
+            Steps = steps
         };
     }
 

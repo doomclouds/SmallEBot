@@ -2,31 +2,60 @@ using Microsoft.Extensions.AI;
 using SmallEBot.Application.Session;
 using SmallEBot.Core;
 using SmallEBot.Core.Models;
-using SmallEBot.Core.Repositories;
 using ConversationEntity = SmallEBot.Core.Entities.Conversation;
 
 namespace SmallEBot.Services.Conversation;
 
-/// <summary>UI facade for conversation operations. Wraps IConversationRepository and ConversationBubbleHelper.</summary>
+/// <summary>UI facade for conversation operations. Uses file-based session services.</summary>
 public class ConversationService(
-    IConversationRepository repository,
     IAgentSessionReader sessionReader,
-    ISessionFileService sessionFileService)
+    ISessionFileService sessionFileService,
+    ISessionManager sessionManager)
 {
-    public async Task<ConversationEntity?> GetByIdAsync(Guid id, string userName, CancellationToken ct = default) =>
-        await repository.GetByIdAsync(id, userName, ct);
+    public async Task<ConversationEntity?> GetByIdAsync(Guid id, string userName, CancellationToken ct = default)
+    {
+        var metadata = await sessionFileService.LoadAsync(id, ct);
+        if (metadata == null || metadata.UserName != userName) return null;
+        return ToEntity(metadata);
+    }
 
-    public async Task<List<ConversationEntity>> GetListAsync(string userName, CancellationToken ct = default) =>
-        await repository.GetListAsync(userName, ct);
+    public async Task<List<ConversationEntity>> GetListAsync(string userName, CancellationToken ct = default)
+    {
+        var summaries = await sessionFileService.ListAsync(userName, ct);
+        return summaries.Select(s => new ConversationEntity
+        {
+            Id = s.Id,
+            Title = s.Title,
+            UserName = userName,
+            UpdatedAt = s.UpdatedAt
+        }).ToList();
+    }
 
-    public async Task<List<ConversationEntity>> SearchAsync(string userName, string query, bool includeContent = false, CancellationToken ct = default) =>
-        await repository.SearchAsync(userName, query, includeContent, ct);
+    public async Task<List<ConversationEntity>> SearchAsync(string userName, string query, bool includeContent = false, CancellationToken ct = default)
+    {
+        var summaries = await sessionFileService.SearchAsync(userName, query, ct);
+        return summaries.Select(s => new ConversationEntity
+        {
+            Id = s.Id,
+            Title = s.Title,
+            UserName = userName,
+            UpdatedAt = s.UpdatedAt
+        }).ToList();
+    }
 
-    public async Task<ConversationEntity> CreateAsync(string userName, string title, CancellationToken ct = default) =>
-        await repository.CreateAsync(userName, title, ct);
+    public async Task<ConversationEntity> CreateAsync(string userName, string title, CancellationToken ct = default)
+    {
+        var metadata = await sessionManager.CreateConversationAsync(userName, title, ct);
+        return ToEntity(metadata);
+    }
 
-    public async Task<bool> DeleteAsync(Guid id, string userName, CancellationToken ct = default) =>
-        await repository.DeleteAsync(id, userName, ct);
+    public async Task<bool> DeleteAsync(Guid id, string userName, CancellationToken ct = default)
+    {
+        var metadata = await sessionFileService.LoadAsync(id, ct);
+        if (metadata == null || metadata.UserName != userName) return false;
+        await sessionFileService.DeleteAsync(id, ct);
+        return true;
+    }
 
     /// <summary>Get chat bubbles from a conversation's AgentSession.</summary>
     public async Task<List<ChatBubble>> GetChatBubblesAsync(Guid conversationId, CancellationToken ct = default)
@@ -121,4 +150,15 @@ public class ConversationService(
 
         return ConversationBubbleHelper.BuildBubblesFromTimeline(turns);
     }
+
+    private static ConversationEntity ToEntity(ConversationMetadata metadata) => new()
+    {
+        Id = metadata.Id,
+        Title = metadata.Title,
+        UserName = metadata.UserName,
+        CreatedAt = metadata.CreatedAt,
+        UpdatedAt = metadata.UpdatedAt,
+        CompressedContext = metadata.CompressedContext,
+        CompressedAt = metadata.CompressedAt
+    };
 }
