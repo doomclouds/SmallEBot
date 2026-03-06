@@ -3,6 +3,7 @@ using Anthropic.Core;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using SmallEBot.Services.Agent.Tools;
+using SmallEBot.Services.Workspace;
 
 namespace SmallEBot.Services.Agent;
 
@@ -16,33 +17,55 @@ public interface IAgentBuilder
     string? GetCachedSystemPromptForTokenCount();
 }
 
-public sealed class AgentBuilder(
-    IAgentContextFactory contextFactory,
-    IToolProviderAggregator toolAggregator,
-    IMcpConnectionManager mcpConnectionManager,
-    IModelConfigService modelConfig,
-    ILogger<AgentBuilder> log) : IAgentBuilder
+public sealed class AgentBuilder : IAgentBuilder
 {
+    private readonly IAgentContextFactory _contextFactory;
+    private readonly IToolProviderAggregator _toolAggregator;
+    private readonly IMcpConnectionManager _mcpConnectionManager;
+    private readonly IModelConfigService _modelConfig;
+    private readonly ILogger<AgentBuilder> _log;
+    private readonly string _skillsPath;
+    private readonly string _userSkillsPath;
+
     private AIAgent? _agent;
     private AITool[]? _allTools;
     private int _contextWindowTokens;
+
+    public AgentBuilder(
+        IAgentContextFactory contextFactory,
+        IToolProviderAggregator toolAggregator,
+        IMcpConnectionManager mcpConnectionManager,
+        IModelConfigService modelConfig,
+        IVirtualFileSystem vfs,
+        ILogger<AgentBuilder> log)
+    {
+        _contextFactory = contextFactory;
+        _toolAggregator = toolAggregator;
+        _mcpConnectionManager = mcpConnectionManager;
+        _modelConfig = modelConfig;
+        _log = log;
+
+        var workspaceRoot = vfs.GetRootPath();
+        _skillsPath = Path.Combine(workspaceRoot, "sys.skills");
+        _userSkillsPath = Path.Combine(workspaceRoot, "skills");
+    }
 
     public async Task<AIAgent> GetOrCreateAgentAsync(bool useThinking, CancellationToken ct = default)
     {
         if (_agent != null)
             return _agent;
 
-        var instructions = await contextFactory.BuildSystemPromptAsync(ct);
+        var instructions = await _contextFactory.BuildSystemPromptAsync(ct);
 
-        var config = await modelConfig.GetDefaultAsync(ct)
+        var config = await _modelConfig.GetDefaultAsync(ct)
             ?? throw new InvalidOperationException("No model configured. Add a model in Settings.");
 
         _contextWindowTokens = config.ContextWindow;
 
         if (_allTools == null)
         {
-            var builtIn = await toolAggregator.GetAllToolsAsync(ct);
-            var mcpTools = await mcpConnectionManager.GetAllToolsAsync(ct);
+            var builtIn = await _toolAggregator.GetAllToolsAsync(ct);
+            var mcpTools = await _mcpConnectionManager.GetAllToolsAsync(ct);
             var combined = new List<AITool>(builtIn.Length + mcpTools.Length);
             combined.AddRange(builtIn);
             combined.AddRange(mcpTools);
@@ -51,16 +74,39 @@ public sealed class AgentBuilder(
 
         var apiKey = ResolveApiKey(config.ApiKeySource);
         if (string.IsNullOrEmpty(apiKey))
-            log.LogWarning("API key not set for model '{Model}'. ApiKeySource: {Source}", config.Model, config.ApiKeySource);
+            _log.LogWarning("API key not set for model '{Model}'. ApiKeySource: {Source}", config.Model, config.ApiKeySource);
 
         var clientOptions = new ClientOptions { ApiKey = apiKey ?? "", BaseUrl = config.BaseUrl };
         var anthropicClient = new AnthropicClient(clientOptions);
 
-        _agent = anthropicClient.AsAIAgent(
-            model: config.Model,
-            name: "SmallEBot",
-            instructions: instructions,
-            tools: _allTools);
+        // Create FileAgentSkillsProvider for skill discovery and loading
+#pragma warning disable MAAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates
+        var skillsProvider = new FileAgentSkillsProvider(
+            skillPaths: [_skillsPath, _userSkillsPath],
+            options: new FileAgentSkillsProviderOptions
+            {
+                SkillsInstructionPrompt = """
+                    You have access to specialized skills.
+
+                    <available_skills>
+                    {0}
+                    </available_skills>
+
+                    When relevant, use load_skill to load and follow the skill's instructions.
+                    """
+            });
+#pragma warning restore MAAI001
+
+        _agent = anthropicClient.AsAIAgent(new ChatClientAgentOptions
+        {
+            Name = "SmallEBot",
+            ChatOptions = new()
+            {
+                Instructions = instructions,
+                Tools = _allTools
+            },
+            AIContextProviders = [skillsProvider]
+        });
         return _agent;
     }
 
@@ -78,11 +124,11 @@ public sealed class AgentBuilder(
             return _contextWindowTokens;
 
         // Otherwise, read from config
-        var config = await modelConfig.GetDefaultAsync(ct);
+        var config = await _modelConfig.GetDefaultAsync(ct);
         return config?.ContextWindow ?? 128000;
     }
 
-    public string? GetCachedSystemPromptForTokenCount() => contextFactory.GetCachedSystemPrompt();
+    public string? GetCachedSystemPromptForTokenCount() => _contextFactory.GetCachedSystemPrompt();
 
     private static string? ResolveApiKey(string source)
     {
