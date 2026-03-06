@@ -19,6 +19,7 @@ using SmallEBot.Services.Context;
 using SmallEBot.Services.Agent.Tools;
 using SmallEBot.Components.Chat.Services;
 using SmallEBot.Components.Chat.State;
+using SmallEBot.Services.Session;
 
 namespace SmallEBot.Extensions;
 
@@ -42,6 +43,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IMcpConfigService, McpConfigService>();
         services.AddScoped<ISkillsConfigService, SkillsConfigService>();
         services.AddSingleton<ITerminalConfigService, TerminalConfigService>();
+        services.AddSingleton<ISessionFileService, SessionFileService>();
+        services.AddScoped<ISessionManager, SessionManager>();
         services.AddSingleton<ICommandConfirmationContext, CommandConfirmationContext>();
         services.AddSingleton<IConversationTaskContext, ConversationTaskContext>();
         services.AddSingleton<ICurrentConversationService, CurrentConversationService>();
