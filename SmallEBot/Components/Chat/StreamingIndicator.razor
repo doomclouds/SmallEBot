@@ -17,7 +17,10 @@ else if (IsStreaming)
                           OnCancel="@OnCancel"
                           ShowWaitingForToolParams="@ShowWaitingForToolParams"
                           WaitingElapsed="@WaitingElapsed"
-                          ShowToolCalls="@ShowToolCalls" />
+                          ShowToolCalls="@ShowToolCalls"
+                          OnApprove="@OnApprove"
+                          OnReject="@OnReject"
+                          IsApprovalProcessing="@IsApprovalProcessing" />
 }
 
 @code {
@@ -28,6 +31,9 @@ else if (IsStreaming)
     [Parameter] public bool ShowWaitingForToolParams { get; set; }
     [Parameter] public TimeSpan WaitingElapsed { get; set; }
     [Parameter] public bool ShowToolCalls { get; set; } = true;
+    [Parameter] public EventCallback<ApprovalItemView> OnApprove { get; set; }
+    [Parameter] public EventCallback<ApprovalItemView> OnReject { get; set; }
+    [Parameter] public bool IsApprovalProcessing { get; set; }
 
     [Parameter] public bool IsCompressing { get; set; }
     [Parameter] public string CompressionMessage { get; set; } = "Compressing context...";
