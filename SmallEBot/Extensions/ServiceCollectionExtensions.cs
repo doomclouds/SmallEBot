@@ -45,6 +45,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ISkillsConfigService, SkillsConfigService>();
         services.AddSingleton<ITerminalConfigService, TerminalConfigService>();
         services.AddSingleton<ISessionFileService, SessionFileService>();
+        services.AddScoped<IAgentSessionReader, AgentSessionReader>();
         services.AddScoped<ISessionManager, SessionManager>();
         services.AddScoped<ISessionAgentManager>(sp => sp.GetRequiredService<SessionManager>());
         services.AddSingleton<ICommandConfirmationContext, CommandConfirmationContext>();
