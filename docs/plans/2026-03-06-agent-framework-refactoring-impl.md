@@ -529,6 +529,648 @@ Create a new conversation, send a message, verify:
 
 ---
 
+## Phase 1.5: Workflow + Checkpoint Integration (P1 - Critical)
+
+This phase replaces direct Agent calls with Workflow execution, enabling native checkpoint-based branch/regenerate.
+
+### Task 1.5.1: Create WorkflowRunManager
+
+**Files:**
+- Create: `SmallEBot/Services/Workflow/IWorkflowRunManager.cs`
+- Create: `SmallEBot/Services/Workflow/WorkflowRunManager.cs`
+- Create: `SmallEBot/Core/Models/CheckpointInfo.cs`
+
+**Step 1: Create CheckpointInfo model**
+
+```csharp
+// SmallEBot/Core/Models/CheckpointInfo.cs
+namespace SmallEBot.Core.Models;
+
+/// <summary>
+/// Serializable checkpoint information for a conversation turn.
+/// </summary>
+public class CheckpointInfo
+{
+    public required string Id { get; init; }
+    public DateTime CreatedAt { get; init; }
+    public string? UserMessage { get; init; }
+    public string? Summary { get; init; }
+}
+```
+
+**Step 2: Create IWorkflowRunManager interface**
+
+```csharp
+// SmallEBot/Services/Workflow/IWorkflowRunManager.cs
+using Microsoft.Agents.AI;
+using Microsoft.Agents.AI.Workflows;
+using Microsoft.Extensions.AI;
+using SmallEBot.Core.Models;
+
+namespace SmallEBot.Services.Workflow;
+
+/// <summary>
+/// Manages workflow execution with checkpoint support for branch/regenerate.
+/// </summary>
+public interface IWorkflowRunManager
+{
+    /// <summary>
+    /// Create a new streaming run for the conversation.
+    /// </summary>
+    Task<StreamingRun> CreateRunAsync(
+        Guid conversationId,
+        IEnumerable<ChatMessage> initialMessages,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Get the current run for a conversation (if any).
+    /// </summary>
+    StreamingRun? GetCurrentRun(Guid conversationId);
+
+    /// <summary>
+    /// Get checkpoints for a conversation.
+    /// </summary>
+    Task<IReadOnlyList<CheckpointInfo>> GetCheckpointsAsync(
+        Guid conversationId,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Restore to a specific checkpoint (for branch/regenerate).
+    /// </summary>
+    Task<StreamingRun> RestoreCheckpointAsync(
+        Guid conversationId,
+        string checkpointId,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Save checkpoint metadata after a turn completes.
+    /// </summary>
+    Task SaveCheckpointAsync(
+        Guid conversationId,
+        string checkpointId,
+        string? userMessage,
+        string? summary,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Get the underlying AIAgent used by workflows.
+    /// </summary>
+    Task<AIAgent> GetAgentAsync(CancellationToken ct = default);
+}
+```
+
+**Step 3: Create WorkflowRunManager implementation**
+
+```csharp
+// SmallEBot/Services/Workflow/WorkflowRunManager.cs
+using System.Collections.Concurrent;
+using System.Text.Json;
+using Microsoft.Agents.AI;
+using Microsoft.Agents.AI.Workflows;
+using Microsoft.Extensions.AI;
+using SmallEBot.Core.Models;
+using SmallEBot.Services.Agent;
+
+namespace SmallEBot.Services.Workflow;
+
+public sealed class WorkflowRunManager : IWorkflowRunManager, IAsyncDisposable
+{
+    private readonly IAgentBuilder _agentBuilder;
+    private readonly ISessionFileService _fileService;
+    private readonly ILogger<WorkflowRunManager> _logger;
+
+    // Active runs per conversation
+    private readonly ConcurrentDictionary<Guid, StreamingRun> _activeRuns = new();
+
+    // Cached agent
+    private AIAgent? _cachedAgent;
+
+    public WorkflowRunManager(
+        IAgentBuilder agentBuilder,
+        ISessionFileService fileService,
+        ILogger<WorkflowRunManager> logger)
+    {
+        _agentBuilder = agentBuilder;
+        _fileService = fileService;
+        _logger = logger;
+    }
+
+    public async Task<AIAgent> GetAgentAsync(CancellationToken ct = default)
+    {
+        if (_cachedAgent != null) return _cachedAgent;
+        _cachedAgent = await _agentBuilder.GetOrCreateAgentAsync(useThinking: true, ct);
+        return _cachedAgent;
+    }
+
+    public async Task<StreamingRun> CreateRunAsync(
+        Guid conversationId,
+        IEnumerable<ChatMessage> initialMessages,
+        CancellationToken ct = default)
+    {
+        // Dispose existing run if any
+        if (_activeRuns.TryRemove(conversationId, out var existingRun))
+        {
+            await existingRun.DisposeAsync();
+        }
+
+        var agent = await GetAgentAsync(ct);
+
+        // Build single-agent workflow
+        var workflow = AgentWorkflowBuilder.BuildSequential(agent);
+
+        // Create streaming run with checkpointing enabled
+        var run = await InProcessExecution.RunStreamingAsync(
+            workflow,
+            initialMessages.ToList(),
+            options: new() { EnableCheckpointing = true });
+
+        _activeRuns[conversationId] = run;
+        return run;
+    }
+
+    public StreamingRun? GetCurrentRun(Guid conversationId)
+    {
+        return _activeRuns.TryGetValue(conversationId, out var run) ? run : null;
+    }
+
+    public async Task<IReadOnlyList<CheckpointInfo>> GetCheckpointsAsync(
+        Guid conversationId,
+        CancellationToken ct = default)
+    {
+        var metadata = await _fileService.LoadAsync(conversationId, ct);
+        if (metadata == null) return [];
+
+        // Checkpoints stored in session file metadata
+        // For now, we use the native Workflow checkpoints
+        var run = GetCurrentRun(conversationId);
+        if (run != null)
+        {
+            return run.Checkpoints
+                .Select((cp, idx) => new CheckpointInfo
+                {
+                    Id = cp.Id ?? idx.ToString(),
+                    CreatedAt = DateTime.UtcNow,
+                    Summary = $"Turn {idx + 1}"
+                })
+                .ToList();
+        }
+
+        return [];
+    }
+
+    public async Task<StreamingRun> RestoreCheckpointAsync(
+        Guid conversationId,
+        string checkpointId,
+        CancellationToken ct = default)
+    {
+        var run = GetCurrentRun(conversationId);
+        if (run == null)
+        {
+            throw new InvalidOperationException($"No active run for conversation {conversationId}");
+        }
+
+        // Find the checkpoint
+        var checkpoint = run.Checkpoints.FirstOrDefault(c => c.Id == checkpointId);
+        if (checkpoint == null)
+        {
+            throw new InvalidOperationException($"Checkpoint {checkpointId} not found");
+        }
+
+        // Restore to checkpoint
+        await run.RestoreCheckpointAsync(checkpoint);
+
+        _logger.LogInformation("Restored conversation {ConversationId} to checkpoint {CheckpointId}",
+            conversationId, checkpointId);
+
+        return run;
+    }
+
+    public Task SaveCheckpointAsync(
+        Guid conversationId,
+        string checkpointId,
+        string? userMessage,
+        string? summary,
+        CancellationToken ct = default)
+    {
+        // Checkpoint metadata could be stored in session file
+        // For now, we rely on native Workflow checkpointing
+        _logger.LogDebug("Checkpoint {CheckpointId} saved for conversation {ConversationId}",
+            checkpointId, conversationId);
+        return Task.CompletedTask;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        foreach (var run in _activeRuns.Values)
+        {
+            await run.DisposeAsync();
+        }
+        _activeRuns.Clear();
+    }
+}
+```
+
+**Step 4: Build and verify**
+
+```bash
+dotnet build SmallEBot
+```
+
+---
+
+### Task 1.5.2: Update ConversationMetadata for Checkpoints
+
+**Files:**
+- Modify: `SmallEBot.Core/Models/ConversationMetadata.cs`
+
+**Step 1: Add checkpoints field**
+
+```csharp
+// Add to ConversationMetadata.cs
+
+/// <summary>
+/// List of checkpoint metadata for branch/regenerate.
+/// </summary>
+public List<CheckpointInfo> Checkpoints { get; set; } = [];
+```
+
+**Step 2: Build and verify**
+
+```bash
+dotnet build SmallEBot
+```
+
+---
+
+### Task 1.5.3: Create WorkflowAgentRunner
+
+**Files:**
+- Create: `SmallEBot/Services/Workflow/WorkflowAgentRunner.cs`
+
+**Step 1: Create WorkflowAgentRunner**
+
+```csharp
+// SmallEBot/Services/Workflow/WorkflowAgentRunner.cs
+using System.Diagnostics;
+using System.Runtime.CompilerServices;
+using System.Text.Json;
+using Microsoft.Agents.AI.Workflows;
+using Microsoft.Extensions.AI;
+using SmallEBot.Application.Context;
+using SmallEBot.Application.Streaming;
+using SmallEBot.Core.Models;
+
+namespace SmallEBot.Services.Workflow;
+
+/// <summary>
+/// Agent runner using Workflow + Checkpoint for execution.
+/// Replaces AgentRunnerAdapter's direct Agent calls with Workflow-based execution.
+/// </summary>
+public sealed class WorkflowAgentRunner
+{
+    private readonly IWorkflowRunManager _runManager;
+    private readonly ITurnContextFragmentBuilder _fragmentBuilder;
+    private readonly ILogger<WorkflowAgentRunner> _logger;
+
+    public WorkflowAgentRunner(
+        IWorkflowRunManager runManager,
+        ITurnContextFragmentBuilder fragmentBuilder,
+        ILogger<WorkflowAgentRunner> logger)
+    {
+        _runManager = runManager;
+        _fragmentBuilder = fragmentBuilder;
+        _logger = logger;
+    }
+
+    public async IAsyncEnumerable<StreamUpdate> RunStreamingAsync(
+        Guid conversationId,
+        string userMessage,
+        bool useThinking,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default,
+        IReadOnlyList<string>? attachedPaths = null,
+        IReadOnlyList<string>? requestedSkillIds = null)
+    {
+        // Build initial messages
+        var messages = new List<ChatMessage>();
+
+        // Add attachments if any
+        var hasAttachments = (attachedPaths?.Count ?? 0) + (requestedSkillIds?.Count ?? 0) > 0;
+        if (hasAttachments)
+        {
+            var fragment = await _fragmentBuilder.BuildFragmentAsync(
+                attachedPaths ?? [],
+                requestedSkillIds ?? [],
+                cancellationToken);
+            if (!string.IsNullOrWhiteSpace(fragment))
+            {
+                messages.Add(new ChatMessage(ChatRole.User, fragment));
+            }
+        }
+        messages.Add(new ChatMessage(ChatRole.User, userMessage));
+
+        // Create workflow run with checkpointing
+        var run = await _runManager.CreateRunAsync(conversationId, messages, cancellationToken);
+
+        // Send turn token to start processing
+        await run.TrySendMessageAsync(new TurnToken(emitEvents: true));
+
+        var toolTimers = new Dictionary<string, Stopwatch>();
+        var toolNames = new Dictionary<string, string>();
+
+        // Watch stream events
+        await foreach (var evt in run.WatchStreamAsync().WithCancellation(cancellationToken))
+        {
+            switch (evt)
+            {
+                case AgentResponseUpdateEvent updateEvt:
+                    foreach (var streamUpdate in ConvertToUpdate(updateEvt.Update, toolTimers, toolNames))
+                    {
+                        yield return streamUpdate;
+                    }
+                    break;
+
+                case WorkflowOutputEvent outputEvt:
+                    _logger.LogInformation("Workflow completed for conversation {ConversationId}", conversationId);
+                    break;
+
+                case RequestInfoEvent reqEvt:
+                    // Handle approval requests
+                    if (reqEvt.Request.TryGetDataAs(out Microsoft.Extensions.AI.FunctionApprovalRequestContent? approval))
+                    {
+                        yield return new ApprovalRequestStreamUpdate(
+                            CallId: approval.FunctionCall.CallId ?? Guid.NewGuid().ToString(),
+                            ToolName: approval.FunctionCall.Name ?? "unknown",
+                            Arguments: JsonSerializer.Serialize(approval.FunctionCall.Arguments));
+                    }
+                    break;
+
+                case WorkflowErrorEvent errorEvt:
+                    _logger.LogError(errorEvt.Exception, "Workflow error for conversation {ConversationId}", conversationId);
+                    yield return new TextStreamUpdate($"Error: {errorEvt.Exception.Message}");
+                    break;
+            }
+        }
+
+        // Save checkpoint after turn completes
+        if (run.LastCheckpoint != null)
+        {
+            await _runManager.SaveCheckpointAsync(
+                conversationId,
+                run.LastCheckpoint.Id ?? Guid.NewGuid().ToString(),
+                userMessage,
+                null,
+                cancellationToken);
+        }
+    }
+
+    private IEnumerable<StreamUpdate> ConvertToUpdate(
+        AgentResponseUpdate update,
+        Dictionary<string, Stopwatch> toolTimers,
+        Dictionary<string, string> toolNames)
+    {
+        if (update.Contents == null) yield break;
+
+        foreach (var content in update.Contents)
+        {
+            switch (content)
+            {
+                case Microsoft.Extensions.AI.TextContent text when !string.IsNullOrEmpty(text.Text):
+                    yield return new TextStreamUpdate(text.Text);
+                    break;
+
+                case Microsoft.Extensions.AI.TextReasoningContent reasoning when !string.IsNullOrEmpty(reasoning.Text):
+                    yield return new ThinkStreamUpdate(reasoning.Text);
+                    break;
+
+                case Microsoft.Extensions.AI.FunctionCallContent fnCall:
+                    var callId = fnCall.CallId ?? Guid.NewGuid().ToString();
+                    toolTimers[callId] = Stopwatch.StartNew();
+                    toolNames[callId] = fnCall.Name ?? "unknown";
+                    yield return new ToolCallStreamUpdate(
+                        ToolName: fnCall.Name ?? "unknown",
+                        CallId: callId,
+                        Phase: ToolCallPhase.Started,
+                        Arguments: JsonSerializer.Serialize(fnCall.Arguments),
+                        Elapsed: TimeSpan.Zero);
+                    break;
+
+                case Microsoft.Extensions.AI.FunctionResultContent fnResult:
+                    var resCallId = fnResult.CallId ?? "";
+                    if (string.IsNullOrEmpty(resCallId) && toolTimers.Count == 1)
+                        resCallId = toolTimers.Keys.First();
+                    if (!string.IsNullOrEmpty(resCallId) && toolTimers.TryGetValue(resCallId, out var timer))
+                    {
+                        timer.Stop();
+                        var toolName = toolNames.GetValueOrDefault(resCallId) ?? resCallId;
+                        yield return new ToolCallStreamUpdate(
+                            ToolName: toolName,
+                            CallId: resCallId,
+                            Phase: ToolCallPhase.Completed,
+                            Result: JsonSerializer.Serialize(fnResult.Result),
+                            Elapsed: timer.Elapsed);
+                        toolTimers.Remove(resCallId);
+                        toolNames.Remove(resCallId);
+                    }
+                    break;
+            }
+        }
+    }
+}
+
+/// <summary>
+/// New stream update type for approval requests.
+/// </summary>
+public record ApprovalRequestStreamUpdate(
+    string CallId,
+    string ToolName,
+    string? Arguments
+) : StreamUpdate;
+```
+
+**Step 2: Build and verify**
+
+```bash
+dotnet build SmallEBot
+```
+
+---
+
+### Task 1.5.4: Register Workflow Services
+
+**Files:**
+- Modify: `SmallEBot/Extensions/ServiceCollectionExtensions.cs`
+
+**Step 1: Add workflow service registrations**
+
+```csharp
+// In ServiceCollectionExtensions.cs, add these registrations:
+
+// Workflow services (new)
+services.AddSingleton<IWorkflowRunManager, WorkflowRunManager>();
+services.AddScoped<WorkflowAgentRunner>();
+```
+
+**Step 2: Build and verify**
+
+```bash
+dotnet build SmallEBot
+```
+
+---
+
+### Task 1.5.5: Update ConversationService to Use Workflow
+
+**Files:**
+- Modify: `SmallEBot.Application/Conversation/AgentConversationService.cs`
+
+**Step 1: Update to use WorkflowAgentRunner**
+
+Replace `IAgentRunner` with `WorkflowAgentRunner`:
+
+```csharp
+// In constructor, add:
+private readonly WorkflowAgentRunner _workflowRunner;
+
+// Update streaming method to use workflow runner:
+public async IAsyncEnumerable<StreamUpdate> RunAgentStreamingAsync(
+    Guid conversationId,
+    string userMessage,
+    bool useThinking,
+    [EnumeratorCancellation] CancellationToken cancellationToken = default,
+    IReadOnlyList<string>? attachedPaths = null,
+    IReadOnlyList<string>? requestedSkillIds = null)
+{
+    await foreach (var update in _workflowRunner.RunStreamingAsync(
+        conversationId,
+        userMessage,
+        useThinking,
+        cancellationToken,
+        attachedPaths,
+        requestedSkillIds))
+    {
+        yield return update;
+    }
+}
+```
+
+**Step 2: Build and verify**
+
+```bash
+dotnet build SmallEBot
+```
+
+---
+
+### Task 1.5.6: Implement Branch/Regenerate via Checkpoint
+
+**Files:**
+- Modify: `SmallEBot.Application/Conversation/IAgentConversationService.cs`
+- Modify: `SmallEBot.Application/Conversation/AgentConversationService.cs`
+
+**Step 1: Add interface methods**
+
+```csharp
+// Add to IAgentConversationService.cs
+
+/// <summary>
+/// Get available checkpoints for branch/regenerate.
+/// </summary>
+Task<IReadOnlyList<CheckpointInfo>> GetCheckpointsAsync(
+    Guid conversationId,
+    CancellationToken ct = default);
+
+/// <summary>
+/// Regenerate from a specific checkpoint.
+/// </summary>
+Task RegenerateFromCheckpointAsync(
+    Guid conversationId,
+    string checkpointId,
+    CancellationToken ct = default);
+```
+
+**Step 2: Implement methods**
+
+```csharp
+// Add to AgentConversationService.cs
+
+public async Task<IReadOnlyList<CheckpointInfo>> GetCheckpointsAsync(
+    Guid conversationId,
+    CancellationToken ct = default)
+{
+    return await _runManager.GetCheckpointsAsync(conversationId, ct);
+}
+
+public async Task RegenerateFromCheckpointAsync(
+    Guid conversationId,
+    string checkpointId,
+    CancellationToken ct = default)
+{
+    await _runManager.RestoreCheckpointAsync(conversationId, checkpointId, ct);
+}
+```
+
+**Step 3: Build and verify**
+
+```bash
+dotnet build SmallEBot
+```
+
+---
+
+### Task 1.5.7: Update UI for Branch/Regenerate
+
+**Files:**
+- Modify: `SmallEBot/Components/Chat/ChatArea.razor`
+- Modify: `SmallEBot/Components/Chat/State/ChatState.cs`
+
+**Step 1: Add regenerate action to ChatState**
+
+```csharp
+// Add to ChatState.cs
+
+public event Func<Guid, string, Task>? RegenerateRequested;
+
+public async Task NotifyRegenerateRequestedAsync(Guid conversationId, string checkpointId)
+{
+    if (RegenerateRequested != null)
+        await RegenerateRequested.Invoke(conversationId, checkpointId);
+}
+```
+
+**Step 2: Update ChatArea.razor to handle regenerate**
+
+```razor
+@code {
+    // In OnInitialized or similar
+    _state.RegenerateRequested += HandleRegenerateRequested;
+
+    private async Task HandleRegenerateRequested(Guid conversationId, string checkpointId)
+    {
+        await _conversationService.RegenerateFromCheckpointAsync(conversationId, checkpointId);
+        // Refresh UI
+    }
+}
+```
+
+**Step 3: Build and verify**
+
+```bash
+dotnet build SmallEBot
+```
+
+**Step 4: Manual test**
+
+```bash
+dotnet run --project SmallEBot
+```
+
+Verify:
+1. New conversation works with Workflow execution
+2. Checkpoints are created after each turn
+3. Regenerate from checkpoint works
+
+---
+
 ## Phase 2: UI Simplification
 
 ### Task 2.1: Create Simplified StreamItemView Models
@@ -1106,12 +1748,19 @@ EOF
 Phase 1 (Session Layer)
 ├── Task 1.1 → Task 1.2 → Task 1.3 → Task 1.4 → Task 1.5
 │                                          ↓
-│                              Must complete before Phase 2
+│                              Must complete before Phase 1.5
+│
+Phase 1.5 (Workflow + Checkpoint) ← CRITICAL NEW PHASE
+├── Task 1.5.1 → Task 1.5.2 → Task 1.5.3 → Task 1.5.4 → Task 1.5.5 → Task 1.5.6 → Task 1.5.7
+│     ↑
+│     Requires Phase 1 complete
+│     Enables: Native branch/regenerate, Checkpoint-based conversation state
 │
 Phase 2 (UI Simplification)
 ├── Task 2.1 → Task 2.2 → Task 2.3
 │                    ↓
 │           Can run parallel with Phase 3
+│           Should coordinate with Phase 1.5.7 (UI for regenerate)
 │
 Phase 3 (Tool Cleanup)
 ├── Task 3.1 → Task 3.2 → Task 3.3 → Task 3.4
@@ -1127,6 +1776,17 @@ Phase 5 (Validation)
      Requires all phases complete
 ```
 
+### Key Changes Summary
+
+| Phase | Tasks | Purpose |
+|-------|-------|---------|
+| Phase 1 | 5 | File-based session storage, AgentSession serialization |
+| **Phase 1.5** | **7** | **Workflow execution, Checkpoint for branch/regenerate** |
+| Phase 2 | 3 | UI simplification (flat StreamItemView) |
+| Phase 3 | 4 | Remove redundant tools, use native Skills |
+| Phase 4 | 4 | Remove obsolete entities and repository |
+| Phase 5 | 3 | Final validation |
+
 ---
 
 ## Rollback Plan
@@ -1134,6 +1794,34 @@ Phase 5 (Validation)
 If issues arise during migration:
 
 1. **Phase 1 issues**: Keep SQLite entities, use both storage systems temporarily
-2. **Phase 2 issues**: Revert UI changes, keep `ReasoningSegmenter`
-3. **Phase 3 issues**: Restore deleted tool providers
-4. **Complete failure**: `git revert HEAD~N` to restore previous state
+2. **Phase 1.5 issues**: Fall back to `AgentRunnerAdapter` (direct Agent calls), disable checkpointing
+3. **Phase 2 issues**: Revert UI changes, keep `ReasoningSegmenter`
+4. **Phase 3 issues**: Restore deleted tool providers
+5. **Complete failure**: `git revert HEAD~N` to restore previous state
+
+## Workflow vs Agent Comparison
+
+| Aspect | Before (Agent) | After (Workflow) |
+|--------|----------------|------------------|
+| Execution | `agent.RunStreamingAsync(messages, session)` | `InProcessExecution.RunStreamingAsync(workflow, messages)` |
+| State | Manual session serialization | Native checkpointing |
+| Branch/Regenerate | Custom `ReplaceUserMessageAsync` | `run.RestoreCheckpointAsync(checkpoint)` |
+| Events | `AgentResponseUpdate` | `WorkflowEvent` (includes `AgentResponseUpdateEvent`, `RequestInfoEvent`, etc.) |
+| Turn control | N/A | `TurnToken` for explicit turn management |
+
+## File Changes Summary (Updated)
+
+### New Files
+
+| File | Purpose |
+|------|---------|
+| `Services/Session/ISessionFileService.cs` | Session file persistence interface |
+| `Services/Session/SessionFileService.cs` | JSON file implementation |
+| `Services/Session/ISessionManager.cs` | Session runtime management |
+| `Services/Session/SessionManager.cs` | AgentSession management |
+| `Core/Models/ConversationMetadata.cs` | File-based conversation model |
+| `Core/Models/CheckpointInfo.cs` | Checkpoint metadata model |
+| `Services/Workflow/IWorkflowRunManager.cs` | Workflow execution interface |
+| `Services/Workflow/WorkflowRunManager.cs` | Workflow + Checkpoint management |
+| `Services/Workflow/WorkflowAgentRunner.cs` | Workflow-based agent runner |
+| `Components/Chat/ViewModels/StreamItemView.cs` | Simplified UI view models |
