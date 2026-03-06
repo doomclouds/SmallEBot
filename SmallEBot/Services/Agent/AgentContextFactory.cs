@@ -75,7 +75,6 @@ public sealed class AgentContextFactory(
             GetShellSection(),
             GetTaskListSection(),
             GetSkillsSection(),
-            GetConversationSection(),
             GetSkillGenerationSection(),
             GetTempFilesSection(),
         ]);
@@ -219,19 +218,6 @@ public sealed class AgentContextFactory(
         - `ListSkillFiles(skillId, path?)` → lists contents of a skill folder
         """;
 
-    private static string GetConversationSection() => $"""
-        # Conversation Analysis
-
-        Tools: `{Tn.ReadConversationData}`.
-
-        Use `{Tn.ReadConversationData}` to analyze the current conversation's execution history when:
-        - The user wants to create or improve a skill based on conversation patterns
-        - Understanding what tools and approaches worked well
-        - Identifying reusable patterns for skill generation
-
-        Returns timeline-sorted events including user messages, assistant responses, thinking blocks, and tool calls with results.
-        """;
-
     private static string GetSkillGenerationSection() => $$"""
         # Skill Generation
 
@@ -247,10 +233,9 @@ public sealed class AgentContextFactory(
         - `scripts`: optional array of {filename, content}
 
         **Workflow for skill creation:**
-        1. Call `{{Tn.ReadConversationData}}` to analyze patterns
-        2. Design skill structure based on successful patterns
-        3. Call `{{Tn.GenerateSkill}}` with complete skill definition
-        4. Confirm to user where skill was created
+        1. Design skill structure based on conversation patterns and successful approaches
+        2. Call `{{Tn.GenerateSkill}}` with complete skill definition
+        3. Confirm to user where skill was created
         """;
 
     private static string GetTempFilesSection() => $"""
