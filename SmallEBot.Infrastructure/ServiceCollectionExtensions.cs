@@ -1,11 +1,14 @@
 using Microsoft.Agents.AI;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using SmallEBot.Domain.Agents;
+using SmallEBot.Domain.Common.Services;
 using SmallEBot.Domain.Conversations;
 using SmallEBot.Domain.UserPreferences;
 using SmallEBot.Domain.Workspaces;
 using SmallEBot.Infrastructure.Persistence.AgentSession;
 using SmallEBot.Infrastructure.Persistence.Repositories;
+using SmallEBot.Infrastructure.Services;
 
 namespace SmallEBot.Infrastructure;
 
@@ -50,6 +53,21 @@ public static class ServiceCollectionExtensions
         });
 
         services.AddSingleton<IAgentSessionStore>(sp => new AgentSessionStore(basePath, sp));
+
+        // Tokenizer services
+        services.AddSingleton<ITokenizer>(sp =>
+        {
+            var config = sp.GetRequiredService<IConfiguration>();
+            var path = config["Anthropic:TokenizerPath"];
+            try
+            {
+                return new DeepSeekTokenizer(path);
+            }
+            catch (FileNotFoundException)
+            {
+                return new CharEstimateTokenizer();
+            }
+        });
 
         return services;
     }
