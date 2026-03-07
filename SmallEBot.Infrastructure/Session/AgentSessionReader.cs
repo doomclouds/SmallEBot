@@ -2,16 +2,17 @@ using System.Text.Json;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using SmallEBot.Application.Contracts.Session;
+using SmallEBot.Infrastructure.Persistence.AgentSession;
 using ChatMessage = Microsoft.Extensions.AI.ChatMessage;
 
-namespace SmallEBot.Services.Session;
+namespace SmallEBot.Infrastructure.Session;
 
 /// <summary>
 /// Reads message history from serialized AgentSession data.
-/// Parses JSON structure from SessionData to extract ChatMessage objects.
+/// Parses JSON structure from session.json to extract ChatMessage objects.
 /// </summary>
 public sealed class AgentSessionReader(
-    ISessionFileService sessionFileService,
+    IAgentSessionStore sessionStore,
     ILogger<AgentSessionReader> logger) : IAgentSessionReader
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -24,8 +25,8 @@ public sealed class AgentSessionReader(
         Guid conversationId,
         CancellationToken ct = default)
     {
-        var metadata = await sessionFileService.LoadAsync(conversationId, ct);
-        if (metadata?.SessionData is not { } sessionData)
+        var json = await sessionStore.GetSessionJsonAsync(conversationId, ct);
+        if (string.IsNullOrEmpty(json))
         {
             logger.LogDebug("No session data found for conversation {ConversationId}", conversationId);
             return [];
@@ -33,7 +34,8 @@ public sealed class AgentSessionReader(
 
         try
         {
-            return ParseMessages(sessionData);
+            using var doc = JsonDocument.Parse(json);
+            return ParseMessages(doc.RootElement);
         }
         catch (Exception ex)
         {
@@ -45,17 +47,15 @@ public sealed class AgentSessionReader(
     /// <inheritdoc />
     public async Task<string?> GetUserMessageContentAsync(
         Guid conversationId,
-        int turnIndex,
+        int firstMessageIndex,
         CancellationToken ct = default)
     {
         var messages = await GetMessagesAsync(conversationId, ct);
         if (messages.Count == 0) return null;
 
-        // User message index = turnIndex * 2
-        var messageIndex = turnIndex * 2;
-        if (messageIndex < 0 || messageIndex >= messages.Count) return null;
+        if (firstMessageIndex < 0 || firstMessageIndex >= messages.Count) return null;
 
-        var message = messages[messageIndex];
+        var message = messages[firstMessageIndex];
         if (message.Role != ChatRole.User) return null;
 
         // Extract text content

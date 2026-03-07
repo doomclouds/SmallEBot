@@ -229,7 +229,9 @@ public sealed class AgentConversationService(
         var turn = metadata.Turns[turnIndex];
 
         // Get user message content from AgentSession
-        var userMessage = await sessionReader.GetUserMessageContentAsync(conversationId, turnIndex, cancellationToken);
+        // TODO Task 6: use metadata.GetFirstMessageIndex(turnId) when switching to Domain.ConversationMetadata
+        var firstMessageIndex = turnIndex * 2;
+        var userMessage = await sessionReader.GetUserMessageContentAsync(conversationId, firstMessageIndex, cancellationToken);
         if (string.IsNullOrEmpty(userMessage)) return null;
 
         return (turn.Id, userMessage, false, turn.AttachedPaths, turn.RequestedSkillIds);

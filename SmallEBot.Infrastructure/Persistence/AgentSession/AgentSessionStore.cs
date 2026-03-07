@@ -110,6 +110,28 @@ public sealed class AgentSessionStore : IAgentSessionStore
     }
 
     /// <inheritdoc />
+    public async Task<string?> GetSessionJsonAsync(Guid conversationId, CancellationToken ct = default)
+    {
+        ThrowIfDisposed();
+        var filePath = GetSessionFilePath(conversationId);
+
+        _lock.EnterReadLock();
+        try
+        {
+            if (!File.Exists(filePath))
+            {
+                return null;
+            }
+
+            return await File.ReadAllTextAsync(filePath, ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            _lock.ExitReadLock();
+        }
+    }
+
+    /// <inheritdoc />
     public async Task TruncateFromTurnAsync(Guid conversationId, int firstMessageIndex, CancellationToken ct = default)
     {
         ThrowIfDisposed();

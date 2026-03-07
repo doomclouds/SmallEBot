@@ -17,10 +17,10 @@ public interface IAgentSessionReader
         CancellationToken ct = default);
 
     /// <summary>
-    /// Gets the user message content at a specific turn index.
+    /// Gets the user message content at a specific message index.
     /// </summary>
     Task<string?> GetUserMessageContentAsync(
         Guid conversationId,
-        int turnIndex,
+        int firstMessageIndex,
         CancellationToken ct = default);
 }

@@ -8,8 +8,10 @@ using SmallEBot.Domain.Agents;
 using SmallEBot.Domain.Common.Services;
 using SmallEBot.Domain.Conversations;
 using SmallEBot.Domain.UserPreferences;
+using SmallEBot.Application.Contracts.Session;
 using SmallEBot.Infrastructure.Conversations;
 using SmallEBot.Infrastructure.Persistence.AgentSession;
+using SmallEBot.Infrastructure.Session;
 using SmallEBot.Infrastructure.Persistence.Repositories;
 using SmallEBot.Infrastructure.UserPreferences;
 using SmallEBot.Infrastructure.Services;
@@ -55,6 +57,8 @@ public static class ServiceCollectionExtensions
         });
 
         services.AddSingleton<IAgentSessionStore>(sp => new AgentSessionStore(basePath, sp));
+
+        services.AddScoped<IAgentSessionReader, AgentSessionReader>();
 
         services.AddSingleton<IConversationSessionCoordinator, ConversationSessionCoordinator>();
 

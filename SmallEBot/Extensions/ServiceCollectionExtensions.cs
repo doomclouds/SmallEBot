@@ -12,7 +12,6 @@ using SmallEBot.Services.Context;
 using SmallEBot.Services.Agent.Tools;
 using SmallEBot.Components.Chat.Services;
 using SmallEBot.Components.Chat.State;
-using SmallEBot.Services.Session;
 using SmallEBot.Infrastructure;
 using Microsoft.Agents.AI;
 using SmallEBot.Application.Contracts.Agents;
@@ -24,6 +23,7 @@ using SmallEBot.Application.Contracts.UserPreferences;
 using SmallEBot.Application.Contracts.Workspaces;
 using SmallEBot.Application.Workspaces;
 using SmallEBot.Infrastructure.Workspaces;
+using SmallEBot.Services.Session;
 
 namespace SmallEBot.Extensions;
 
@@ -37,7 +37,7 @@ public static class ServiceCollectionExtensions
 
         // File-based session services
         services.AddSingleton<ISessionFileService, SessionFileService>();
-        services.AddScoped<IAgentSessionReader, AgentSessionReader>();
+        // IAgentSessionReader is registered in Infrastructure.AddInfrastructure
         services.AddScoped<SessionManager>();
         services.AddScoped<ISessionManager>(sp => sp.GetRequiredService<SessionManager>());
         services.AddScoped<ISessionAgentManager>(sp => sp.GetRequiredService<SessionManager>());

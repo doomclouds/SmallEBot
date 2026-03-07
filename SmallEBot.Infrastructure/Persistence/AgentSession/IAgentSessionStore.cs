@@ -38,4 +38,9 @@ public interface IAgentSessionStore : IDisposable
     /// <param name="firstMessageIndex">The index of the first message to remove.</param>
     /// <param name="ct">Cancellation token.</param>
     Task TruncateFromTurnAsync(Guid conversationId, int firstMessageIndex, CancellationToken ct = default);
+
+    /// <summary>
+    /// Gets raw session JSON for message parsing (e.g. by AgentSessionReader).
+    /// </summary>
+    Task<string?> GetSessionJsonAsync(Guid conversationId, CancellationToken ct = default);
 }
