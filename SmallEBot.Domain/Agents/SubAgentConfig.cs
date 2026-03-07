@@ -8,16 +8,22 @@ namespace SmallEBot.Domain.Agents;
 /// Configuration for a sub-agent within an agent.
 /// Sub-agents can be delegated specific tasks or handed off conversation control.
 /// </summary>
-public class SubAgentConfig : IEntity<string>
+public class SubAgentConfig(
+    string id,
+    string name,
+    string description,
+    string instructions,
+    HandoffMode handoffMode = HandoffMode.Delegate)
+    : IEntity<string>
 {
-    public string Id { get; init; }
-    public string Name { get; set; }
-    public string Description { get; set; }
+    public string Id { get; init; } = id ?? throw new ArgumentNullException(nameof(id));
+    public string Name { get; set; } = name ?? throw new ArgumentNullException(nameof(name));
+    public string Description { get; set; } = description ?? throw new ArgumentNullException(nameof(description));
 
     /// <summary>
     /// Instructions for this sub-agent. Can override or append to parent agent's instructions.
     /// </summary>
-    public string Instructions { get; set; }
+    public string Instructions { get; set; } = instructions ?? throw new ArgumentNullException(nameof(instructions));
 
     /// <summary>
     /// Optional model override. If null, uses parent agent's model.
@@ -32,24 +38,10 @@ public class SubAgentConfig : IEntity<string>
     /// <summary>
     /// Mode of interaction between parent and sub-agent.
     /// </summary>
-    public HandoffMode HandoffMode { get; set; }
+    public HandoffMode HandoffMode { get; set; } = handoffMode;
 
     /// <summary>
     /// Whether this sub-agent is enabled.
     /// </summary>
     public bool IsEnabled { get; set; } = true;
-
-    public SubAgentConfig(
-        string id,
-        string name,
-        string description,
-        string instructions,
-        HandoffMode handoffMode = HandoffMode.Delegate)
-    {
-        Id = id ?? throw new ArgumentNullException(nameof(id));
-        Name = name ?? throw new ArgumentNullException(nameof(name));
-        Description = description ?? throw new ArgumentNullException(nameof(description));
-        Instructions = instructions ?? throw new ArgumentNullException(nameof(instructions));
-        HandoffMode = handoffMode;
-    }
 }

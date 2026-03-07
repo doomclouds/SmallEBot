@@ -1,7 +1,4 @@
 // SmallEBot.Domain/Agents/ValueObjects/McpServerConfig.cs
-
-using SmallEBot.Domain.Common;
-
 namespace SmallEBot.Domain.Agents.ValueObjects;
 
 /// <summary>

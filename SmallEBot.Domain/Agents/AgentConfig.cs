@@ -8,41 +8,47 @@ namespace SmallEBot.Domain.Agents;
 /// Aggregate root for agent configuration.
 /// Contains all static configuration for an AI agent, including sub-agents.
 /// </summary>
-public class AgentConfig : IAggregateRoot, IEntity<string>
+public class AgentConfig(
+    string id,
+    string name,
+    string description,
+    string instructions,
+    string modelId)
+    : IAggregateRoot, IEntity<string>
 {
-    public string Id { get; init; }
-    public string Name { get; set; }
-    public string Description { get; set; }
+    public string Id { get; init; } = id ?? throw new ArgumentNullException(nameof(id));
+    public string Name { get; set; } = name ?? throw new ArgumentNullException(nameof(name));
+    public string Description { get; set; } = description ?? throw new ArgumentNullException(nameof(description));
 
     /// <summary>
     /// System prompt instructions for this agent.
     /// </summary>
-    public string Instructions { get; set; }
+    public string Instructions { get; set; } = instructions ?? throw new ArgumentNullException(nameof(instructions));
 
     /// <summary>
     /// The model ID to use. References a model configuration by ID.
     /// </summary>
-    public string ModelId { get; set; }
+    public string ModelId { get; set; } = modelId ?? throw new ArgumentNullException(nameof(modelId));
 
     /// <summary>
     /// Tool set available to this agent.
     /// </summary>
-    public ToolSet Tools { get; set; }
+    public ToolSet Tools { get; set; } = ToolSet.Full;
 
     /// <summary>
     /// MCP server IDs to enable for this agent.
     /// </summary>
-    public string[] McpServerIds { get; set; }
+    public string[] McpServerIds { get; set; } = [];
 
     /// <summary>
     /// Skill IDs to enable for this agent. Supports wildcards.
     /// </summary>
-    public string[] SkillIds { get; set; }
+    public string[] SkillIds { get; set; } = ["*"];
 
     /// <summary>
     /// Terminal configuration for shell command execution.
     /// </summary>
-    public TerminalConfig Terminal { get; set; }
+    public TerminalConfig Terminal { get; set; } = TerminalConfig.Default;
 
     /// <summary>
     /// Sub-agent configurations.
@@ -54,24 +60,6 @@ public class AgentConfig : IAggregateRoot, IEntity<string>
     /// Whether this is the default agent.
     /// </summary>
     public bool IsDefault { get; set; }
-
-    public AgentConfig(
-        string id,
-        string name,
-        string description,
-        string instructions,
-        string modelId)
-    {
-        Id = id ?? throw new ArgumentNullException(nameof(id));
-        Name = name ?? throw new ArgumentNullException(nameof(name));
-        Description = description ?? throw new ArgumentNullException(nameof(description));
-        Instructions = instructions ?? throw new ArgumentNullException(nameof(instructions));
-        ModelId = modelId ?? throw new ArgumentNullException(nameof(modelId));
-        Tools = ToolSet.Full;
-        McpServerIds = [];
-        SkillIds = ["*"];
-        Terminal = TerminalConfig.Default;
-    }
 
     /// <summary>
     /// Adds a sub-agent configuration.

@@ -7,13 +7,18 @@ namespace SmallEBot.Domain.Conversations;
 /// Metadata for a conversation, stored in metadata.json.
 /// AgentSession data is stored separately in session.json (Infrastructure layer).
 /// </summary>
-public class ConversationMetadata : IAggregateRoot, IEntity<Guid>
+public class ConversationMetadata(
+    Guid id,
+    string? title,
+    string userName,
+    DateTime createdAt)
+    : IAggregateRoot, IEntity<Guid>
 {
-    public Guid Id { get; init; }
-    public string Title { get; private set; }
-    public string UserName { get; init; }
-    public DateTime CreatedAt { get; init; }
-    public DateTime UpdatedAt { get; private set; }
+    public Guid Id { get; init; } = id;
+    public string Title { get; private set; } = title ?? "New conversation";
+    public string UserName { get; init; } = userName ?? throw new ArgumentNullException(nameof(userName));
+    public DateTime CreatedAt { get; init; } = createdAt;
+    public DateTime UpdatedAt { get; private set; } = createdAt;
 
     /// <summary>
     /// Compressed summary of older messages.
@@ -23,19 +28,6 @@ public class ConversationMetadata : IAggregateRoot, IEntity<Guid>
 
     private readonly List<TurnInfo> _turns = [];
     public IReadOnlyList<TurnInfo> Turns => _turns.AsReadOnly();
-
-    public ConversationMetadata(
-        Guid id,
-        string? title,
-        string userName,
-        DateTime createdAt)
-    {
-        Id = id;
-        Title = title ?? "New conversation";
-        UserName = userName ?? throw new ArgumentNullException(nameof(userName));
-        CreatedAt = createdAt;
-        UpdatedAt = createdAt;
-    }
 
     /// <summary>
     /// Creates a new conversation metadata.
