@@ -1,5 +1,4 @@
-@using WorkspaceNode = SmallEBot.Services.Workspace.WorkspaceNode
-@using IWorkspaceService = SmallEBot.Services.Workspace.IWorkspaceService
+@using SmallEBot.Application.Contracts.Workspace
 
 @if (Node.IsDirectory)
 {
@@ -9,7 +8,7 @@
             <MudIcon Icon="@Icons.Material.Filled.Folder" Size="Size.Small" />
             <MudText Typo="Typo.body2">@Node.Name</MudText>
         </div>
-        @if (Expanded && Node.Children.Count > 0)
+        @if (Expanded && Node.Children != null && Node.Children.Count > 0)
         {
             <div class="workspace-tree-children">
                 @foreach (var child in Node.Children)
@@ -39,7 +38,7 @@ else
 }
 
 @code {
-    [Parameter] public WorkspaceNode Node { get; set; } = null!;
+    [Parameter] public WorkspaceNodeDto Node { get; set; } = null!;
     [Parameter] public EventCallback<string> OnFileSelected { get; set; }
     [Parameter] public EventCallback<string> OnDeleteRequested { get; set; }
 
@@ -49,7 +48,7 @@ else
     private bool Expanded { get; set; }
 
     private bool IsMarkdown => Node.RelativePath.EndsWith(".md", StringComparison.OrdinalIgnoreCase);
-    private bool IsDeletable => WorkspaceService.IsDeletableFile(Node.RelativePath);
+    private bool IsDeletable => !WorkspaceService.IsReadOnly(Node.RelativePath);
 
     private void ToggleExpand() => Expanded = !Expanded;
 

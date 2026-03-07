@@ -1,8 +1,5 @@
 @using System.IO
-@using WorkspaceNode = SmallEBot.Services.Workspace.WorkspaceNode
-@using IWorkspaceService = SmallEBot.Services.Workspace.IWorkspaceService
-@using IWorkspaceWatcher = SmallEBot.Services.Workspace.IWorkspaceWatcher
-@using WorkspaceChangeEvent = SmallEBot.Services.Workspace.WorkspaceChangeEvent
+@using SmallEBot.Application.Contracts.Workspace
 @implements IDisposable
 @inject IWorkspaceService WorkspaceService
 @inject IWorkspaceWatcher WorkspaceWatcher
@@ -18,14 +15,14 @@
         {
             <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Small" />
         }
-        else if (_tree.Count == 0)
+        else if (_tree.Children == null || _tree.Children.Count == 0)
         {
             <MudText Typo="Typo.body2" Class="pa-2">Workspace is empty</MudText>
         }
         else
         {
             <div class="workspace-tree-root">
-                @foreach (var node in _tree)
+                @foreach (var node in _tree.Children)
                 {
                     <WorkspaceTreeItem Node="@node" OnFileSelected="@(path => SelectFile(path))" OnDeleteRequested="@ShowDeleteConfirmAsync" />
                 }
@@ -57,7 +54,7 @@
     [Parameter] public bool Open { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
 
-    private IReadOnlyList<WorkspaceNode>? _tree;
+    private WorkspaceNodeDto? _tree;
     private string? _selectedPath;
     private string? _viewerContent;
     private bool _viewerLoaded;
@@ -83,26 +80,25 @@
 
     private void SubscribeToChanges()
     {
-        WorkspaceWatcher.OnChange += HandleChange;
+        WorkspaceWatcher.WorkspaceChanged += HandleChange;
         WorkspaceWatcher.Start();
     }
 
     private void UnsubscribeFromChanges()
     {
-        WorkspaceWatcher.OnChange -= HandleChange;
+        WorkspaceWatcher.WorkspaceChanged -= HandleChange;
         WorkspaceWatcher.Stop();
     }
 
-    private async void HandleChange(WorkspaceChangeEvent e)
+    private async void HandleChange(object? sender, WorkspaceChangedEventArgs e)
     {
         await InvokeAsync(async () =>
         {
             await LoadTreeAsync();
             if (!string.IsNullOrEmpty(_selectedPath) &&
-                (e.RelativePath == _selectedPath ||
-                 _selectedPath.StartsWith(e.RelativePath + "/", StringComparison.Ordinal)))
+                e.ChangedPaths.Any(p => p == _selectedPath || _selectedPath.StartsWith(p + "/", StringComparison.Ordinal)))
             {
-                _viewerContent = await WorkspaceService.ReadFileContentAsync(_selectedPath);
+                _viewerContent = await WorkspaceService.ReadFileAsync(_selectedPath);
             }
             StateHasChanged();
         });
@@ -114,7 +110,7 @@
         _viewerContent = null;
         _viewerLoaded = false;
         StateHasChanged();
-        _viewerContent = await WorkspaceService.ReadFileContentAsync(relativePath);
+        _viewerContent = await WorkspaceService.ReadFileAsync(relativePath);
         _viewerLoaded = true;
         StateHasChanged();
     }
