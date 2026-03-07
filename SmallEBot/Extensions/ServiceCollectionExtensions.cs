@@ -21,12 +21,10 @@ using SmallEBot.Application.Contracts.Conversation;
 using SmallEBot.Application.Contracts.Session;
 using SmallEBot.Application.Contracts.Streaming;
 using SmallEBot.Application.Contracts.User;
-using IWorkspaceService = SmallEBot.Services.Workspace.IWorkspaceService;
-using WorkspaceService = SmallEBot.Services.Workspace.WorkspaceService;
-using IWorkspaceWatcher = SmallEBot.Services.Workspace.IWorkspaceWatcher;
-using WorkspaceWatcher = SmallEBot.Services.Workspace.WorkspaceWatcher;
-using IVirtualFileSystem = SmallEBot.Services.Workspace.IVirtualFileSystem;
-using VirtualFileSystem = SmallEBot.Services.Workspace.VirtualFileSystem;
+using SmallEBot.Application.Contracts.Workspace;
+using SmallEBot.Application.Workspace;
+using SmallEBot.Domain.Workspaces.Services;
+using SmallEBot.Infrastructure.Services.Workspace;
 using IWorkspaceUploadService = SmallEBot.Application.Contracts.Workspace.IWorkspaceUploadService;
 using WorkspaceUploadService = SmallEBot.Services.Workspace.WorkspaceUploadService;
 
