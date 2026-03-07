@@ -2,6 +2,7 @@ using SmallEBot.Core;
 using System.Security.Cryptography;
 using System.Text.Json;
 using SmallEBot.Application.Contracts.Workspace;
+using SmallEBot.Domain.Workspaces.Services;
 
 namespace SmallEBot.Services.Workspace;
 

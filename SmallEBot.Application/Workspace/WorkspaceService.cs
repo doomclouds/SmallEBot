@@ -1,6 +1,7 @@
 // SmallEBot.Application/Workspace/WorkspaceService.cs
 using Microsoft.Extensions.Logging;
 using SmallEBot.Application.Contracts.Workspace;
+using SmallEBot.Core;
 using SmallEBot.Domain.Workspaces;
 using SmallEBot.Domain.Workspaces.Services;
 
@@ -121,6 +122,35 @@ public sealed class WorkspaceService : IWorkspaceService
     public bool IsReadOnly(string relativePath)
     {
         return Domain.Workspaces.WorkspaceReadOnly.IsReadOnly(relativePath);
+    }
+
+    public async Task<IReadOnlyList<string>> GetAllowedFilePathsAsync(CancellationToken ct = default)
+    {
+        var tree = await _vfs.GetTreeAsync(null, ct);
+        if (tree == null)
+            return Array.Empty<string>();
+
+        var paths = new List<string>();
+        CollectAllowedFiles(tree, paths);
+        return paths.AsReadOnly();
+    }
+
+    private static void CollectAllowedFiles(Domain.Workspaces.ValueObjects.WorkspaceNode node, List<string> paths)
+    {
+        if (!node.IsDirectory)
+        {
+            if (AllowedFileExtensions.IsAllowed(node.Name))
+            {
+                paths.Add(node.RelativePath);
+            }
+        }
+        else if (node.Children != null)
+        {
+            foreach (var child in node.Children)
+            {
+                CollectAllowedFiles(child, paths);
+            }
+        }
     }
 
     private static WorkspaceNodeDto MapToDto(Domain.Workspaces.ValueObjects.WorkspaceNode node)

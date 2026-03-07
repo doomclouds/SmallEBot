@@ -15,6 +15,12 @@ public interface IVirtualFileSystem
     string RootPath { get; }
 
     /// <summary>
+    /// Gets the root path of the virtual file system.
+    /// This is a convenience method that returns the same value as RootPath.
+    /// </summary>
+    string GetRootPath() => RootPath;
+
+    /// <summary>
     /// Gets the file tree starting from root or a subdirectory.
     /// </summary>
     Task<WorkspaceNode?> GetTreeAsync(string? subPath = null, CancellationToken ct = default);

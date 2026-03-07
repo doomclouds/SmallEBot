@@ -26,6 +26,8 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
 
     public string RootPath => _rootPath;
 
+    public string GetRootPath() => _rootPath;
+
     public async Task<WorkspaceNode?> GetTreeAsync(string? subPath = null, CancellationToken ct = default)
     {
         var targetPath = string.IsNullOrEmpty(subPath)

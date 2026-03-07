@@ -2,7 +2,7 @@ using System.ComponentModel;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.AI;
 using SmallEBot.Services.Terminal;
-using SmallEBot.Services.Workspace;
+using SmallEBot.Domain.Workspaces.Services;
 
 namespace SmallEBot.Services.Agent.Tools;
 

@@ -210,7 +210,7 @@ public sealed class WorkspaceRepository : IWorkspaceRepository
                     dirName,
                     relativePath.Replace(Path.DirectorySeparatorChar, '/'),
                     IsDirectory: true,
-                    children));
+                    Children: children));
             }
 
             // Get all files with allowed extensions

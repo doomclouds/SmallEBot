@@ -50,4 +50,9 @@ public interface IWorkspaceService
     /// Gets the workspace root path.
     /// </summary>
     string RootPath { get; }
+
+    /// <summary>
+    /// Gets all file paths with allowed extensions.
+    /// </summary>
+    Task<IReadOnlyList<string>> GetAllowedFilePathsAsync(CancellationToken ct = default);
 }

@@ -1,4 +1,4 @@
-@using IWorkspaceService = SmallEBot.Services.Workspace.IWorkspaceService
+@using SmallEBot.Application.Contracts.Workspace
 @inject IWorkspaceService WorkspaceService
 
 <MudDialog>
@@ -40,7 +40,7 @@
         _loading = true;
         try
         {
-            _content = await WorkspaceService.ReadFileContentAsync(RelativePath);
+            _content = await WorkspaceService.ReadFileAsync(RelativePath);
         }
         finally
         {
