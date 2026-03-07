@@ -486,7 +486,7 @@ git commit -m "feat(infra): add AgentSessionSerializer and AgentSessionStore"
 **Files:**
 - Create: `SmallEBot.Infrastructure/Persistence/Repositories/ConversationMetadataRepository.cs`
 
-**Step 1: Create ConversationMetadataRepository**
+**Step 1: Create ConversationMetadataRepository with ReaderWriterLockSlim**
 
 ```csharp
 // SmallEBot.Infrastructure/Persistence/Repositories/ConversationMetadataRepository.cs
@@ -499,11 +499,13 @@ namespace SmallEBot.Infrastructure.Persistence.Repositories;
 /// <summary>
 /// Repository implementation for ConversationMetadata.
 /// Stores metadata in: .agents/conversations/{id}/metadata.json
+/// Thread-safe with ReaderWriterLockSlim for concurrent read access.
 /// </summary>
-public class ConversationMetadataRepository : IConversationMetadataRepository
+public class ConversationMetadataRepository : IConversationMetadataRepository, IDisposable
 {
     private readonly string _basePath;
     private readonly JsonSerializerOptions _jsonOptions;
+    private readonly ReaderWriterLockSlim _lock = new();
 
     public ConversationMetadataRepository(string basePath)
     {
@@ -519,11 +521,20 @@ public class ConversationMetadataRepository : IConversationMetadataRepository
     public async Task<ConversationMetadata?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
         var filePath = GetMetadataFilePath(id);
-        if (!File.Exists(filePath))
-            return null;
 
-        var json = await File.ReadAllTextAsync(filePath, ct);
-        return JsonSerializer.Deserialize<ConversationMetadata>(json, _jsonOptions);
+        _lock.EnterReadLock();
+        try
+        {
+            if (!File.Exists(filePath))
+                return null;
+
+            var json = await File.ReadAllTextAsync(filePath, ct);
+            return JsonSerializer.Deserialize<ConversationMetadata>(json, _jsonOptions);
+        }
+        finally
+        {
+            _lock.ExitReadLock();
+        }
     }
 
     public async Task<IReadOnlyList<ConversationMetadata>> GetByUserNameAsync(
@@ -553,21 +564,37 @@ public class ConversationMetadataRepository : IConversationMetadataRepository
         ArgumentNullException.ThrowIfNull(metadata);
 
         var directoryPath = GetConversationDirectory(metadata.Id);
-        Directory.CreateDirectory(directoryPath);
-
         var filePath = GetMetadataFilePath(metadata.Id);
-        var json = JsonSerializer.Serialize(metadata, _jsonOptions);
-        await File.WriteAllTextAsync(filePath, json, ct);
+
+        _lock.EnterWriteLock();
+        try
+        {
+            Directory.CreateDirectory(directoryPath);
+            var json = JsonSerializer.Serialize(metadata, _jsonOptions);
+            await File.WriteAllTextAsync(filePath, json, ct);
+        }
+        finally
+        {
+            _lock.ExitWriteLock();
+        }
     }
 
-    public Task DeleteAsync(Guid id, CancellationToken ct = default)
+    public async Task DeleteAsync(Guid id, CancellationToken ct = default)
     {
         var directoryPath = GetConversationDirectory(id);
-        if (Directory.Exists(directoryPath))
+
+        _lock.EnterWriteLock();
+        try
         {
-            Directory.Delete(directoryPath, recursive: true);
+            if (Directory.Exists(directoryPath))
+            {
+                await Task.Run(() => Directory.Delete(directoryPath, recursive: true), ct);
+            }
         }
-        return Task.CompletedTask;
+        finally
+        {
+            _lock.ExitWriteLock();
+        }
     }
 
     public async Task<int> GetTurnCountAsync(Guid conversationId, CancellationToken ct = default)
@@ -579,31 +606,40 @@ public class ConversationMetadataRepository : IConversationMetadataRepository
     private async Task<IReadOnlyList<ConversationMetadata>> LoadAllAsync(CancellationToken ct = default)
     {
         var conversationsPath = Path.Combine(_basePath, "conversations");
-        if (!Directory.Exists(conversationsPath))
-            return [];
 
-        var results = new List<ConversationMetadata>();
-        var directories = Directory.GetDirectories(conversationsPath);
-
-        foreach (var dir in directories)
+        _lock.EnterReadLock();
+        try
         {
-            var metadataFile = Path.Combine(dir, "metadata.json");
-            if (!File.Exists(metadataFile)) continue;
+            if (!Directory.Exists(conversationsPath))
+                return [];
 
-            try
+            var results = new List<ConversationMetadata>();
+            var directories = Directory.GetDirectories(conversationsPath);
+
+            foreach (var dir in directories)
             {
-                var json = await File.ReadAllTextAsync(metadataFile, ct);
-                var metadata = JsonSerializer.Deserialize<ConversationMetadata>(json, _jsonOptions);
-                if (metadata != null)
-                    results.Add(metadata);
+                var metadataFile = Path.Combine(dir, "metadata.json");
+                if (!File.Exists(metadataFile)) continue;
+
+                try
+                {
+                    var json = await File.ReadAllTextAsync(metadataFile, ct);
+                    var metadata = JsonSerializer.Deserialize<ConversationMetadata>(json, _jsonOptions);
+                    if (metadata != null)
+                        results.Add(metadata);
+                }
+                catch
+                {
+                    // Skip corrupted files
+                }
             }
-            catch
-            {
-                // Skip corrupted files
-            }
+
+            return results;
         }
-
-        return results;
+        finally
+        {
+            _lock.ExitReadLock();
+        }
     }
 
     private string GetConversationDirectory(Guid id)
@@ -614,6 +650,11 @@ public class ConversationMetadataRepository : IConversationMetadataRepository
     private string GetMetadataFilePath(Guid id)
     {
         return Path.Combine(GetConversationDirectory(id), "metadata.json");
+    }
+
+    public void Dispose()
+    {
+        _lock.Dispose();
     }
 }
 ```
@@ -637,7 +678,7 @@ git commit -m "feat(infra): add ConversationMetadataRepository"
 **Files:**
 - Create: `SmallEBot.Infrastructure/Persistence/Repositories/AgentConfigRepository.cs`
 
-**Step 1: Create AgentConfigRepository**
+**Step 1: Create AgentConfigRepository with ReaderWriterLockSlim**
 
 ```csharp
 // SmallEBot.Infrastructure/Persistence/Repositories/AgentConfigRepository.cs
@@ -650,11 +691,13 @@ namespace SmallEBot.Infrastructure.Persistence.Repositories;
 /// <summary>
 /// Repository implementation for AgentConfig.
 /// Stores in: .agents/agents.json
+/// Thread-safe with ReaderWriterLockSlim for concurrent read access.
 /// </summary>
-public class AgentConfigRepository : IAgentConfigRepository
+public class AgentConfigRepository : IAgentConfigRepository, IDisposable
 {
     private readonly string _filePath;
     private readonly JsonSerializerOptions _jsonOptions;
+    private readonly ReaderWriterLockSlim _lock = new();
 
     // Cache for performance
     private readonly Dictionary<string, AgentConfig> _cache = [];
@@ -676,22 +719,48 @@ public class AgentConfigRepository : IAgentConfigRepository
     {
         await EnsureLoadedAsync(ct);
 
-        if (_defaultAgentId == null || !_cache.TryGetValue(_defaultAgentId, out var config))
-            return _cache.Values.FirstOrDefault();
+        _lock.EnterReadLock();
+        try
+        {
+            if (_defaultAgentId == null || !_cache.TryGetValue(_defaultAgentId, out var config))
+                return _cache.Values.FirstOrDefault();
 
-        return config;
+            return config;
+        }
+        finally
+        {
+            _lock.ExitReadLock();
+        }
     }
 
     public async Task<AgentConfig?> GetByIdAsync(string id, CancellationToken ct = default)
     {
         await EnsureLoadedAsync(ct);
-        return _cache.TryGetValue(id, out var config) ? config : null;
+
+        _lock.EnterReadLock();
+        try
+        {
+            return _cache.TryGetValue(id, out var config) ? config : null;
+        }
+        finally
+        {
+            _lock.ExitReadLock();
+        }
     }
 
     public async Task<IReadOnlyList<AgentConfig>> GetAllAsync(CancellationToken ct = default)
     {
         await EnsureLoadedAsync(ct);
-        return _cache.Values.ToList().AsReadOnly();
+
+        _lock.EnterReadLock();
+        try
+        {
+            return _cache.Values.ToList().AsReadOnly();
+        }
+        finally
+        {
+            _lock.ExitReadLock();
+        }
     }
 
     public async Task SaveAsync(AgentConfig agent, CancellationToken ct = default)
@@ -699,66 +768,110 @@ public class AgentConfigRepository : IAgentConfigRepository
         ArgumentNullException.ThrowIfNull(agent);
 
         await EnsureLoadedAsync(ct);
-        _cache[agent.Id] = agent;
-        await PersistAsync(ct);
+
+        _lock.EnterWriteLock();
+        try
+        {
+            _cache[agent.Id] = agent;
+            await PersistAsync(ct);
+        }
+        finally
+        {
+            _lock.ExitWriteLock();
+        }
     }
 
     public async Task DeleteAsync(string id, CancellationToken ct = default)
     {
         await EnsureLoadedAsync(ct);
-        _cache.Remove(id);
 
-        if (_defaultAgentId == id)
-            _defaultAgentId = _cache.Keys.FirstOrDefault();
+        _lock.EnterWriteLock();
+        try
+        {
+            _cache.Remove(id);
 
-        await PersistAsync(ct);
+            if (_defaultAgentId == id)
+                _defaultAgentId = _cache.Keys.FirstOrDefault();
+
+            await PersistAsync(ct);
+        }
+        finally
+        {
+            _lock.ExitWriteLock();
+        }
     }
 
     public async Task SetDefaultAsync(string id, CancellationToken ct = default)
     {
         await EnsureLoadedAsync(ct);
 
-        if (!_cache.ContainsKey(id))
-            throw new InvalidOperationException($"Agent with ID '{id}' not found.");
-
-        // Clear old default
-        foreach (var config in _cache.Values)
+        _lock.EnterWriteLock();
+        try
         {
-            config.IsDefault = false;
+            if (!_cache.ContainsKey(id))
+                throw new InvalidOperationException($"Agent with ID '{id}' not found.");
+
+            // Clear old default
+            foreach (var config in _cache.Values)
+            {
+                config.IsDefault = false;
+            }
+
+            // Set new default
+            _cache[id].IsDefault = true;
+            _defaultAgentId = id;
+
+            await PersistAsync(ct);
         }
-
-        // Set new default
-        _cache[id].IsDefault = true;
-        _defaultAgentId = id;
-
-        await PersistAsync(ct);
+        finally
+        {
+            _lock.ExitWriteLock();
+        }
     }
 
     private async Task EnsureLoadedAsync(CancellationToken ct)
     {
-        if (_loaded) return;
-
-        if (!File.Exists(_filePath))
+        _lock.EnterUpgradeableReadLock();
+        try
         {
-            _loaded = true;
-            return;
-        }
+            if (_loaded) return;
 
-        var json = await File.ReadAllTextAsync(_filePath, ct);
-        var data = JsonSerializer.Deserialize<AgentConfigData>(json, _jsonOptions);
-
-        if (data?.Agents != null)
-        {
-            foreach (var agent in data.Agents)
+            _lock.EnterWriteLock();
+            try
             {
-                _cache[agent.Id] = agent;
-                if (agent.IsDefault)
-                    _defaultAgentId = agent.Id;
+                if (_loaded) return; // Double-check after acquiring write lock
+
+                if (!File.Exists(_filePath))
+                {
+                    _loaded = true;
+                    return;
+                }
+
+                var json = File.ReadAllTextAsync(_filePath, ct).GetAwaiter().GetResult();
+                var data = JsonSerializer.Deserialize<AgentConfigData>(json, _jsonOptions);
+
+                if (data?.Agents != null)
+                {
+                    foreach (var agent in data.Agents)
+                    {
+                        _cache[agent.Id] = agent;
+                        if (agent.IsDefault)
+                            _defaultAgentId = agent.Id;
+                    }
+                }
+
+                _defaultAgentId ??= data?.DefaultAgentId;
+                _loaded = true;
+            }
+            finally
+            {
+                _lock.ExitWriteLock();
             }
         }
-
-        _defaultAgentId ??= data?.DefaultAgentId;
-        _loaded = true;
+        finally
+        {
+            _lock.ExitUpgradeableReadLock();
+        }
     }
 
     private async Task PersistAsync(CancellationToken ct)
@@ -776,6 +889,11 @@ public class AgentConfigRepository : IAgentConfigRepository
         await File.WriteAllTextAsync(_filePath, json, ct);
     }
 
+    public void Dispose()
+    {
+        _lock.Dispose();
+    }
+
     private class AgentConfigData
     {
         public string? DefaultAgentId { get; set; }
@@ -783,6 +901,8 @@ public class AgentConfigRepository : IAgentConfigRepository
     }
 }
 ```
+
+**Note:** Uses `EnterUpgradeableReadLock` for lazy loading pattern - allows upgrade from read to write lock.
 
 **Step 2: Verify build**
 
@@ -803,7 +923,7 @@ git commit -m "feat(infra): add AgentConfigRepository with file-based persistenc
 **Files:**
 - Create: `SmallEBot.Infrastructure/Persistence/Repositories/UserPreferenceRepository.cs`
 
-**Step 1: Create UserPreferenceRepository**
+**Step 1: Create UserPreferenceRepository with ReaderWriterLockSlim**
 
 ```csharp
 // SmallEBot.Infrastructure/Persistence/Repositories/UserPreferenceRepository.cs
@@ -816,11 +936,13 @@ namespace SmallEBot.Infrastructure.Persistence.Repositories;
 /// <summary>
 /// Repository implementation for UserPreference.
 /// Stores in: .agents/settings.json
+/// Thread-safe with ReaderWriterLockSlim for concurrent read access.
 /// </summary>
-public class UserPreferenceRepository : IUserPreferenceRepository
+public class UserPreferenceRepository : IUserPreferenceRepository, IDisposable
 {
     private readonly string _filePath;
     private readonly JsonSerializerOptions _jsonOptions;
+    private readonly ReaderWriterLockSlim _lock = new();
     private UserPreference? _cached;
 
     public UserPreferenceRepository(string basePath)
@@ -836,34 +958,69 @@ public class UserPreferenceRepository : IUserPreferenceRepository
 
     public async Task<UserPreference> LoadAsync(CancellationToken ct = default)
     {
-        if (_cached != null)
-            return _cached;
-
-        if (!File.Exists(_filePath))
+        _lock.EnterUpgradeableReadLock();
+        try
         {
-            _cached = new UserPreference();
-            return _cached;
-        }
+            if (_cached != null)
+                return _cached;
 
-        var json = await File.ReadAllTextAsync(_filePath, ct);
-        _cached = JsonSerializer.Deserialize<UserPreference>(json, _jsonOptions) ?? new UserPreference();
-        return _cached;
+            _lock.EnterWriteLock();
+            try
+            {
+                // Double-check after acquiring write lock
+                if (_cached != null)
+                    return _cached;
+
+                if (!File.Exists(_filePath))
+                {
+                    _cached = new UserPreference();
+                    return _cached;
+                }
+
+                var json = await File.ReadAllTextAsync(_filePath, ct);
+                _cached = JsonSerializer.Deserialize<UserPreference>(json, _jsonOptions) ?? new UserPreference();
+                return _cached;
+            }
+            finally
+            {
+                _lock.ExitWriteLock();
+            }
+        }
+        finally
+        {
+            _lock.ExitUpgradeableReadLock();
+        }
     }
 
     public async Task SaveAsync(UserPreference preference, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(preference);
 
-        var directory = Path.GetDirectoryName(_filePath)!;
-        Directory.CreateDirectory(directory);
+        _lock.EnterWriteLock();
+        try
+        {
+            var directory = Path.GetDirectoryName(_filePath)!;
+            Directory.CreateDirectory(directory);
 
-        var json = JsonSerializer.Serialize(preference, _jsonOptions);
-        await File.WriteAllTextAsync(_filePath, json, ct);
+            var json = JsonSerializer.Serialize(preference, _jsonOptions);
+            await File.WriteAllTextAsync(_filePath, json, ct);
 
-        _cached = preference;
+            _cached = preference;
+        }
+        finally
+        {
+            _lock.ExitWriteLock();
+        }
+    }
+
+    public void Dispose()
+    {
+        _lock.Dispose();
     }
 }
 ```
+
+**Note:** Uses `EnterUpgradeableReadLock` for lazy loading with cache check - allows upgrade from read to write lock.
 
 **Step 2: Verify build**
 
