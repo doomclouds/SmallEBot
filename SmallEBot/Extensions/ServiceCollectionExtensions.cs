@@ -24,7 +24,6 @@ using SmallEBot.Application.Contracts.User;
 using SmallEBot.Application.Contracts.Workspaces;
 using SmallEBot.Application.Workspaces;
 using SmallEBot.Infrastructure.Workspaces;
-using SmallEBot.Services.Workspace;
 
 namespace SmallEBot.Extensions;
 
@@ -50,7 +49,7 @@ public static class ServiceCollectionExtensions
         // IVirtualFileSystem and IWorkspaceWatcher are registered in Infrastructure layer with factory delegates
         // These registrations are removed here to avoid duplicate registrations
         services.AddScoped<IWorkspaceService, WorkspaceService>();
-        services.AddScoped<IWorkspaceUploadService, WorkspaceUploadService>();
+        services.AddSingleton<IWorkspaceUploadService, WorkspaceUploadService>();
         services.AddScoped<IMcpToolsLoaderService, McpToolsLoaderService>();
         services.AddScoped<IAgentContextFactory, AgentContextFactory>();
         services.AddSingleton<IToolProvider, TimeToolProvider>();

@@ -4,8 +4,8 @@ window.SmallEBotSkills = window.SmallEBotSkills || {};
 window.SmallEBotSkills.pickFolder = async function () {
     if (typeof showDirectoryPicker !== 'undefined') {
         try {
-            var dirHandle = await showDirectoryPicker({ mode: 'read' });
-            var result = await readDirectoryRecursive(dirHandle, '');
+            let dirHandle = await showDirectoryPicker({ mode: 'read' });
+            let result = await readDirectoryRecursive(dirHandle, '');
             return { folderName: dirHandle.name, files: result };
         } catch (e) {
             if (e.name === 'AbortError') return null;
@@ -13,7 +13,7 @@ window.SmallEBotSkills.pickFolder = async function () {
         }
     }
     return new Promise(function (resolve) {
-        var input = document.createElement('input');
+        let input = document.createElement('input');
         input.type = 'file';
         input.webkitdirectory = true;
         input.directory = true;
@@ -21,23 +21,23 @@ window.SmallEBotSkills.pickFolder = async function () {
         input.style.display = 'none';
         input.onchange = async function () {
             document.body.removeChild(input);
-            var files = input.files;
+            let files = input.files;
             if (!files || files.length === 0) { resolve(null); return; }
-            var folderName = '';
-            var fileContents = {};
-            for (var i = 0; i < files.length; i++) {
-                var f = files[i];
-                var path = (f.webkitRelativePath || f.name).replace(/\\/g, '/');
+            let folderName = '';
+            let fileContents = {};
+            for (let i = 0; i < files.length; i++) {
+                let f = files[i];
+                let path = (f.webkitRelativePath || f.name).replace(/\\/g, '/');
                 if (!folderName && path.indexOf('/') !== -1)
                     folderName = path.split('/')[0];
                 else if (!folderName)
                     folderName = path;
                 try {
-                    var text = await f.text();
-                    var relativePath = path.indexOf('/') !== -1 ? path.substring(path.indexOf('/') + 1) : path;
+                    let text = await f.text();
+                    let relativePath = path.indexOf('/') !== -1 ? path.substring(path.indexOf('/') + 1) : path;
                     fileContents[relativePath] = text;
                 } catch (err) {
-                    var relativePath = path.indexOf('/') !== -1 ? path.substring(path.indexOf('/') + 1) : path;
+                    let relativePath = path.indexOf('/') !== -1 ? path.substring(path.indexOf('/') + 1) : path;
                     fileContents[relativePath] = '';
                 }
             }
@@ -54,25 +54,25 @@ window.SmallEBotSkills.pickFolder = async function () {
 };
 
 async function readDirectoryRecursive(dirHandle, basePath) {
-    var result = {};
-    var iter = dirHandle.entries();
+    let result = {};
+    let iter = dirHandle.entries();
     while (true) {
-        var entry = await iter.next();
+        let entry = await iter.next();
         if (entry.done) break;
-        var name = entry.value[0];
-        var handle = entry.value[1];
-        var path = basePath ? basePath + '/' + name : name;
+        let name = entry.value[0];
+        let handle = entry.value[1];
+        let path = basePath ? basePath + '/' + name : name;
         if (handle.kind === 'file') {
             try {
-                var file = await handle.getFile();
-                var text = await file.text();
+                let file = await handle.getFile();
+                let text = await file.text();
                 result[path] = text;
             } catch (err) {
                 result[path] = '';
             }
         } else {
-            var sub = await readDirectoryRecursive(handle, path);
-            for (var k in sub) result[k] = sub[k];
+            let sub = await readDirectoryRecursive(handle, path);
+            for (let k in sub) result[k] = sub[k];
         }
     }
     return result;

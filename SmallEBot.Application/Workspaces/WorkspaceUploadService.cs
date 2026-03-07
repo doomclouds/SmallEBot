@@ -1,11 +1,11 @@
-// SmallEBot/Services/Workspace/WorkspaceUploadService.cs
+// SmallEBot.Application/Workspaces/WorkspaceUploadService.cs
 using SmallEBot.Application.Contracts.Workspaces;
 using SmallEBot.Core;
+using SmallEBot.Domain.Workspaces;
 using System.Security.Cryptography;
 using System.Text.Json;
-using SmallEBot.Domain.Workspaces;
 
-namespace SmallEBot.Services.Workspace;
+namespace SmallEBot.Application.Workspaces;
 
 /// <summary>Temp folder and hash index helpers for chunked upload staging. Implements IWorkspaceUploadService.</summary>
 public sealed class WorkspaceUploadService(IVirtualFileSystem vfs) : IWorkspaceUploadService
@@ -178,22 +178,19 @@ public sealed class WorkspaceUploadService(IVirtualFileSystem vfs) : IWorkspaceU
         return Path.GetFullPath(Path.Combine([rootPath, ..parts]));
     }
 
-    /// <summary>Returns the absolute path to the temp folder under workspace root. Ensures the directory exists.</summary>
-    public string GetTempDirectoryPath()
+    private string GetTempDirectoryPath()
     {
         var path = Path.Combine(vfs.GetRootPath(), TempRelativeFolder);
         Directory.CreateDirectory(path);
         return path;
     }
 
-    /// <summary>Returns the absolute path to the hash index file.</summary>
-    public string GetHashIndexPath()
+    private string GetHashIndexPath()
     {
         return Path.Combine(GetTempDirectoryPath(), HashIndexFileName);
     }
 
-    /// <summary>Loads the hash index from disk. Returns empty dictionary if file does not exist or deserialization fails.</summary>
-    public Dictionary<string, string> LoadHashIndex()
+    private Dictionary<string, string> LoadHashIndex()
     {
         lock (_indexLock)
         {
@@ -206,7 +203,6 @@ public sealed class WorkspaceUploadService(IVirtualFileSystem vfs) : IWorkspaceU
                 var json = File.ReadAllText(indexPath);
                 var raw = JsonSerializer.Deserialize<Dictionary<string, string>>(json)
                     ?? new Dictionary<string, string>();
-                // Normalize to path->hash: migrate old hash->path format (key is hex, value is path)
                 var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                 foreach (var kv in raw)
                 {
@@ -224,9 +220,7 @@ public sealed class WorkspaceUploadService(IVirtualFileSystem vfs) : IWorkspaceU
         }
     }
 
-    /// <summary>Persists the hash index to disk.</summary>
-    /// <param name="index">The index to save; must not be null.</param>
-    public void SaveHashIndex(Dictionary<string, string> index)
+    private void SaveHashIndex(Dictionary<string, string> index)
     {
         ArgumentNullException.ThrowIfNull(index);
         lock (_indexLock)
@@ -237,9 +231,7 @@ public sealed class WorkspaceUploadService(IVirtualFileSystem vfs) : IWorkspaceU
         }
     }
 
-    /// <summary>Returns the absolute path to the staging file for the given upload ID.</summary>
-    /// <param name="uploadId">Unique identifier for the upload; must not be null or empty.</param>
-    public string GetStagingPath(string uploadId)
+    private string GetStagingPath(string uploadId)
     {
         if (string.IsNullOrEmpty(uploadId))
             throw new ArgumentException("Upload ID must not be null or empty.", nameof(uploadId));

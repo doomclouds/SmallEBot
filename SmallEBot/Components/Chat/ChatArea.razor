@@ -786,25 +786,10 @@
     }
 
     [JSInvokable]
-    public async Task<string?> StartUploadFromDrop(string fileName, long contentLength)
+    public Task AddPendingUpload(string uploadId, string fileName)
     {
-        var ext = Path.GetExtension(fileName);
-        if (!AllowedFileExtensions.IsAllowed(ext))
-        {
-            Snackbar.Add("Extension not allowed", Severity.Warning);
-            return null;
-        }
-        var uploadId = await UploadService.StartUploadAsync(fileName, contentLength);
         _attachmentItems.Add(new PendingUploadAttachment(uploadId, fileName));
-        await InvokeAsync(StateHasChanged);
-        return uploadId;
-    }
-
-    [JSInvokable]
-    public async Task ReportChunkAsync(string uploadId, string base64Chunk)
-    {
-        var chunk = Convert.FromBase64String(base64Chunk);
-        await UploadService.ReportChunkAsync(uploadId, chunk);
+        return InvokeAsync(StateHasChanged);
     }
 
     [JSInvokable]
@@ -819,21 +804,23 @@
     }
 
     [JSInvokable]
-    public async Task CompleteUploadAsync(string uploadId)
+    public async Task OnUploadComplete(string uploadId, string path, string? replacedOldPath)
     {
-        var result = await UploadService.CompleteUploadAsync(uploadId);
         var idx = _attachmentItems.FindIndex(x => x is PendingUploadAttachment p && p.UploadId == uploadId);
         if (idx >= 0)
             _attachmentItems.RemoveAt(idx);
-        if (result != null)
-        {
-            if (result.ReplacedOldPath != null)
-                _attachmentItems.RemoveAll(x => x is ResolvedPathAttachment r && r.Path == result.ReplacedOldPath);
-            if (_attachmentItems.OfType<ResolvedPathAttachment>().All(r => r.Path != result.Path))
-                _attachmentItems.Add(new ResolvedPathAttachment(result.Path));
-        }
-        else
-            Snackbar.Add("Upload failed", Severity.Error);
+        if (string.IsNullOrEmpty(path)) return;
+        if (!string.IsNullOrEmpty(replacedOldPath))
+            _attachmentItems.RemoveAll(x => x is ResolvedPathAttachment r && r.Path == replacedOldPath);
+        if (_attachmentItems.OfType<ResolvedPathAttachment>().All(r => r.Path != path))
+            _attachmentItems.Add(new ResolvedPathAttachment(path));
+        await InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public async Task OnUploadFailed(string message)
+    {
+        Snackbar.Add(message ?? "Upload failed", Severity.Error);
         await InvokeAsync(StateHasChanged);
     }
 
