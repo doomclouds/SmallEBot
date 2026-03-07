@@ -1,0 +1,41 @@
+@* SmallEBot/Components/Workspace/CreateFileDialog.razor *@
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">Create File</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_fileName"
+                      Label="File name"
+                      Variant="Variant.Outlined"
+                      Immediate="true"
+                      Adornment="Adornment.End"
+                      AdornmentIcon="@Icons.Material.Filled.Description" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   OnClick="Create"
+                   Disabled="string.IsNullOrWhiteSpace(_fileName)">Create</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    public IMudDialogInstance Dialog { get; set; } = null!;
+
+    [Parameter]
+    public string ParentPath { get; set; } = "";
+
+    private string _fileName = "";
+
+    private void Create()
+    {
+        if (!string.IsNullOrWhiteSpace(_fileName))
+        {
+            Dialog.Close(DialogResult.Ok(_fileName.Trim()));
+        }
+    }
+
+    private void Cancel() => Dialog.Cancel();
+}
