@@ -4,21 +4,24 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
+using SmallEBot.Application.Contracts.Conversations;
+using SmallEBot.Application.Contracts.Session;
 using SmallEBot.Application.Contracts.Streaming;
+using DomainConversationMetadata = SmallEBot.Domain.Conversations.ConversationMetadata;
 using SmallEBot.Core.Models;
 using SmallEBot.Services.Conversation;
-using SmallEBot.Services.Session;
 using ChatMessage = Microsoft.Extensions.AI.ChatMessage;
 
 namespace SmallEBot.Services.Agent;
 
 /// <summary>
-/// Host implementation of IAgentRunner: uses ISessionAgentManager to manage AgentSession,
+/// Host implementation of IAgentRunner: uses IConversationSessionCoordinator to manage AgentSession,
 /// runs the agent, and maps updates to StreamUpdate.
 /// </summary>
 public sealed class AgentRunnerAdapter(
     IAgentBuilder agentBuilder,
-    ISessionAgentManager sessionManager) : IAgentRunner
+    IConversationSessionCoordinator coordinator,
+    IAgentSessionReader sessionReader) : IAgentRunner
 {
     public async IAsyncEnumerable<StreamUpdate> RunStreamingAsync(
         Guid conversationId,
@@ -30,12 +33,19 @@ public sealed class AgentRunnerAdapter(
     {
         var agent = await agentBuilder.GetOrCreateAgentAsync(useThinking, cancellationToken);
 
-        // Get or create session (uses AgentSession instead of loading history from repository)
-        var (session, _) = await sessionManager.GetOrCreateSessionAsync(
+        // Get or create session and metadata
+        var (session, metadata) = await coordinator.GetOrCreateSessionAsync(
             conversationId,
             "user", // TODO: Get from context
             agent,
             cancellationToken);
+
+        // Set FirstMessageIndex for new turn (placeholder 0) before agent adds user message
+        if (metadata.Turns.Count > 0 && metadata.Turns[^1].FirstMessageIndex == 0)
+        {
+            var messages = await sessionReader.GetMessagesAsync(conversationId, cancellationToken);
+            metadata.SetFirstMessageIndexForTurn(metadata.Turns[^1].Id, messages.Count);
+        }
 
         // Set turn context for AIContextProvider
         TurnContextProvider.SetContext(new TurnContext
@@ -64,7 +74,7 @@ public sealed class AgentRunnerAdapter(
 
             var agentUpdates = agent.RunStreamingAsync(messages, session, runOptions, cancellationToken);
 
-            await foreach (var update in ProcessStreamingUpdates(agentUpdates, conversationId, agent, session, cancellationToken))
+            await foreach (var update in ProcessStreamingUpdates(agentUpdates, conversationId, agent, session, metadata, cancellationToken))
             {
                 yield return update;
             }
@@ -91,7 +101,7 @@ public sealed class AgentRunnerAdapter(
         // doesn't contain a thinking block, so the continue request must not require one.
         var agent = await agentBuilder.GetOrCreateAgentAsync(useThinking: false, cancellationToken);
 
-        var (session, _) = await sessionManager.GetOrCreateSessionAsync(
+        var (session, metadata) = await coordinator.GetOrCreateSessionAsync(
             conversationId,
             "user",
             agent,
@@ -131,7 +141,7 @@ public sealed class AgentRunnerAdapter(
 
             var agentUpdates = agent.RunStreamingAsync([message], session, runOptions, cancellationToken);
 
-            await foreach (var update in ProcessStreamingUpdates(agentUpdates, conversationId, agent, session, cancellationToken))
+            await foreach (var update in ProcessStreamingUpdates(agentUpdates, conversationId, agent, session, metadata, cancellationToken))
             {
                 yield return update;
             }
@@ -147,6 +157,7 @@ public sealed class AgentRunnerAdapter(
         Guid conversationId,
         AIAgent agent,
         AgentSession session,
+        DomainConversationMetadata metadata,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var toolTimers = new Dictionary<string, Stopwatch>();
@@ -220,8 +231,8 @@ public sealed class AgentRunnerAdapter(
             }
         }
 
-        // Persist session after completion
-        await sessionManager.PersistSessionAsync(conversationId, session, agent, cancellationToken);
+        // Persist session and metadata after completion
+        await coordinator.PersistSessionAsync(conversationId, session, metadata, agent, cancellationToken);
     }
 
     public async Task<string> GenerateTitleAsync(string firstMessage, CancellationToken cancellationToken = default)
