@@ -17,6 +17,8 @@ using SmallEBot.Services.Agent.Tools;
 using SmallEBot.Components.Chat.Services;
 using SmallEBot.Components.Chat.State;
 using SmallEBot.Services.Session;
+using SmallEBot.Infrastructure;
+using Microsoft.Agents.AI;
 
 namespace SmallEBot.Extensions;
 
@@ -61,6 +63,20 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ICompressionService, CompressionService>();
         services.AddSingleton<IMcpConnectionManager, McpConnectionManager>();
         services.AddScoped<IAgentBuilder, AgentBuilder>();
+
+        // Register AIAgent factory for Infrastructure layer (AgentSessionSerializer needs it)
+        // Note: AIAgent is created on-demand via IAgentBuilder.GetOrCreateAgentAsync()
+        services.AddScoped<AIAgent>(sp =>
+        {
+            var agentBuilder = sp.GetRequiredService<IAgentBuilder>();
+            // Use GetAwaiter().GetResult() since DI factories must be synchronous
+            // This is acceptable because AgentBuilder caches the agent after first creation
+            return agentBuilder.GetOrCreateAgentAsync(useThinking: false).GetAwaiter().GetResult();
+        });
+
+        // Infrastructure layer (repositories, AgentSessionStore)
+        services.AddInfrastructure(baseDir);
+
         services.AddScoped<IAgentConversationService, AgentConversationService>();
         services.AddScoped<IAgentRunner, AgentRunnerAdapter>();
         services.AddScoped<ITurnContextFragmentBuilder, TurnContextFragmentBuilder>();
