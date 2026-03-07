@@ -114,4 +114,23 @@ public class ConversationMetadata(
         Title = title ?? "New conversation";
         UpdatedAt = DateTime.UtcNow;
     }
+
+    /// <summary>
+    /// Adds an existing turn when loading from persistence.
+    /// </summary>
+    internal void AddExistingTurn(TurnInfo turn) => _turns.Add(turn);
+
+    /// <summary>
+    /// Sets UpdatedAt when loading from persistence.
+    /// </summary>
+    internal void SetUpdatedAt(DateTime value) => UpdatedAt = value;
+
+    /// <summary>
+    /// Sets CompressedContext and CompressedAt when loading from persistence.
+    /// </summary>
+    internal void SetCompressedContextForLoad(string? context, DateTime? at)
+    {
+        CompressedContext = context;
+        CompressedAt = at;
+    }
 }

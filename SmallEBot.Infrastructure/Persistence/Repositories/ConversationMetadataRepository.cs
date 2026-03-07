@@ -2,6 +2,7 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Unicode;
 using SmallEBot.Domain.Conversations;
+using SmallEBot.Infrastructure.Persistence.Conversations;
 
 namespace SmallEBot.Infrastructure.Persistence.Repositories;
 
@@ -48,7 +49,8 @@ public sealed class ConversationMetadataRepository : IConversationMetadataReposi
             }
 
             var json = await File.ReadAllTextAsync(filePath, ct).ConfigureAwait(false);
-            return JsonSerializer.Deserialize<ConversationMetadata>(json, _jsonOptions);
+            var dto = JsonSerializer.Deserialize<ConversationMetadataPersistence>(json, _jsonOptions);
+            return dto is not null ? FromPersistence(dto) : null;
         }
         finally
         {
@@ -102,7 +104,8 @@ public sealed class ConversationMetadataRepository : IConversationMetadataReposi
         try
         {
             Directory.CreateDirectory(directoryPath);
-            var json = JsonSerializer.Serialize(metadata, _jsonOptions);
+            var dto = ToPersistence(metadata);
+            var json = JsonSerializer.Serialize(dto, _jsonOptions);
             await File.WriteAllTextAsync(filePath, json, ct).ConfigureAwait(false);
         }
         finally
@@ -173,10 +176,10 @@ public sealed class ConversationMetadataRepository : IConversationMetadataReposi
                 try
                 {
                     var json = await File.ReadAllTextAsync(filePath, ct).ConfigureAwait(false);
-                    var metadata = JsonSerializer.Deserialize<ConversationMetadata>(json, _jsonOptions);
-                    if (metadata is not null)
+                    var dto = JsonSerializer.Deserialize<ConversationMetadataPersistence>(json, _jsonOptions);
+                    if (dto is not null)
                     {
-                        results.Add(metadata);
+                        results.Add(FromPersistence(dto));
                     }
                 }
                 catch (JsonException)
@@ -195,6 +198,52 @@ public sealed class ConversationMetadataRepository : IConversationMetadataReposi
         {
             _lock.ExitReadLock();
         }
+    }
+
+    private static ConversationMetadataPersistence ToPersistence(ConversationMetadata m)
+    {
+        return new ConversationMetadataPersistence
+        {
+            Id = m.Id,
+            Title = m.Title,
+            UserName = m.UserName,
+            CreatedAt = m.CreatedAt,
+            UpdatedAt = m.UpdatedAt,
+            CompressedContext = m.CompressedContext,
+            CompressedAt = m.CompressedAt,
+            Turns = m.Turns.Select(t => new TurnInfoPersistence
+            {
+                Id = t.Id,
+                CreatedAt = t.CreatedAt,
+                FirstMessageIndex = t.FirstMessageIndex,
+                AttachedPaths = t.AttachedPaths.ToList(),
+                RequestedSkillIds = t.RequestedSkillIds.ToList()
+            }).ToList()
+        };
+    }
+
+    private static ConversationMetadata FromPersistence(ConversationMetadataPersistence dto)
+    {
+        var metadata = new ConversationMetadata(
+            dto.Id,
+            dto.Title,
+            dto.UserName,
+            dto.CreatedAt);
+
+        foreach (var t in dto.Turns)
+        {
+            var turn = new TurnInfo(
+                t.Id,
+                t.CreatedAt,
+                t.FirstMessageIndex,
+                t.AttachedPaths.ToArray(),
+                t.RequestedSkillIds.ToArray());
+            metadata.AddExistingTurn(turn);
+        }
+
+        metadata.SetUpdatedAt(dto.UpdatedAt);
+        metadata.SetCompressedContextForLoad(dto.CompressedContext, dto.CompressedAt);
+        return metadata;
     }
 
     private string GetConversationDirectory(Guid conversationId)
