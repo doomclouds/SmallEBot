@@ -1,7 +1,7 @@
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using Microsoft.Extensions.AI;
-using SmallEBot.Application.Session;
+using SmallEBot.Application.Contracts.Session;
 using SmallEBot.Core;
 using SmallEBot.Core.Models;
 using ConversationEntity = SmallEBot.Core.Entities.Conversation;

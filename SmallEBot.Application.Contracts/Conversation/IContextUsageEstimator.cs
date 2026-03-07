@@ -1,6 +1,6 @@
 using SmallEBot.Core.Models;
 
-namespace SmallEBot.Application.Conversation;
+namespace SmallEBot.Application.Contracts.Conversation;
 
 /// <summary>Provides context usage estimation for compression threshold checking.</summary>
 public interface IContextUsageEstimator

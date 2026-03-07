@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using System.Text.Json;
 using Microsoft.Extensions.AI;
-using SmallEBot.Application.Agents;
+using SmallEBot.Application.Contracts.Agents;
 using SmallEBot.Services.Agent.Tools.SkillGeneration;
 
 namespace SmallEBot.Services.Agent.Tools;

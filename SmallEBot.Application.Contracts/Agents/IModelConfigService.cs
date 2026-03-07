@@ -1,6 +1,6 @@
 using SmallEBot.Core.Models;
 
-namespace SmallEBot.Application.Agents;
+namespace SmallEBot.Application.Contracts.Agents;
 
 /// <summary>
 /// Service for managing AI model configurations.

@@ -1,4 +1,4 @@
-namespace SmallEBot.Application.User;
+namespace SmallEBot.Application.Contracts.User;
 
 /// <summary>
 /// Provides the current user name for the application.

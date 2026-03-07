@@ -1,6 +1,6 @@
 using Microsoft.Extensions.AI;
 
-namespace SmallEBot.Application.Context;
+namespace SmallEBot.Application.Contracts.Context;
 
 /// <summary>Manages context window for conversations.</summary>
 public interface IContextWindowManager

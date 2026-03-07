@@ -1,10 +1,11 @@
 // SmallEBot.Application.Contracts/Session/ISessionManager.cs
 // TEMPORARY: Uses Core.Models types. Will migrate to Domain.Conversations.ConversationMetadata
 // when Domain type is updated with necessary properties.
+
 using Microsoft.Agents.AI;
 using SmallEBot.Core.Models;
 
-namespace SmallEBot.Application.Session;
+namespace SmallEBot.Application.Contracts.Session;
 
 /// <summary>
 /// Manages conversation sessions and agent state persistence.

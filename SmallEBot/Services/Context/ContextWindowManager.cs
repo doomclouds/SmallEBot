@@ -1,5 +1,5 @@
 using Microsoft.Extensions.AI;
-using SmallEBot.Application.Context;
+using SmallEBot.Application.Contracts.Context;
 using SmallEBot.Domain.Common.Services;
 
 namespace SmallEBot.Services.Context;

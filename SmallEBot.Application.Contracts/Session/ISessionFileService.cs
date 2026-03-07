@@ -1,9 +1,10 @@
 // SmallEBot.Application.Contracts/Session/ISessionFileService.cs
 // TEMPORARY: Uses Core.Models types. Will migrate to Domain.Conversations.ConversationMetadata
 // when Domain type supports SessionData for AgentSession persistence.
+
 using SmallEBot.Core.Models;
 
-namespace SmallEBot.Application.Session;
+namespace SmallEBot.Application.Contracts.Session;
 
 /// <summary>
 /// Service for managing conversation session files.

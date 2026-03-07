@@ -1,4 +1,4 @@
-namespace SmallEBot.Application.Workspace;
+namespace SmallEBot.Application.Contracts.Workspace;
 
 /// <summary>
 /// Result of completing an upload.

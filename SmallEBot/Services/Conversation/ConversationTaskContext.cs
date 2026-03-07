@@ -1,3 +1,4 @@
+using SmallEBot.Application.Contracts.Conversation;
 using SmallEBot.Application.Conversation;
 
 namespace SmallEBot.Services.Conversation;

@@ -1,5 +1,5 @@
 using System.Text.Json;
-using SmallEBot.Application.Agents;
+using SmallEBot.Application.Contracts.Agents;
 using SmallEBot.Core.Models;
 
 namespace SmallEBot.Services.Agent;

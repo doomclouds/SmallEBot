@@ -1,10 +1,4 @@
-using SmallEBot.Application.Agents;
-using SmallEBot.Application.Context;
 using SmallEBot.Application.Conversation;
-using SmallEBot.Application.Session;
-using SmallEBot.Application.Streaming;
-using SmallEBot.Application.User;
-using SmallEBot.Application.Workspace;
 using SmallEBot.Services.Agent;
 using SmallEBot.Services.Conversation;
 using SmallEBot.Services.Mcp;
@@ -22,6 +16,13 @@ using SmallEBot.Components.Chat.State;
 using SmallEBot.Services.Session;
 using SmallEBot.Infrastructure;
 using Microsoft.Agents.AI;
+using SmallEBot.Application.Contracts.Agents;
+using SmallEBot.Application.Contracts.Context;
+using SmallEBot.Application.Contracts.Conversation;
+using SmallEBot.Application.Contracts.Session;
+using SmallEBot.Application.Contracts.Streaming;
+using SmallEBot.Application.Contracts.User;
+using SmallEBot.Application.Contracts.Workspace;
 
 namespace SmallEBot.Extensions;
 

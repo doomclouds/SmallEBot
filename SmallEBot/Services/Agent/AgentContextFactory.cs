@@ -1,5 +1,5 @@
-using SmallEBot.Application.Agents;
-using SmallEBot.Application.Session;
+using SmallEBot.Application.Contracts.Agents;
+using SmallEBot.Application.Contracts.Session;
 using SmallEBot.Core.Models;
 using SmallEBot.Services.Conversation;
 using SmallEBot.Services.Skills;

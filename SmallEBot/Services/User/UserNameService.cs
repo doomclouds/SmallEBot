@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage;
-using SmallEBot.Application.User;
+using SmallEBot.Application.Contracts.User;
 
 namespace SmallEBot.Services.User;
 

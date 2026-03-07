@@ -1,5 +1,6 @@
 using System.Text.Json;
-using SmallEBot.Application.Agents;
+using SmallEBot.Application.Contracts.Agents;
+using SmallEBot.Application.Contracts.Conversation;
 using SmallEBot.Application.Conversation;
 
 namespace SmallEBot.Services.Agent;

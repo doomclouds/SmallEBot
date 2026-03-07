@@ -1,5 +1,5 @@
 using Microsoft.Agents.AI;
-using SmallEBot.Application.Session;
+using SmallEBot.Application.Contracts.Session;
 using SmallEBot.Core.Models;
 
 namespace SmallEBot.Services.Session;

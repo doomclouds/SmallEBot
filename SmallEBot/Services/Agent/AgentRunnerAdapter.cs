@@ -4,7 +4,7 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
-using SmallEBot.Application.Streaming;
+using SmallEBot.Application.Contracts.Streaming;
 using SmallEBot.Core.Models;
 using SmallEBot.Services.Conversation;
 using SmallEBot.Services.Session;

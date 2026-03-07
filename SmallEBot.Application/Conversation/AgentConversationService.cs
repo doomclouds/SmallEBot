@@ -1,5 +1,6 @@
-using SmallEBot.Application.Session;
-using SmallEBot.Application.Streaming;
+using SmallEBot.Application.Contracts.Conversation;
+using SmallEBot.Application.Contracts.Session;
+using SmallEBot.Application.Contracts.Streaming;
 using SmallEBot.Core.Models;
 using ConversationEntity = SmallEBot.Core.Entities.Conversation;
 

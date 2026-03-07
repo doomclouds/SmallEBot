@@ -1,4 +1,4 @@
-namespace SmallEBot.Application.Agents;
+namespace SmallEBot.Application.Contracts.Agents;
 
 /// <summary>
 /// Agent configuration service. Provides runtime-configurable settings for agent behavior.
