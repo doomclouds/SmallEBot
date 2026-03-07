@@ -32,9 +32,9 @@ Phase 1 (Domain Layer) must be complete with:
 namespace SmallEBot.Infrastructure.Persistence.Json;
 
 /// <summary>
-/// Generic interface for JSON file storage.
+/// Generic interface for JSON file storage with thread-safe operations.
 /// </summary>
-public interface IJsonFileStorage<T> where T : class
+public interface IJsonFileStorage<T> : IDisposable where T : class
 {
     /// <summary>
     /// Loads an entity by key (file name without extension).
@@ -63,7 +63,7 @@ public interface IJsonFileStorage<T> where T : class
 }
 ```
 
-**Step 2: Create JsonFileStorage implementation**
+**Step 2: Create JsonFileStorage implementation with ReaderWriterLock**
 
 ```csharp
 // SmallEBot.Infrastructure/Persistence/Json/JsonFileStorage.cs
@@ -73,13 +73,15 @@ using System.Text.Json.Serialization;
 namespace SmallEBot.Infrastructure.Persistence.Json;
 
 /// <summary>
-/// Generic JSON file storage implementation.
+/// Generic JSON file storage implementation with thread-safe operations.
+/// Uses ReaderWriterLockSlim for concurrent read access and exclusive write access.
 /// Files are stored in: {basePath}/{key}.json
 /// </summary>
-public class JsonFileStorage<T> : IJsonFileStorage<T> where T : class
+public class JsonFileStorage<T> : IJsonFileStorage<T>, IDisposable where T : class
 {
     private readonly string _basePath;
     private readonly JsonSerializerOptions _jsonOptions;
+    private readonly ReaderWriterLockSlim _lock = new();
 
     public JsonFileStorage(string basePath)
     {
@@ -95,65 +97,145 @@ public class JsonFileStorage<T> : IJsonFileStorage<T> where T : class
     public async Task<T?> LoadAsync(string key, CancellationToken ct = default)
     {
         var filePath = GetFilePath(key);
-        if (!File.Exists(filePath))
-            return null;
 
-        var json = await File.ReadAllTextAsync(filePath, ct);
-        return JsonSerializer.Deserialize<T>(json, _jsonOptions);
+        _lock.EnterReadLock();
+        try
+        {
+            if (!File.Exists(filePath))
+                return null;
+
+            var json = await File.ReadAllTextAsync(filePath, ct);
+            return JsonSerializer.Deserialize<T>(json, _jsonOptions);
+        }
+        finally
+        {
+            _lock.ExitReadLock();
+        }
     }
 
     public async Task SaveAsync(string key, T entity, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(entity);
 
-        Directory.CreateDirectory(_basePath);
         var filePath = GetFilePath(key);
-        var json = JsonSerializer.Serialize(entity, _jsonOptions);
-        await File.WriteAllTextAsync(filePath, json, ct);
+
+        _lock.EnterWriteLock();
+        try
+        {
+            Directory.CreateDirectory(_basePath);
+            var json = JsonSerializer.Serialize(entity, _jsonOptions);
+            await File.WriteAllTextAsync(filePath, json, ct);
+        }
+        finally
+        {
+            _lock.ExitWriteLock();
+        }
     }
 
-    public Task<bool> DeleteAsync(string key, CancellationToken ct = default)
+    public bool DeleteAsync(string key, CancellationToken ct = default)
     {
         var filePath = GetFilePath(key);
-        if (!File.Exists(filePath))
-            return Task.FromResult(false);
 
-        File.Delete(filePath);
-        return Task.FromResult(true);
+        _lock.EnterWriteLock();
+        try
+        {
+            if (!File.Exists(filePath))
+                return false;
+
+            File.Delete(filePath);
+            return true;
+        }
+        finally
+        {
+            _lock.ExitWriteLock();
+        }
     }
 
     public async Task<IReadOnlyList<T>> LoadAllAsync(CancellationToken ct = default)
     {
-        if (!Directory.Exists(_basePath))
-            return [];
-
-        var files = Directory.GetFiles(_basePath, "*.json");
-        var results = new List<T>(files.Length);
-
-        foreach (var file in files)
+        _lock.EnterReadLock();
+        try
         {
-            var key = Path.GetFileNameWithoutExtension(file);
-            var entity = await LoadAsync(key, ct);
-            if (entity != null)
-                results.Add(entity);
-        }
+            if (!Directory.Exists(_basePath))
+                return [];
 
-        return results;
+            var files = Directory.GetFiles(_basePath, "*.json");
+            var results = new List<T>(files.Length);
+
+            foreach (var file in files)
+            {
+                var key = Path.GetFileNameWithoutExtension(file);
+                if (!File.Exists(file)) continue;
+
+                var json = await File.ReadAllTextAsync(file, ct);
+                var entity = JsonSerializer.Deserialize<T>(json, _jsonOptions);
+                if (entity != null)
+                    results.Add(entity);
+            }
+
+            return results;
+        }
+        finally
+        {
+            _lock.ExitReadLock();
+        }
     }
 
-    public Task<bool> ExistsAsync(string key, CancellationToken ct = default)
+    public bool ExistsAsync(string key, CancellationToken ct = default)
     {
         var filePath = GetFilePath(key);
-        return Task.FromResult(File.Exists(filePath));
+
+        _lock.EnterReadLock();
+        try
+        {
+            return File.Exists(filePath);
+        }
+        finally
+        {
+            _lock.ExitReadLock();
+        }
     }
 
-    private string GetFilePath(string key)
+    private string _basePath;
     {
         // Sanitize key to prevent path traversal
         var safeKey = string.Join("_", key.Split(Path.GetInvalidFileNameChars()));
         return Path.Combine(_basePath, $"{safeKey}.json");
     }
+
+    public void Dispose()
+    {
+        _lock.Dispose();
+    }
 }
+```
+
+**Note:**
+- Uses `ReaderWriterLockSlim` for thread-safe concurrent reads and exclusive writes
+- `LoadAsync` and `LoadAllAsync` use read lock (multiple readers can proceed concurrently)
+- `SaveAsync` and `DeleteAsync` use write lock (exclusive access)
+- Implements `IDisposable` to release lock resources
+- `DeleteAsync` should be async for consistency - update to:
+
+```csharp
+    public async Task<bool> DeleteAsync(string key, CancellationToken ct = default)
+    {
+        var filePath = GetFilePath(key);
+
+        _lock.EnterWriteLock();
+        try
+        {
+            if (!File.Exists(filePath))
+                return false;
+
+            await Task.Run(() => File.Delete(filePath), ct);
+            return true;
+        }
+        finally
+        {
+            _lock.ExitWriteLock();
+        }
+    }
 ```
 
 **Step 3: Verify build**
