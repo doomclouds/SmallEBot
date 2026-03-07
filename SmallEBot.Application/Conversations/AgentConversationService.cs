@@ -2,13 +2,14 @@ using SmallEBot.Application.Contracts.Conversations;
 using SmallEBot.Application.Contracts.Session;
 using SmallEBot.Application.Contracts.Streaming;
 using SmallEBot.Core.Models;
+using SmallEBot.Domain.Conversations;
 using ConversationEntity = SmallEBot.Core.Entities.Conversation;
+using DomainConversationMetadata = SmallEBot.Domain.Conversations.ConversationMetadata;
 
 namespace SmallEBot.Application.Conversations;
 
 public sealed class AgentConversationService(
-    ISessionFileService sessionFileService,
-    ISessionManager sessionManager,
+    IConversationMetadataRepository metadataRepository,
     IAgentRunner agentRunner,
     IConversationTaskContext conversationTaskContext,
     ICompressionService compressionService,
@@ -24,64 +25,52 @@ public sealed class AgentConversationService(
 
     public async Task<ConversationEntity> CreateConversationAsync(string userName, CancellationToken cancellationToken = default)
     {
-        var metadata = await sessionManager.CreateConversationAsync(userName, "New conversation", cancellationToken);
+        var metadata = DomainConversationMetadata.Create(userName);
+        await metadataRepository.SaveAsync(metadata, cancellationToken);
         return ToEntity(metadata);
     }
 
     public async Task<List<ConversationEntity>> GetConversationsAsync(string userName, CancellationToken cancellationToken = default)
     {
-        var summaries = await sessionFileService.ListAsync(userName, cancellationToken);
-        return summaries.Select(s => new ConversationEntity
-        {
-            Id = s.Id,
-            Title = s.Title,
-            UserName = userName,
-            UpdatedAt = s.UpdatedAt
-        }).ToList();
+        var list = await metadataRepository.GetByUserNameAsync(userName, cancellationToken);
+        return list.Select(ToEntity).ToList();
     }
 
     public async Task<List<ConversationEntity>> SearchConversationsAsync(string userName, string query, CancellationToken cancellationToken = default)
     {
-        var summaries = await sessionFileService.SearchAsync(userName, query, cancellationToken);
-        return summaries.Select(s => new ConversationEntity
-        {
-            Id = s.Id,
-            Title = s.Title,
-            UserName = userName,
-            UpdatedAt = s.UpdatedAt
-        }).ToList();
+        var list = await metadataRepository.SearchAsync(userName, query, cancellationToken);
+        return list.Select(ToEntity).ToList();
     }
 
     public async Task<ConversationEntity?> GetConversationAsync(Guid id, string userName, CancellationToken cancellationToken = default)
     {
-        var metadata = await sessionFileService.LoadAsync(id, cancellationToken);
-        if (metadata == null || metadata.UserName != userName) return null;
-        return ToEntity(metadata);
+        var m = await metadataRepository.GetByIdAsync(id, cancellationToken);
+        if (m == null || m.UserName != userName) return null;
+        return ToEntity(m);
     }
 
     public async Task<bool> DeleteConversationAsync(Guid id, string userName, CancellationToken cancellationToken = default)
     {
-        var metadata = await sessionFileService.LoadAsync(id, cancellationToken);
-        if (metadata == null || metadata.UserName != userName) return false;
-        await sessionFileService.DeleteAsync(id, cancellationToken);
+        var m = await metadataRepository.GetByIdAsync(id, cancellationToken);
+        if (m == null || m.UserName != userName) return false;
+        await metadataRepository.DeleteAsync(id, cancellationToken);
         return true;
     }
 
     public async Task<int> GetMessageCountAsync(Guid conversationId, CancellationToken cancellationToken = default)
     {
-        var metadata = await sessionFileService.LoadAsync(conversationId, cancellationToken);
-        return metadata?.Turns.Count ?? 0;
+        return await metadataRepository.GetTurnCountAsync(conversationId, cancellationToken);
     }
 
-    private static ConversationEntity ToEntity(ConversationMetadata metadata) => new()
+    private static ConversationEntity ToEntity(DomainConversationMetadata m) => new()
     {
-        Id = metadata.Id,
-        Title = metadata.Title,
-        UserName = metadata.UserName,
-        CreatedAt = metadata.CreatedAt,
-        UpdatedAt = metadata.UpdatedAt,
-        CompressedContext = metadata.CompressedContext,
-        CompressedAt = metadata.CompressedAt
+        Id = m.Id,
+        Title = m.Title,
+        UserName = m.UserName,
+        CreatedAt = m.CreatedAt,
+        UpdatedAt = m.UpdatedAt,
+        CompressedContext = m.CompressedContext,
+        CompressedAt = m.CompressedAt
     };
 
     public async Task<Guid> CreateTurnAndUserMessageAsync(
@@ -93,36 +82,19 @@ public sealed class AgentConversationService(
         IReadOnlyList<string>? attachedPaths = null,
         IReadOnlyList<string>? requestedSkillIds = null)
     {
-        // Load metadata
-        var metadata = await sessionFileService.LoadAsync(conversationId, cancellationToken);
+        var metadata = await metadataRepository.GetByIdAsync(conversationId, cancellationToken);
         if (metadata == null)
             throw new InvalidOperationException($"Conversation {conversationId} not found");
 
-        // Generate title for first turn
-        var isFirstTurn = metadata.Turns.Count == 0;
-        string? newTitle = null;
-        if (isFirstTurn)
+        if (metadata.Turns.Count == 0)
         {
-            newTitle = await agentRunner.GenerateTitleAsync(userMessage, cancellationToken);
-            metadata.Title = newTitle;
+            var newTitle = await agentRunner.GenerateTitleAsync(userMessage, cancellationToken);
+            metadata.SetTitle(newTitle);
         }
 
-        // Create turn metadata
-        var turnId = Guid.NewGuid();
-        var turn = new TurnMetadata
-        {
-            Id = turnId,
-            CreatedAt = DateTime.UtcNow,
-            AttachedPaths = attachedPaths?.ToList() ?? [],
-            RequestedSkillIds = requestedSkillIds?.ToList() ?? []
-        };
-        metadata.Turns.Add(turn);
-        metadata.UpdatedAt = DateTime.UtcNow;
-
-        // Save metadata
-        await sessionFileService.SaveAsync(metadata, cancellationToken);
-
-        return turnId;
+        var turn = metadata.AddTurn(firstMessageIndex: 0, attachedPaths?.ToArray(), requestedSkillIds?.ToArray());
+        await metadataRepository.SaveAsync(metadata, cancellationToken);
+        return turn.Id;
     }
 
     public async Task StreamResponseAndCompleteAsync(
@@ -197,20 +169,15 @@ public sealed class AgentConversationService(
         IReadOnlyList<string>? requestedSkillIds = null,
         CancellationToken cancellationToken = default)
     {
-        var metadata = await sessionFileService.LoadAsync(conversationId, cancellationToken);
+        var metadata = await metadataRepository.GetByIdAsync(conversationId, cancellationToken);
         if (metadata == null || metadata.UserName != userName) return null;
 
-        var turn = metadata.Turns.FirstOrDefault(t => t.Id == messageId);
+        var turn = metadata.GetTurn(messageId);
         if (turn == null) return null;
 
-        // Update turn metadata with new attachments/skills
-        turn.AttachedPaths = attachedPaths?.ToList() ?? [];
-        turn.RequestedSkillIds = requestedSkillIds?.ToList() ?? [];
-        metadata.UpdatedAt = DateTime.UtcNow;
+        turn.UpdateAttachments(attachedPaths ?? [], requestedSkillIds ?? []);
+        await metadataRepository.SaveAsync(metadata, cancellationToken);
 
-        await sessionFileService.SaveAsync(metadata, cancellationToken);
-
-        // Return new content - actual message content is in AgentSession
         return (turn.Id, newContent, turn.AttachedPaths, turn.RequestedSkillIds);
     }
 
@@ -220,18 +187,16 @@ public sealed class AgentConversationService(
         Guid turnId,
         CancellationToken cancellationToken = default)
     {
-        var metadata = await sessionFileService.LoadAsync(conversationId, cancellationToken);
+        var metadata = await metadataRepository.GetByIdAsync(conversationId, cancellationToken);
         if (metadata == null || metadata.UserName != userName) return null;
 
-        var turnIndex = metadata.Turns.FindIndex(t => t.Id == turnId);
-        if (turnIndex < 0) return null;
+        var turn = metadata.GetTurn(turnId);
+        if (turn == null) return null;
 
-        var turn = metadata.Turns[turnIndex];
+        var firstMessageIndex = metadata.GetFirstMessageIndex(turnId);
+        if (firstMessageIndex == null) return null;
 
-        // Get user message content from AgentSession
-        // TODO Task 6: use metadata.GetFirstMessageIndex(turnId) when switching to Domain.ConversationMetadata
-        var firstMessageIndex = turnIndex * 2;
-        var userMessage = await sessionReader.GetUserMessageContentAsync(conversationId, firstMessageIndex, cancellationToken);
+        var userMessage = await sessionReader.GetUserMessageContentAsync(conversationId, firstMessageIndex.Value, cancellationToken);
         if (string.IsNullOrEmpty(userMessage)) return null;
 
         return (turn.Id, userMessage, false, turn.AttachedPaths, turn.RequestedSkillIds);
@@ -309,14 +274,13 @@ public sealed class AgentConversationService(
 
         try
         {
-            var metadata = await sessionFileService.LoadAsync(conversationId, ct);
+            var metadata = await metadataRepository.GetByIdAsync(conversationId, ct);
             if (metadata == null)
             {
                 CompressionCompleted?.Invoke(conversationId, false);
                 return false;
             }
 
-            // Get messages from AgentSession
             var messages = await sessionReader.GetMessagesAsync(conversationId, ct);
             if (messages.Count == 0)
             {
@@ -324,7 +288,6 @@ public sealed class AgentConversationService(
                 return false;
             }
 
-            // Generate summary
             var summary = await compressionService.GenerateSummaryAsync(
                 messages,
                 toolResultMaxProvider.GetToolResultMaxLength(),
@@ -337,10 +300,8 @@ public sealed class AgentConversationService(
                 return false;
             }
 
-            // Update metadata
-            metadata.CompressedContext = summary;
-            metadata.CompressedAt = DateTime.UtcNow;
-            await sessionFileService.SaveAsync(metadata, ct);
+            metadata.SetCompressedContext(summary);
+            await metadataRepository.SaveAsync(metadata, ct);
 
             CompressionCompleted?.Invoke(conversationId, true);
             return true;

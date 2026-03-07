@@ -33,10 +33,19 @@ public class TurnInfo(
     /// <summary>
     /// File paths attached to this turn's user message.
     /// </summary>
-    public string[] AttachedPaths { get; init; } = attachedPaths ?? [];
+    public string[] AttachedPaths { get; private set; } = attachedPaths ?? [];
 
     /// <summary>
     /// Skill IDs requested for this turn.
     /// </summary>
-    public string[] RequestedSkillIds { get; init; } = requestedSkillIds ?? [];
+    public string[] RequestedSkillIds { get; private set; } = requestedSkillIds ?? [];
+
+    /// <summary>
+    /// Updates attachments and requested skill IDs for this turn.
+    /// </summary>
+    public void UpdateAttachments(IReadOnlyList<string> paths, IReadOnlyList<string> skillIds)
+    {
+        AttachedPaths = (paths ?? []).ToArray();
+        RequestedSkillIds = (skillIds ?? []).ToArray();
+    }
 }
