@@ -103,4 +103,29 @@ public sealed class SessionManager : ISessionAgentManager
         await _fileService.SaveAsync(metadata, ct);
         return metadata;
     }
+
+    // ISessionManager explicit implementation (limited versions)
+    // For full functionality, use ISessionAgentManager methods
+
+    Task<AgentSession?> ISessionManager.GetSessionAsync(
+        Guid conversationId,
+        CancellationToken ct)
+    {
+        // Session retrieval requires AIAgent instance for deserialization
+        // Use ISessionAgentManager.GetOrCreateSessionAsync instead
+        throw new NotSupportedException(
+            "GetSessionAsync requires AIAgent for session deserialization. " +
+            "Use ISessionAgentManager.GetOrCreateSessionAsync instead.");
+    }
+
+    Task ISessionManager.PersistSessionAsync(
+        Guid conversationId,
+        CancellationToken ct)
+    {
+        // Session persistence requires AIAgent instance for serialization
+        // Use ISessionAgentManager.PersistSessionAsync instead
+        throw new NotSupportedException(
+            "PersistSessionAsync requires AIAgent and session for serialization. " +
+            "Use ISessionAgentManager.PersistSessionAsync instead.");
+    }
 }
