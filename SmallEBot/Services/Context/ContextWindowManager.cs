@@ -1,6 +1,6 @@
 using Microsoft.Extensions.AI;
 using SmallEBot.Application.Context;
-using SmallEBot.Services.Agent;
+using SmallEBot.Domain.Common.Services;
 
 namespace SmallEBot.Services.Context;
 

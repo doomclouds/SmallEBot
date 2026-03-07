@@ -1,12 +1,16 @@
+using SmallEBot.Domain.Common.Services;
 using Tokenizers.DotNet;
 
 namespace SmallEBot.Services.Agent;
 
-public interface ITokenizer
+/// <summary>
+/// Extended tokenizer interface with encoding/decoding capabilities.
+/// Inherit from domain ITokenizer for backward compatibility.
+/// </summary>
+public interface IFullTokenizer : ITokenizer
 {
     List<int> Encode(string text);
     string Decode(List<int> tokens);
-    int CountTokens(string text);
 }
 
 /// <summary>
@@ -14,7 +18,7 @@ public interface ITokenizer
 /// Corresponds to Python version deepseek_v3_tokenizer
 /// Defaults to using tokenizer.json file in the running directory
 /// </summary>
-public class DeepSeekTokenizer : ITokenizer, IDisposable
+public class DeepSeekTokenizer : IFullTokenizer, IDisposable
 {
     private readonly Tokenizer _tokenizer;
 
@@ -116,7 +120,7 @@ public class DeepSeekTokenizer : ITokenizer, IDisposable
 /// <summary>
 /// Fallback token estimator when tokenizer.json is not available. Uses ~4 chars per token.
 /// </summary>
-public class CharEstimateTokenizer : ITokenizer
+public class CharEstimateTokenizer : IFullTokenizer
 {
     public List<int> Encode(string text) => throw new NotSupportedException("CharEstimateTokenizer does not support Encode.");
     public string Decode(List<int> tokens) => throw new NotSupportedException("CharEstimateTokenizer does not support Decode.");

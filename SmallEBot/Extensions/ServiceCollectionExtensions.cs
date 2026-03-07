@@ -19,6 +19,7 @@ using SmallEBot.Components.Chat.State;
 using SmallEBot.Services.Session;
 using SmallEBot.Infrastructure;
 using Microsoft.Agents.AI;
+using SmallEBot.Domain.Common.Services;
 
 namespace SmallEBot.Extensions;
 

@@ -3,6 +3,7 @@ using Microsoft.Extensions.AI;
 using SmallEBot.Application.Conversation;
 using SmallEBot.Application.Session;
 using SmallEBot.Core.Models;
+using SmallEBot.Domain.Common.Services;
 
 namespace SmallEBot.Services.Agent;
 
