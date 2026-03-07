@@ -1,9 +1,7 @@
 using Microsoft.AspNetCore.SignalR;
-using Microsoft.EntityFrameworkCore;
 using MudBlazor.Services;
 using SmallEBot.Components;
 using SmallEBot.Extensions;
-using SmallEBot.Infrastructure.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,12 +15,6 @@ builder.Services.Configure<HubOptions>(options =>
 });
 
 var app = builder.Build();
-
-using (var scope = app.Services.CreateScope())
-{
-    var db = scope.ServiceProvider.GetRequiredService<SmallEBotDbContext>();
-    db.Database.Migrate();
-}
 
 if (!app.Environment.IsDevelopment())
 {

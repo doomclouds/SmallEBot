@@ -1,8 +1,6 @@
-using Microsoft.EntityFrameworkCore;
 using SmallEBot.Application.Conversation;
 using SmallEBot.Application.Session;
 using SmallEBot.Application.Streaming;
-using SmallEBot.Infrastructure.Data;
 using SmallEBot.Services.Agent;
 using SmallEBot.Services.Conversation;
 using SmallEBot.Services.Mcp;
@@ -19,7 +17,6 @@ using SmallEBot.Services.Agent.Tools;
 using SmallEBot.Components.Chat.Services;
 using SmallEBot.Components.Chat.State;
 using SmallEBot.Services.Session;
-using SmallEBot.Extensions;
 
 namespace SmallEBot.Extensions;
 
@@ -30,13 +27,6 @@ public static class ServiceCollectionExtensions
     {
         var baseDir = AppDomain.CurrentDomain.BaseDirectory;
         var dbPath = Path.Combine(baseDir, "smallebot.db");
-        var connectionString = $"Data Source={dbPath}";
-
-        services.AddDbContext<SmallEBotDbContext>(options =>
-        {
-            options.UseSqlite(connectionString);
-            options.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.NonTransactionalMigrationOperationWarning));
-        });
 
         // File-based session services
         services.AddSingleton<ISessionFileService, SessionFileService>();
