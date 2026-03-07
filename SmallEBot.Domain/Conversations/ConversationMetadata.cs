@@ -73,6 +73,16 @@ public class ConversationMetadata(
     }
 
     /// <summary>
+    /// Sets the first message index for a turn (called after session is loaded, before agent runs).
+    /// </summary>
+    public void SetFirstMessageIndexForTurn(Guid turnId, int index)
+    {
+        var turn = GetTurn(turnId);
+        if (turn != null)
+            turn.SetFirstMessageIndex(index);
+    }
+
+    /// <summary>
     /// Removes a turn and all subsequent turns.
     /// </summary>
     public int RemoveTurnAndSubsequent(Guid turnId)

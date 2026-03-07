@@ -23,7 +23,12 @@ public class TurnInfo(
     /// The message at this index will always have role: "user".
     /// Used to locate and truncate conversation history from a specific turn.
     /// </summary>
-    public int FirstMessageIndex { get; init; } = firstMessageIndex;
+    public int FirstMessageIndex { get; private set; } = firstMessageIndex;
+
+    /// <summary>
+    /// Sets the first message index (called after session is loaded, before agent runs).
+    /// </summary>
+    public void SetFirstMessageIndex(int index) => FirstMessageIndex = index;
 
     /// <summary>
     /// File paths attached to this turn's user message.
