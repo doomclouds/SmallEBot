@@ -11,7 +11,7 @@ public class UserPreference : IAggregateRoot
     public string? UserName { get; private set; }
     public string Theme { get; private set; } = DefaultThemeId;
     public bool UseThinkingMode { get; private set; } = true;
-    public bool ShowToolCalls { get; private set; } = false;
+    public bool ShowToolCalls { get; private set; }
 
     public const string DefaultThemeId = "light";
 
