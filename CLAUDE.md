@@ -31,10 +31,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Project Dependencies
 
 ```
-SmallEBot.Core          → (no deps) — entities, IConversationRepository, models
-SmallEBot.Application   → Core      — IAgentConversationService, IAgentRunner, IStreamSink
-SmallEBot.Infrastructure→ Core      — DbContext, ConversationRepository, migrations
-SmallEBot (Host)        → Core, Application, Infrastructure — Blazor UI, DI
+SmallEBot.Core          → (no deps) — entities, models
+SmallEBot.Domain        → (no deps) — ConversationMetadata, TurnInfo, IConversationMetadataRepository
+SmallEBot.Application   → Core, Domain — IAgentConversationService, IAgentRunner, IStreamSink
+SmallEBot.Infrastructure→ Core, Domain — DbContext, ConversationMetadataRepository, AgentSessionStore
+SmallEBot (Host)        → Core, Domain, Application, Infrastructure — Blazor UI, DI
 ```
 
 ### Key Files
@@ -43,7 +44,7 @@ SmallEBot (Host)        → Core, Application, Infrastructure — Blazor UI, DI
 |-----------|----------|
 | Entry point | `SmallEBot/Program.cs` |
 | DI registration | `SmallEBot/Extensions/ServiceCollectionExtensions.cs` |
-| Conversation pipeline | `SmallEBot.Application/Conversation/AgentConversationService.cs` |
+| Conversation pipeline | `SmallEBot.Application/Conversations/AgentConversationService.cs` |
 | Agent runner | `SmallEBot/Services/Agent/AgentRunnerAdapter.cs` |
 | Agent builder | `SmallEBot/Services/Agent/AgentBuilder.cs` |
 | System prompt | `SmallEBot/Services/Agent/AgentContextFactory.cs` |
@@ -138,6 +139,7 @@ The ChatArea uses a State Container + Events pattern for clean separation of con
 |------|---------|
 | `smallebot.db` | SQLite database |
 | `smallebot-settings.json` | User preferences |
+| `.agents/conversations/{id:N}/` | Conversation storage: `metadata.json` (Domain.ConversationMetadata) + `session.json` (AgentSession) |
 | `.agents/vfs/` | Workspace (agent file tools, ExecuteCommand cwd) |
 | `.agents/.mcp.json` | User MCP config |
 | `.agents/.sys.mcp.json` | System MCP config |
@@ -161,7 +163,7 @@ Context compression reduces token usage by summarizing old conversation messages
 | Component | Location |
 |-----------|----------|
 | Compression service | `Services/Agent/CompressionService.cs` |
-| Compression logic | `Application/Conversation/AgentConversationService.cs` → `CompactConversationAsync()` |
+| Compression logic | `Application/Conversations/AgentConversationService.cs` → `CompactConversationAsync()` |
 | UI trigger | `Components/Chat/ChatInputBar.razor` (compress button) |
 | UI handler | `Components/Chat/ChatArea.razor` → `CompressContext()` |
 
@@ -173,8 +175,9 @@ Context compression reduces token usage by summarizing old conversation messages
 5. Token estimator excludes compressed messages from token count
 
 **Key Files:**
-- `Core/Entities/Conversation.cs` — `CompressedContext`, `CompressedAt` fields
-- `Application/Conversation/ICompressionService.cs` — interface
+- `Domain/Conversations/ConversationMetadata.cs` — `CompressedContext`, `CompressedAt` fields
+- `Core/Entities/Conversation.cs` — DTO for UI (maps from Domain)
+- `Application.Contracts/Conversations/ICompressionService.cs` — interface
 - `Services/Agent/CompressionService.cs` — LLM-based summary generation
 - `Services/Agent/AgentContextFactory.cs` — injects summary into system prompt
 
