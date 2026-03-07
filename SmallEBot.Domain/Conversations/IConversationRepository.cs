@@ -2,42 +2,43 @@
 namespace SmallEBot.Domain.Conversations;
 
 /// <summary>
-/// Repository interface for conversations.
+/// Repository interface for conversation metadata.
+/// Note: AgentSession data is stored separately in session.json and managed by Infrastructure layer.
 /// </summary>
-public interface IConversationRepository
+public interface IConversationMetadataRepository
 {
     /// <summary>
-    /// Gets a conversation by ID.
+    /// Gets conversation metadata by ID.
     /// </summary>
-    Task<Conversation?> GetByIdAsync(Guid id, CancellationToken ct = default);
+    Task<ConversationMetadata?> GetByIdAsync(Guid id, CancellationToken ct = default);
 
     /// <summary>
-    /// Gets all conversations for a user, ordered by last updated.
+    /// Gets all conversation metadata for a user, ordered by last updated.
     /// </summary>
-    Task<IReadOnlyList<Conversation>> GetByUserNameAsync(
+    Task<IReadOnlyList<ConversationMetadata>> GetByUserNameAsync(
         string userName,
         CancellationToken ct = default);
 
     /// <summary>
     /// Searches conversations by title.
     /// </summary>
-    Task<IReadOnlyList<Conversation>> SearchAsync(
+    Task<IReadOnlyList<ConversationMetadata>> SearchAsync(
         string userName,
         string query,
         CancellationToken ct = default);
 
     /// <summary>
-    /// Saves a conversation.
+    /// Saves conversation metadata.
     /// </summary>
-    Task SaveAsync(Conversation conversation, CancellationToken ct = default);
+    Task SaveAsync(ConversationMetadata metadata, CancellationToken ct = default);
 
     /// <summary>
-    /// Deletes a conversation by ID.
+    /// Deletes conversation metadata (and associated session.json) by ID.
     /// </summary>
     Task DeleteAsync(Guid id, CancellationToken ct = default);
 
     /// <summary>
-    /// Gets the message count for a conversation.
+    /// Gets the total turn count for a conversation.
     /// </summary>
-    Task<int> GetMessageCountAsync(Guid conversationId, CancellationToken ct = default);
+    Task<int> GetTurnCountAsync(Guid conversationId, CancellationToken ct = default);
 }

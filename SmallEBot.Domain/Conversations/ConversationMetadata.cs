@@ -1,13 +1,13 @@
-// SmallEBot.Domain/Conversations/Conversation.cs
+// SmallEBot.Domain/Conversations/ConversationMetadata.cs
 using SmallEBot.Domain.Common;
 
 namespace SmallEBot.Domain.Conversations;
 
 /// <summary>
-/// Aggregate root for conversation data.
-/// Manages metadata and turn indices. Actual message content is stored in sessionData (Infrastructure layer).
+/// Metadata for a conversation, stored in metadata.json.
+/// AgentSession data is stored separately in session.json (Infrastructure layer).
 /// </summary>
-public class Conversation : IAggregateRoot, IEntity<Guid>
+public class ConversationMetadata : IAggregateRoot, IEntity<Guid>
 {
     public Guid Id { get; init; }
     public string Title { get; private set; }
@@ -15,20 +15,16 @@ public class Conversation : IAggregateRoot, IEntity<Guid>
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; private set; }
 
+    /// <summary>
+    /// Compressed summary of older messages.
+    /// </summary>
+    public string? CompressedContext { get; private set; }
+    public DateTime? CompressedAt { get; private set; }
+
     private readonly List<TurnInfo> _turns = [];
     public IReadOnlyList<TurnInfo> Turns => _turns.AsReadOnly();
 
-    /// <summary>
-    /// Compressed summary of messages before CompressedAt timestamp.
-    /// </summary>
-    public string? CompressedContext { get; private set; }
-
-    /// <summary>
-    /// Timestamp when the last context compression occurred.
-    /// </summary>
-    public DateTime? CompressedAt { get; private set; }
-
-    public Conversation(
+    public ConversationMetadata(
         Guid id,
         string? title,
         string userName,
@@ -42,11 +38,11 @@ public class Conversation : IAggregateRoot, IEntity<Guid>
     }
 
     /// <summary>
-    /// Creates a new conversation.
+    /// Creates a new conversation metadata.
     /// </summary>
-    public static Conversation Create(string userName, string title = "New conversation")
+    public static ConversationMetadata Create(string userName, string title = "New conversation")
     {
-        return new Conversation(
+        return new ConversationMetadata(
             Guid.NewGuid(),
             title,
             userName,
@@ -54,11 +50,8 @@ public class Conversation : IAggregateRoot, IEntity<Guid>
     }
 
     /// <summary>
-    /// Adds a new turn to the conversation.
+    /// Adds a new turn.
     /// </summary>
-    /// <param name="firstMessageIndex">Index into sessionData.messages where the user message starts this turn.</param>
-    /// <param name="attachedPaths">File paths attached to this turn.</param>
-    /// <param name="requestedSkillIds">Skill IDs requested for this turn.</param>
     public TurnInfo AddTurn(int firstMessageIndex, string[]? attachedPaths = null, string[]? requestedSkillIds = null)
     {
         var turn = new TurnInfo(
@@ -70,7 +63,6 @@ public class Conversation : IAggregateRoot, IEntity<Guid>
 
         _turns.Add(turn);
         UpdatedAt = DateTime.UtcNow;
-
         return turn;
     }
 
@@ -80,13 +72,16 @@ public class Conversation : IAggregateRoot, IEntity<Guid>
     public TurnInfo? GetTurn(Guid turnId) => _turns.FirstOrDefault(t => t.Id == turnId);
 
     /// <summary>
-    /// Gets the last turn, or null if no turns exist.
+    /// Gets the first message index for truncating from a specific turn.
     /// </summary>
-    public TurnInfo? GetLastTurn() => _turns.Count > 0 ? _turns[^1] : null;
+    public int? GetFirstMessageIndex(Guid turnId)
+    {
+        var turn = GetTurn(turnId);
+        return turn?.FirstMessageIndex;
+    }
 
     /// <summary>
     /// Removes a turn and all subsequent turns.
-    /// Returns the number of turns removed.
     /// </summary>
     public int RemoveTurnAndSubsequent(Guid turnId)
     {

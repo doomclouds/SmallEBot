@@ -33,8 +33,8 @@ public class TurnInfo : IEntity<Guid>
         Guid id,
         DateTime createdAt,
         int firstMessageIndex,
-        string[] attachedPaths,
-        string[] requestedSkillIds)
+        string[]? attachedPaths,
+        string[]? requestedSkillIds)
     {
         Id = id;
         CreatedAt = createdAt;
