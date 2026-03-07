@@ -17,7 +17,7 @@
 @inject IWorkspaceUploadService UploadService
 @inject ICurrentCircuitAccessor CircuitAccessor
 @inject AgentCacheService AgentCache
-@inject UserNameService UserNameSvc
+@inject IUserPreferencesService Preferences
 @inject IWorkspaceService WorkspaceService
 @inject ISkillsConfigService SkillsConfigService
 @inject IModelConfigService ModelConfigService
@@ -203,7 +203,7 @@
         var dialog = await DialogSvc.ShowAsync<EditMessageDialog>("Edit message", parameters, new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
         var result = await dialog.Result;
         if (result == null || result.Canceled || result.Data is not EditMessageResult editResult || string.IsNullOrWhiteSpace(editResult.Content)) return;
-        _userNameForAction = await UserNameSvc.GetAsync() ?? UserName;
+        _userNameForAction = await Preferences.GetUserNameAsync() ?? UserName;
         if (string.IsNullOrWhiteSpace(_userNameForAction)) { Snackbar.Add("Username is missing.", Severity.Warning); return; }
         _streaming = true;
         _streamingUpdates.Clear();
@@ -222,7 +222,7 @@
     private async Task RegenerateReply(Guid turnId)
     {
         if (_streaming || !ConversationId.HasValue) return;
-        _userNameForAction = await UserNameSvc.GetAsync() ?? UserName;
+        _userNameForAction = await Preferences.GetUserNameAsync() ?? UserName;
         if (string.IsNullOrWhiteSpace(_userNameForAction)) { Snackbar.Add("Username is missing.", Severity.Warning); return; }
         _streaming = true;
         _streamingUpdates.Clear();
@@ -396,7 +396,7 @@
 
         await OnBeforeSend.InvokeAsync();
 
-        var userName = await UserNameSvc.GetAsync() ?? UserName;
+        var userName = await Preferences.GetUserNameAsync() ?? UserName;
         if (string.IsNullOrWhiteSpace(userName))
         {
             Snackbar.Add("Username is missing. Please refresh and enter your name.", Severity.Warning);

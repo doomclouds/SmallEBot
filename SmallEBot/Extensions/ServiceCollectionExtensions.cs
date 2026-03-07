@@ -7,7 +7,7 @@ using SmallEBot.Services.Skills;
 using Microsoft.AspNetCore.Components.Server.Circuits;
 using SmallEBot.Services.Circuit;
 using SmallEBot.Services.Terminal;
-using SmallEBot.Services.User;
+using SmallEBot.Application.UserPreferences;
 using SmallEBot.Services.Context;
 using SmallEBot.Services.Agent.Tools;
 using SmallEBot.Components.Chat.Services;
@@ -20,7 +20,7 @@ using SmallEBot.Application.Contracts.Context;
 using SmallEBot.Application.Contracts.Conversation;
 using SmallEBot.Application.Contracts.Session;
 using SmallEBot.Application.Contracts.Streaming;
-using SmallEBot.Application.Contracts.User;
+using SmallEBot.Application.Contracts.UserPreferences;
 using SmallEBot.Application.Contracts.Workspaces;
 using SmallEBot.Application.Workspaces;
 using SmallEBot.Infrastructure.Workspaces;
@@ -87,8 +87,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ITurnContextFragmentBuilder, TurnContextFragmentBuilder>();
         services.AddScoped<ConversationService>();
         services.AddScoped<AgentCacheService>();
-        services.AddScoped<UserNameService>();
-        services.AddScoped<IUserNameProvider>(sp => sp.GetRequiredService<UserNameService>());
+        services.AddSingleton<IUserPreferencesService, UserPreferencesService>();
         services.AddScoped<ICurrentCircuitAccessor, CurrentCircuitAccessor>();
         services.AddScoped<CircuitHandler, CircuitContextHandler>();
         services.AddSingleton<MarkdownService>();
@@ -100,7 +99,6 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ITerminalConfigService, TerminalConfigService>();
         services.AddScoped<ISkillsConfigService, SkillsConfigService>();
         services.AddSingleton<IMcpConfigService, McpConfigService>();
-        services.AddSingleton<UserPreferencesService>();
         return services;
     }
 }

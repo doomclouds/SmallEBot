@@ -10,6 +10,7 @@ using SmallEBot.Domain.UserPreferences;
 using SmallEBot.Domain.Workspaces;
 using SmallEBot.Infrastructure.Persistence.AgentSession;
 using SmallEBot.Infrastructure.Persistence.Repositories;
+using SmallEBot.Infrastructure.UserPreferences;
 using SmallEBot.Infrastructure.Services;
 using SmallEBot.Infrastructure.Workspaces;
 

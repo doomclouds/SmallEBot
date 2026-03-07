@@ -1,8 +1,8 @@
-@using SmallEBot.Application.Contracts.User
+@using SmallEBot.Application.Contracts.UserPreferences
 @using SmallEBot.Core.Entities
 @implements IDisposable
 @inject ConversationService ConvSvc
-@inject IUserNameProvider UserNameSvc
+@inject IUserPreferencesService Preferences
 @inject IDialogService DialogSvc
 @inject ISnackbar Snackbar
 
@@ -99,7 +99,7 @@
         if (result == null || result.Canceled || result.Data is not true)
             return;
 
-        var userName = await UserNameSvc.GetAsync() ?? UserName;
+        var userName = await Preferences.GetUserNameAsync() ?? UserName;
         if (string.IsNullOrWhiteSpace(userName))
         {
             Snackbar.Add("Username missing, cannot delete.", Severity.Warning);
