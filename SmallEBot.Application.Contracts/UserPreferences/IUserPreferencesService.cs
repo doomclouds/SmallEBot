@@ -2,15 +2,10 @@ namespace SmallEBot.Application.Contracts.UserPreferences;
 
 /// <summary>
 /// Application service for user preferences (theme, username, useThinkingMode, showToolCalls).
+/// Stateless; for UI display state use IUserNameDisplayService.
 /// </summary>
 public interface IUserPreferencesService
 {
-    /// <summary>Current username for display. Updated by GetUserNameAsync and SetUserNameAsync.</summary>
-    string? CurrentDisplayName { get; }
-
-    /// <summary>Raised when CurrentDisplayName is updated (e.g. after load or set).</summary>
-    event Action? UsernameChanged;
-
     /// <summary>Loads preferences from storage.</summary>
     Task<UserPreferencesDto> LoadAsync(CancellationToken ct = default);
 
@@ -23,10 +18,10 @@ public interface IUserPreferencesService
     /// <summary>Updates ShowToolCalls and persists.</summary>
     Task SetShowToolCallsAsync(bool value, CancellationToken ct = default);
 
-    /// <summary>Gets username from storage, updates CurrentDisplayName and raises UsernameChanged.</summary>
+    /// <summary>Gets username from persisted storage.</summary>
     Task<string?> GetUserNameAsync(CancellationToken ct = default);
 
-    /// <summary>Updates UserName and persists, updates CurrentDisplayName and raises UsernameChanged.</summary>
+    /// <summary>Updates UserName and persists.</summary>
     Task SetUserNameAsync(string? userName, CancellationToken ct = default);
 }
 

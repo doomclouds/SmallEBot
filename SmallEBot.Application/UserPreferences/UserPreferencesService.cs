@@ -9,12 +9,6 @@ namespace SmallEBot.Application.UserPreferences;
 public sealed class UserPreferencesService(IUserPreferenceRepository repository) : IUserPreferencesService
 {
     /// <inheritdoc />
-    public string? CurrentDisplayName { get; set; }
-
-    /// <inheritdoc />
-    public event Action? UsernameChanged;
-
-    /// <inheritdoc />
     public async Task<UserPreferencesDto> LoadAsync(CancellationToken ct = default)
     {
         var pref = await repository.LoadAsync(ct);
@@ -53,13 +47,7 @@ public sealed class UserPreferencesService(IUserPreferenceRepository repository)
     public async Task<string?> GetUserNameAsync(CancellationToken ct = default)
     {
         var pref = await repository.LoadAsync(ct);
-        var name = string.IsNullOrWhiteSpace(pref.UserName) ? null : pref.UserName.Trim();
-        if (name != CurrentDisplayName)
-        {
-            CurrentDisplayName = name;
-            UsernameChanged?.Invoke();
-        }
-        return name;
+        return string.IsNullOrWhiteSpace(pref.UserName) ? null : pref.UserName.Trim();
     }
 
     /// <inheritdoc />
@@ -70,7 +58,5 @@ public sealed class UserPreferencesService(IUserPreferenceRepository repository)
         var pref = await repository.LoadAsync(ct);
         pref.SetUserName(value);
         await repository.SaveAsync(pref, ct);
-        CurrentDisplayName = value;
-        UsernameChanged?.Invoke();
     }
 }

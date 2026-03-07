@@ -4,6 +4,7 @@
 @using SmallEBot.Components.TaskList
 @implements IDisposable
 @inject IUserPreferencesService Preferences
+@inject IUserNameDisplayService UserNameDisplay
 @inject IDialogService DialogService
 @inject IJSRuntime JS
 
@@ -44,7 +45,7 @@
                            Color="@(_taskListDrawerOpen ? Color.Primary : Color.Default)"
                            OnClick="@ToggleTaskListDrawer" />
         </MudTooltip>
-        <MudText Typo="Typo.body2" Class="smallebot-username">@Preferences.CurrentDisplayName</MudText>
+        <MudText Typo="Typo.body2" Class="smallebot-username">@UserNameDisplay.CurrentDisplayName</MudText>
     </MudAppBar>
     <MudMainContent Class="smallebot-main">
         <div class="smallebot-main-with-drawer">
@@ -107,7 +108,7 @@
         }
 
         if (string.IsNullOrEmpty(_userName))
-            _userName = await Preferences.GetUserNameAsync();
+            _userName = await UserNameDisplay.GetUserNameAsync();
     }
 
     private async Task ToggleShowToolCalls()
@@ -155,7 +156,7 @@
 
     protected override void OnInitialized()
     {
-        Preferences.UsernameChanged += OnUsernameChanged;
+        UserNameDisplay.UsernameChanged += OnUsernameChanged;
     }
 
     private void OnUsernameChanged()
@@ -165,6 +166,6 @@
 
     public void Dispose()
     {
-        Preferences.UsernameChanged -= OnUsernameChanged;
+        UserNameDisplay.UsernameChanged -= OnUsernameChanged;
     }
 }

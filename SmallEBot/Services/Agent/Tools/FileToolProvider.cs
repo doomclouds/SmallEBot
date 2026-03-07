@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using Microsoft.Extensions.AI;
 using SmallEBot.Core;
+using SmallEBot.Application.Contracts.Workspaces;
 using SmallEBot.Domain.Workspaces;
 
 namespace SmallEBot.Services.Agent.Tools;

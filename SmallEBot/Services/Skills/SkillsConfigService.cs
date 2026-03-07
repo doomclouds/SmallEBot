@@ -1,6 +1,6 @@
 using SmallEBot.Application.Contracts.Agents;
 using SmallEBot.Core.Models;
-using SmallEBot.Domain.Workspaces;
+using SmallEBot.Application.Contracts.Workspaces;
 
 namespace SmallEBot.Services.Skills;
 

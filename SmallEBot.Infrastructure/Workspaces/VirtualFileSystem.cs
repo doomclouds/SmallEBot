@@ -1,7 +1,7 @@
 // SmallEBot.Infrastructure/Workspaces/VirtualFileSystem.cs
 using System.Security;
 using Microsoft.Extensions.Logging;
-using SmallEBot.Domain.Workspaces;
+using SmallEBot.Application.Contracts.Workspaces;
 using SmallEBot.Domain.Workspaces.ValueObjects;
 
 namespace SmallEBot.Infrastructure.Workspaces;

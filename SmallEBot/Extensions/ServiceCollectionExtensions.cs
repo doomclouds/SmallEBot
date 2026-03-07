@@ -88,6 +88,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ConversationService>();
         services.AddScoped<AgentCacheService>();
         services.AddSingleton<IUserPreferencesService, UserPreferencesService>();
+        services.AddSingleton<IUserNameDisplayService, UserNameDisplayService>();
         services.AddScoped<ICurrentCircuitAccessor, CurrentCircuitAccessor>();
         services.AddScoped<CircuitHandler, CircuitContextHandler>();
         services.AddSingleton<MarkdownService>();

@@ -1,7 +1,6 @@
-// SmallEBot.Domain/Workspaces/Services/IVirtualFileSystem.cs
 using SmallEBot.Domain.Workspaces.ValueObjects;
 
-namespace SmallEBot.Domain.Workspaces;
+namespace SmallEBot.Application.Contracts.Workspaces;
 
 /// <summary>
 /// Virtual file system interface for workspace operations.

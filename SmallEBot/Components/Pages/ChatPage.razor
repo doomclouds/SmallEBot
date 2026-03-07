@@ -4,6 +4,7 @@
 @using SmallEBot.Core.Entities
 @using SmallEBot.Core.Models
 @inject IUserPreferencesService Preferences
+@inject IUserNameDisplayService UserNameDisplay
 @inject ConversationService ConvSvc
 @inject IDialogService DialogSvc
 @inject ICurrentConversationService CurrentConversation
@@ -60,7 +61,7 @@ else
         if (!firstRender) return;
 
         // Run after circuit is established - ProtectedSessionStorage and dialogs require interactive context
-        _userName = await Preferences.GetUserNameAsync();
+        _userName = await UserNameDisplay.GetUserNameAsync();
         if (string.IsNullOrEmpty(_userName))
         {
             var dialog = await DialogSvc.ShowAsync<UserNameDialog>("Welcome");
@@ -68,7 +69,7 @@ else
             if (result == null || result.Canceled || result.Data == null || string.IsNullOrWhiteSpace(result.Data as string))
                 return;
             _userName = (result.Data as string)!.Trim();
-            await Preferences.SetUserNameAsync(_userName);
+            await UserNameDisplay.SetUserNameAsync(_userName);
         }
         await LoadConversations();
         await InvokeAsync(StateHasChanged);

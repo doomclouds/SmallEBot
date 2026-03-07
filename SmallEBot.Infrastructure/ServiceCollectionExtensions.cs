@@ -7,7 +7,6 @@ using SmallEBot.Domain.Agents;
 using SmallEBot.Domain.Common.Services;
 using SmallEBot.Domain.Conversations;
 using SmallEBot.Domain.UserPreferences;
-using SmallEBot.Domain.Workspaces;
 using SmallEBot.Infrastructure.Persistence.AgentSession;
 using SmallEBot.Infrastructure.Persistence.Repositories;
 using SmallEBot.Infrastructure.UserPreferences;
@@ -43,9 +42,6 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton<IUserPreferenceRepository>(_ =>
             new UserPreferenceRepository(basePath));
-
-        services.AddSingleton<IWorkspaceRepository>(_ =>
-            new WorkspaceRepository(basePath));
 
         // AgentSession storage - requires AIAgent for serialization
         // Note: AgentSessionSerializer needs AIAgent, so it's resolved lazily via IServiceProvider

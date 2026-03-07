@@ -5,6 +5,7 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.FileSystemGlobbing;
 using Microsoft.Extensions.FileSystemGlobbing.Abstractions;
 using SmallEBot.Core;
+using SmallEBot.Application.Contracts.Workspaces;
 using SmallEBot.Domain.Workspaces;
 
 namespace SmallEBot.Services.Agent.Tools;
