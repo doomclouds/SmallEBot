@@ -1,6 +1,6 @@
 using Microsoft.Extensions.AI;
 
-namespace SmallEBot.Application.Contracts.Conversation;
+namespace SmallEBot.Application.Contracts.Conversations;
 
 /// <summary>Service for compressing conversation history using LLM.</summary>
 public interface ICompressionService

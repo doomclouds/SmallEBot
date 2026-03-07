@@ -2,8 +2,8 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
-using SmallEBot.Application.Contracts.Conversation;
-using SmallEBot.Application.Conversation;
+using SmallEBot.Application.Contracts.Conversations;
+using SmallEBot.Application.Conversations;
 
 namespace SmallEBot.Services.Agent;
 

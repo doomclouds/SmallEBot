@@ -1,6 +1,6 @@
 using SmallEBot.Core.Models;
 
-namespace SmallEBot.Application.Conversation;
+namespace SmallEBot.Application.Conversations;
 
 /// <summary>Converts a sequence of stream updates into ordered AssistantSegments for persistence. Boundary rule: after think appears, everything until text is part of reasoning; we flush think before Tool or Text to preserve segment order (ReasoningSegmenter groups these into blocks by closing only on text).</summary>
 public static class StreamUpdateToSegments

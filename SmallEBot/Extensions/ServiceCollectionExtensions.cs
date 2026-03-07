@@ -1,4 +1,4 @@
-using SmallEBot.Application.Conversation;
+using SmallEBot.Application.Conversations;
 using SmallEBot.Services.Agent;
 using SmallEBot.Services.Conversation;
 using SmallEBot.Services.Mcp;
@@ -17,7 +17,7 @@ using SmallEBot.Infrastructure;
 using Microsoft.Agents.AI;
 using SmallEBot.Application.Contracts.Agents;
 using SmallEBot.Application.Contracts.Context;
-using SmallEBot.Application.Contracts.Conversation;
+using SmallEBot.Application.Contracts.Conversations;
 using SmallEBot.Application.Contracts.Session;
 using SmallEBot.Application.Contracts.Streaming;
 using SmallEBot.Application.Contracts.UserPreferences;

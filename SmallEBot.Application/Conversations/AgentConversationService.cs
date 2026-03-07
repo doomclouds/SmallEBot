@@ -1,10 +1,10 @@
-using SmallEBot.Application.Contracts.Conversation;
+using SmallEBot.Application.Contracts.Conversations;
 using SmallEBot.Application.Contracts.Session;
 using SmallEBot.Application.Contracts.Streaming;
 using SmallEBot.Core.Models;
 using ConversationEntity = SmallEBot.Core.Entities.Conversation;
 
-namespace SmallEBot.Application.Conversation;
+namespace SmallEBot.Application.Conversations;
 
 public sealed class AgentConversationService(
     ISessionFileService sessionFileService,

@@ -1,5 +1,5 @@
-using SmallEBot.Application.Contracts.Conversation;
-using SmallEBot.Application.Conversation;
+using SmallEBot.Application.Contracts.Conversations;
+using SmallEBot.Application.Conversations;
 
 namespace SmallEBot.Services.Conversation;
 

@@ -2,7 +2,7 @@ using SmallEBot.Application.Contracts.Streaming;
 using SmallEBot.Core.Models;
 using ConversationEntity = SmallEBot.Core.Entities.Conversation;
 
-namespace SmallEBot.Application.Contracts.Conversation;
+namespace SmallEBot.Application.Contracts.Conversations;
 
 /// <summary>Orchestrates conversation CRUD and the send-message-and-stream pipeline. Implemented in Application; consumed by Host.</summary>
 public interface IAgentConversationService

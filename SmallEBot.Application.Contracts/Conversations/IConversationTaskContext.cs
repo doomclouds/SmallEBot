@@ -1,4 +1,4 @@
-namespace SmallEBot.Application.Contracts.Conversation;
+namespace SmallEBot.Application.Contracts.Conversations;
 
 /// <summary>Provides the current conversation id for task list tools so they read/write the correct per-conversation file.</summary>
 public interface IConversationTaskContext

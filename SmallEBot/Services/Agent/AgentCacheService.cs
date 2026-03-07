@@ -1,9 +1,9 @@
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.AI;
 using SmallEBot.Application.Contracts.Agents;
-using SmallEBot.Application.Contracts.Conversation;
+using SmallEBot.Application.Contracts.Conversations;
 using SmallEBot.Application.Contracts.Session;
-using SmallEBot.Application.Conversation;
+using SmallEBot.Application.Conversations;
 using SmallEBot.Core.Models;
 using SmallEBot.Domain.Common.Services;
 
