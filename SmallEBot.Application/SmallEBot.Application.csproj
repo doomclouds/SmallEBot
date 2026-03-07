@@ -10,5 +10,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../SmallEBot.Core/SmallEBot.Core.csproj" />
+    <ProjectReference Include="../SmallEBot.Application.Contracts/SmallEBot.Application.Contracts.csproj" />
   </ItemGroup>
 </Project>
