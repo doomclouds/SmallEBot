@@ -1,6 +1,6 @@
 using Tokenizers.DotNet;
 
-namespace SmallEBot.Infrastructure.Services;
+namespace SmallEBot.Infrastructure.Common;
 
 /// <summary>
 /// DeepSeek v3 Tokenizer implementation, using Tokenizers.DotNet library to load tokenizer.json

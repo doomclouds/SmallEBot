@@ -1,6 +1,6 @@
 using SmallEBot.Domain.Common;
 
-namespace SmallEBot.Infrastructure.Services;
+namespace SmallEBot.Infrastructure.Common;
 
 /// <summary>
 /// Extended tokenizer interface with encoding/decoding capabilities.
