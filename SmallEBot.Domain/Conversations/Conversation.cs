@@ -1,12 +1,11 @@
 // SmallEBot.Domain/Conversations/Conversation.cs
 using SmallEBot.Domain.Common;
-using SmallEBot.Domain.Conversations.ValueObjects;
 
 namespace SmallEBot.Domain.Conversations;
 
 /// <summary>
 /// Aggregate root for conversation data.
-/// Manages dialog history and compressed context.
+/// Manages metadata and turn indices. Actual message content is stored in sessionData (Infrastructure layer).
 /// </summary>
 public class Conversation : IAggregateRoot, IEntity<Guid>
 {
@@ -16,8 +15,8 @@ public class Conversation : IAggregateRoot, IEntity<Guid>
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; private set; }
 
-    private readonly List<Turn> _turns = [];
-    public IReadOnlyList<Turn> Turns => _turns.AsReadOnly();
+    private readonly List<TurnInfo> _turns = [];
+    public IReadOnlyList<TurnInfo> Turns => _turns.AsReadOnly();
 
     /// <summary>
     /// Compressed summary of messages before CompressedAt timestamp.
@@ -31,7 +30,7 @@ public class Conversation : IAggregateRoot, IEntity<Guid>
 
     public Conversation(
         Guid id,
-        string title,
+        string? title,
         string userName,
         DateTime createdAt)
     {
@@ -57,13 +56,17 @@ public class Conversation : IAggregateRoot, IEntity<Guid>
     /// <summary>
     /// Adds a new turn to the conversation.
     /// </summary>
-    public Turn AddTurn(UserTurnMessage userMessage, AssistantTurnResponse? assistantResponse = null)
+    /// <param name="firstMessageIndex">Index into sessionData.messages where the user message starts this turn.</param>
+    /// <param name="attachedPaths">File paths attached to this turn.</param>
+    /// <param name="requestedSkillIds">Skill IDs requested for this turn.</param>
+    public TurnInfo AddTurn(int firstMessageIndex, string[]? attachedPaths = null, string[]? requestedSkillIds = null)
     {
-        var turn = new Turn(
+        var turn = new TurnInfo(
             Guid.NewGuid(),
             DateTime.UtcNow,
-            userMessage,
-            assistantResponse);
+            firstMessageIndex,
+            attachedPaths ?? [],
+            requestedSkillIds ?? []);
 
         _turns.Add(turn);
         UpdatedAt = DateTime.UtcNow;
@@ -74,23 +77,16 @@ public class Conversation : IAggregateRoot, IEntity<Guid>
     /// <summary>
     /// Gets a turn by ID.
     /// </summary>
-    public Turn? GetTurn(Guid turnId) => _turns.FirstOrDefault(t => t.Id == turnId);
+    public TurnInfo? GetTurn(Guid turnId) => _turns.FirstOrDefault(t => t.Id == turnId);
 
     /// <summary>
-    /// Updates a turn's user message.
+    /// Gets the last turn, or null if no turns exist.
     /// </summary>
-    public bool UpdateTurn(Guid turnId, string newContent, string[]? attachedPaths = null, string[]? requestedSkillIds = null)
-    {
-        var turn = GetTurn(turnId);
-        if (turn == null) return false;
-
-        turn.UpdateUserMessage(newContent, attachedPaths, requestedSkillIds);
-        UpdatedAt = DateTime.UtcNow;
-        return true;
-    }
+    public TurnInfo? GetLastTurn() => _turns.Count > 0 ? _turns[^1] : null;
 
     /// <summary>
     /// Removes a turn and all subsequent turns.
+    /// Returns the number of turns removed.
     /// </summary>
     public int RemoveTurnAndSubsequent(Guid turnId)
     {
@@ -116,7 +112,7 @@ public class Conversation : IAggregateRoot, IEntity<Guid>
     /// <summary>
     /// Updates the conversation title.
     /// </summary>
-    public void SetTitle(string title)
+    public void SetTitle(string? title)
     {
         Title = title ?? "New conversation";
         UpdatedAt = DateTime.UtcNow;

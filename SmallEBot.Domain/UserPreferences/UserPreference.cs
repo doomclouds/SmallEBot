@@ -9,18 +9,11 @@ namespace SmallEBot.Domain.UserPreferences;
 public class UserPreference : IAggregateRoot
 {
     public string? UserName { get; private set; }
-    public string Theme { get; private set; }
-    public bool UseThinkingMode { get; private set; }
-    public bool ShowToolCalls { get; private set; }
+    public string Theme { get; private set; } = DefaultThemeId;
+    public bool UseThinkingMode { get; private set; } = true;
+    public bool ShowToolCalls { get; private set; } = false;
 
     public const string DefaultThemeId = "light";
-
-    public UserPreference()
-    {
-        Theme = DefaultThemeId;
-        UseThinkingMode = true;
-        ShowToolCalls = false;
-    }
 
     /// <summary>
     /// Sets the theme.

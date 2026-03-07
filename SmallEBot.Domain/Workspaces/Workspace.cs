@@ -7,12 +7,7 @@ namespace SmallEBot.Domain.Workspaces;
 /// Aggregate root for workspace operations.
 /// Manages the virtual file system for the application.
 /// </summary>
-public class Workspace : IAggregateRoot
+public class Workspace(string rootPath) : IAggregateRoot
 {
-    public string RootPath { get; }
-
-    public Workspace(string rootPath)
-    {
-        RootPath = rootPath ?? throw new ArgumentNullException(nameof(rootPath));
-    }
+    public string RootPath { get; } = rootPath ?? throw new ArgumentNullException(nameof(rootPath));
 }
