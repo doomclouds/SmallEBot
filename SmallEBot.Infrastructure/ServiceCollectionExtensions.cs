@@ -56,7 +56,7 @@ public static class ServiceCollectionExtensions
             return new AgentSessionSerializer(agent);
         });
 
-        services.AddSingleton<IAgentSessionStore>(sp => new AgentSessionStore(basePath, sp));
+        services.AddSingleton<IAgentSessionStore>(_ => new AgentSessionStore(basePath));
 
         services.AddScoped<IAgentSessionReader, AgentSessionReader>();
 

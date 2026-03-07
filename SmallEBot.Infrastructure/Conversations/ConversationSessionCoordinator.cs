@@ -1,4 +1,5 @@
 using Microsoft.Agents.AI;
+using Microsoft.Extensions.Logging;
 using SmallEBot.Application.Contracts.Conversations;
 using SmallEBot.Domain.Conversations;
 using SmallEBot.Infrastructure.Persistence.AgentSession;
@@ -11,7 +12,8 @@ namespace SmallEBot.Infrastructure.Conversations;
 /// </summary>
 public sealed class ConversationSessionCoordinator(
     IConversationMetadataRepository metadataRepository,
-    IAgentSessionStore sessionStore) : IConversationSessionCoordinator
+    IAgentSessionStore sessionStore,
+    ILogger<ConversationSessionCoordinator> logger) : IConversationSessionCoordinator
 {
     /// <inheritdoc />
     public async Task<(AgentSession Session, ConversationMetadata Metadata)> GetOrCreateSessionAsync(
@@ -27,7 +29,7 @@ public sealed class ConversationSessionCoordinator(
             await metadataRepository.SaveAsync(metadata, ct).ConfigureAwait(false);
         }
 
-        var session = await sessionStore.LoadAsync(conversationId, ct).ConfigureAwait(false);
+        var session = await sessionStore.LoadAsync(conversationId, agent, ct).ConfigureAwait(false);
         if (session == null)
         {
             session = await agent.CreateSessionAsync(ct).ConfigureAwait(false);
@@ -44,7 +46,16 @@ public sealed class ConversationSessionCoordinator(
         AIAgent agent,
         CancellationToken ct = default)
     {
-        await sessionStore.SaveAsync(conversationId, session, ct).ConfigureAwait(false);
-        await metadataRepository.SaveAsync(metadata, ct).ConfigureAwait(false);
+        try
+        {
+            await sessionStore.SaveAsync(conversationId, session, agent, ct).ConfigureAwait(false);
+            logger.LogDebug("Session saved for conversation {ConversationId}", conversationId);
+            await metadataRepository.SaveAsync(metadata, ct).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to persist session for conversation {ConversationId}", conversationId);
+            throw;
+        }
     }
 }

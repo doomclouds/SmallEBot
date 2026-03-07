@@ -9,13 +9,13 @@ namespace SmallEBot.Infrastructure.Persistence.Repositories;
 /// <summary>
 /// File-based implementation of IConversationMetadataRepository.
 /// Metadata is stored in .agents/conversations/{conversationId:N}/metadata.json
-/// Thread-safe with ReaderWriterLockSlim for concurrent access.
+/// Thread-safe with SemaphoreSlim for async-safe locking.
 /// </summary>
 public sealed class ConversationMetadataRepository : IConversationMetadataRepository, IDisposable
 {
     private readonly string _basePath;
     private readonly JsonSerializerOptions _jsonOptions;
-    private readonly ReaderWriterLockSlim _lock = new();
+    private readonly SemaphoreSlim _semaphore = new(1, 1);
     private bool _disposed;
 
     /// <summary>
@@ -40,7 +40,7 @@ public sealed class ConversationMetadataRepository : IConversationMetadataReposi
         ThrowIfDisposed();
         var filePath = GetMetadataFilePath(id);
 
-        _lock.EnterReadLock();
+        await _semaphore.WaitAsync(ct).ConfigureAwait(false);
         try
         {
             if (!File.Exists(filePath))
@@ -54,7 +54,7 @@ public sealed class ConversationMetadataRepository : IConversationMetadataReposi
         }
         finally
         {
-            _lock.ExitReadLock();
+            _semaphore.Release();
         }
     }
 
@@ -99,18 +99,18 @@ public sealed class ConversationMetadataRepository : IConversationMetadataReposi
 
         var directoryPath = GetConversationDirectory(metadata.Id);
         var filePath = GetMetadataFilePath(metadata.Id);
+        var dto = ToPersistence(metadata);
+        var json = JsonSerializer.Serialize(dto, _jsonOptions);
 
-        _lock.EnterWriteLock();
+        await _semaphore.WaitAsync(ct).ConfigureAwait(false);
         try
         {
             Directory.CreateDirectory(directoryPath);
-            var dto = ToPersistence(metadata);
-            var json = JsonSerializer.Serialize(dto, _jsonOptions);
             await File.WriteAllTextAsync(filePath, json, ct).ConfigureAwait(false);
         }
         finally
         {
-            _lock.ExitWriteLock();
+            _semaphore.Release();
         }
     }
 
@@ -120,18 +120,17 @@ public sealed class ConversationMetadataRepository : IConversationMetadataReposi
         ThrowIfDisposed();
         var directoryPath = GetConversationDirectory(id);
 
-        _lock.EnterWriteLock();
+        await _semaphore.WaitAsync(ct).ConfigureAwait(false);
         try
         {
             if (Directory.Exists(directoryPath))
             {
-                await Task.Run(() => Directory.Delete(directoryPath, recursive: true), ct)
-                    .ConfigureAwait(false);
+                Directory.Delete(directoryPath, recursive: true);
             }
         }
         finally
         {
-            _lock.ExitWriteLock();
+            _semaphore.Release();
         }
     }
 
@@ -152,52 +151,49 @@ public sealed class ConversationMetadataRepository : IConversationMetadataReposi
     {
         var conversationsBasePath = Path.Combine(_basePath, ".agents", "conversations");
 
-        _lock.EnterReadLock();
+        string[] filesToRead;
+        await _semaphore.WaitAsync(ct).ConfigureAwait(false);
         try
         {
             if (!Directory.Exists(conversationsBasePath))
             {
                 return Array.Empty<ConversationMetadata>();
             }
-
-            var results = new List<ConversationMetadata>();
             var conversationDirs = Directory.GetDirectories(conversationsBasePath);
-
-            foreach (var dir in conversationDirs)
-            {
-                ct.ThrowIfCancellationRequested();
-
-                var filePath = Path.Combine(dir, "metadata.json");
-                if (!File.Exists(filePath))
-                {
-                    continue;
-                }
-
-                try
-                {
-                    var json = await File.ReadAllTextAsync(filePath, ct).ConfigureAwait(false);
-                    var dto = JsonSerializer.Deserialize<ConversationMetadataPersistence>(json, _jsonOptions);
-                    if (dto is not null)
-                    {
-                        results.Add(FromPersistence(dto));
-                    }
-                }
-                catch (JsonException)
-                {
-                    // Skip corrupt files
-                }
-                catch (IOException)
-                {
-                    // Skip files that can't be read
-                }
-            }
-
-            return results;
+            filesToRead = conversationDirs
+                .Select(dir => Path.Combine(dir, "metadata.json"))
+                .Where(File.Exists)
+                .ToArray();
         }
         finally
         {
-            _lock.ExitReadLock();
+            _semaphore.Release();
         }
+
+        var results = new List<ConversationMetadata>();
+        foreach (var filePath in filesToRead)
+        {
+            ct.ThrowIfCancellationRequested();
+            try
+            {
+                var json = await File.ReadAllTextAsync(filePath, ct).ConfigureAwait(false);
+                var dto = JsonSerializer.Deserialize<ConversationMetadataPersistence>(json, _jsonOptions);
+                if (dto is not null)
+                {
+                    results.Add(FromPersistence(dto));
+                }
+            }
+            catch (JsonException)
+            {
+                // Skip corrupt files
+            }
+            catch (IOException)
+            {
+                // Skip files that can't be read
+            }
+        }
+
+        return results;
     }
 
     private static ConversationMetadataPersistence ToPersistence(ConversationMetadata m)
@@ -274,7 +270,7 @@ public sealed class ConversationMetadataRepository : IConversationMetadataReposi
             return;
         }
 
-        _lock.Dispose();
+        _semaphore.Dispose();
         _disposed = true;
     }
 }

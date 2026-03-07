@@ -10,13 +10,13 @@ namespace SmallEBot.Infrastructure.Persistence.Repositories;
 /// File-based implementation of IAgentConfigRepository with in-memory caching.
 /// Stores agent configurations in .agents/agents.json with structure:
 /// { "defaultAgentId": "...", "agents": [...] }
-/// Thread-safe with ReaderWriterLockSlim for concurrent access and lazy loading.
+/// Thread-safe with SemaphoreSlim for async-safe locking and lazy loading.
 /// </summary>
 public sealed class AgentConfigRepository : IAgentConfigRepository, IDisposable
 {
     private readonly string _filePath;
     private readonly JsonSerializerOptions _jsonOptions;
-    private readonly ReaderWriterLockSlim _lock = new();
+    private readonly SemaphoreSlim _semaphore = new(1, 1);
     private readonly Dictionary<string, AgentConfig> _cache = new();
     private string? _defaultAgentId;
     private bool _isLoaded;
@@ -47,7 +47,7 @@ public sealed class AgentConfigRepository : IAgentConfigRepository, IDisposable
 
         await EnsureLoadedAsync(ct).ConfigureAwait(false);
 
-        _lock.EnterReadLock();
+        await _semaphore.WaitAsync(ct).ConfigureAwait(false);
         try
         {
             if (_defaultAgentId is null || !_cache.TryGetValue(_defaultAgentId, out var agent))
@@ -59,7 +59,7 @@ public sealed class AgentConfigRepository : IAgentConfigRepository, IDisposable
         }
         finally
         {
-            _lock.ExitReadLock();
+            _semaphore.Release();
         }
     }
 
@@ -71,14 +71,14 @@ public sealed class AgentConfigRepository : IAgentConfigRepository, IDisposable
 
         await EnsureLoadedAsync(ct).ConfigureAwait(false);
 
-        _lock.EnterReadLock();
+        await _semaphore.WaitAsync(ct).ConfigureAwait(false);
         try
         {
             return _cache.GetValueOrDefault(id);
         }
         finally
         {
-            _lock.ExitReadLock();
+            _semaphore.Release();
         }
     }
 
@@ -89,14 +89,14 @@ public sealed class AgentConfigRepository : IAgentConfigRepository, IDisposable
 
         await EnsureLoadedAsync(ct).ConfigureAwait(false);
 
-        _lock.EnterReadLock();
+        await _semaphore.WaitAsync(ct).ConfigureAwait(false);
         try
         {
             return _cache.Values.ToList().AsReadOnly();
         }
         finally
         {
-            _lock.ExitReadLock();
+            _semaphore.Release();
         }
     }
 
@@ -108,7 +108,7 @@ public sealed class AgentConfigRepository : IAgentConfigRepository, IDisposable
 
         await EnsureLoadedAsync(ct).ConfigureAwait(false);
 
-        _lock.EnterWriteLock();
+        await _semaphore.WaitAsync(ct).ConfigureAwait(false);
         try
         {
             // Update or add the agent in cache
@@ -137,7 +137,7 @@ public sealed class AgentConfigRepository : IAgentConfigRepository, IDisposable
         }
         finally
         {
-            _lock.ExitWriteLock();
+            _semaphore.Release();
         }
     }
 
@@ -149,7 +149,7 @@ public sealed class AgentConfigRepository : IAgentConfigRepository, IDisposable
 
         await EnsureLoadedAsync(ct).ConfigureAwait(false);
 
-        _lock.EnterWriteLock();
+        await _semaphore.WaitAsync(ct).ConfigureAwait(false);
         try
         {
             if (!_cache.Remove(id))
@@ -176,7 +176,7 @@ public sealed class AgentConfigRepository : IAgentConfigRepository, IDisposable
         }
         finally
         {
-            _lock.ExitWriteLock();
+            _semaphore.Release();
         }
     }
 
@@ -188,7 +188,7 @@ public sealed class AgentConfigRepository : IAgentConfigRepository, IDisposable
 
         await EnsureLoadedAsync(ct).ConfigureAwait(false);
 
-        _lock.EnterWriteLock();
+        await _semaphore.WaitAsync(ct).ConfigureAwait(false);
         try
         {
             if (!_cache.TryGetValue(id, out var agent))
@@ -211,53 +211,35 @@ public sealed class AgentConfigRepository : IAgentConfigRepository, IDisposable
         }
         finally
         {
-            _lock.ExitWriteLock();
+            _semaphore.Release();
         }
     }
 
     /// <summary>
     /// Ensures the agent configurations are loaded from file into cache.
-    /// Uses double-checked locking with EnterUpgradeableReadLock for lazy loading.
+    /// Uses double-checked locking with SemaphoreSlim for lazy loading.
     /// </summary>
     private async Task EnsureLoadedAsync(CancellationToken ct)
     {
-        // First check without lock (fast path)
         if (_isLoaded)
         {
             return;
         }
 
-        // Use upgradeable read lock - allows reading and potential upgrade to write lock
-        _lock.EnterUpgradeableReadLock();
+        await _semaphore.WaitAsync(ct).ConfigureAwait(false);
         try
         {
-            // Double-check after acquiring lock
             if (_isLoaded)
             {
                 return;
             }
 
-            // Upgrade to write lock for loading
-            _lock.EnterWriteLock();
-            try
-            {
-                // Triple-check after upgrading (defensive)
-                if (_isLoaded)
-                {
-                    return;
-                }
-
-                await LoadFromFileAsync(ct).ConfigureAwait(false);
-                _isLoaded = true;
-            }
-            finally
-            {
-                _lock.ExitWriteLock();
-            }
+            await LoadFromFileAsync(ct).ConfigureAwait(false);
+            _isLoaded = true;
         }
         finally
         {
-            _lock.ExitUpgradeableReadLock();
+            _semaphore.Release();
         }
     }
 
@@ -504,7 +486,7 @@ public sealed class AgentConfigRepository : IAgentConfigRepository, IDisposable
             return;
         }
 
-        _lock.Dispose();
+        _semaphore.Dispose();
         _disposed = true;
     }
 

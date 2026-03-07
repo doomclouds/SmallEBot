@@ -164,6 +164,8 @@ public sealed class AgentRunnerAdapter(
         var toolNames = new Dictionary<string, string>();
         var updates = new List<AgentResponseUpdate>();
 
+        try
+        {
         await foreach (var update in agentUpdates.WithCancellation(cancellationToken))
         {
             updates.Add(update);
@@ -230,9 +232,13 @@ public sealed class AgentRunnerAdapter(
                 yield return new TextStreamUpdate(update.Text);
             }
         }
-
-        // Persist session and metadata after completion
-        await coordinator.PersistSessionAsync(conversationId, session, metadata, agent, cancellationToken);
+        }
+        finally
+        {
+            // Always persist session and metadata (on completion, cancel, or exception)
+            // Use CancellationToken.None so save is not interrupted by stream cancellation
+            await coordinator.PersistSessionAsync(conversationId, session, metadata, agent, CancellationToken.None);
+        }
     }
 
     public async Task<string> GenerateTitleAsync(string firstMessage, CancellationToken cancellationToken = default)

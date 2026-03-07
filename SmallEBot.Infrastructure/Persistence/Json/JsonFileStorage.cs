@@ -5,7 +5,7 @@ using System.Text.Unicode;
 namespace SmallEBot.Infrastructure.Persistence.Json;
 
 /// <summary>
-/// Thread-safe JSON file storage implementation using ReaderWriterLockSlim.
+/// Thread-safe JSON file storage implementation using SemaphoreSlim for async-safe locking.
 /// Files are stored at: {basePath}/{key}.json
 /// </summary>
 /// <typeparam name="T">The entity type to store.</typeparam>
@@ -13,7 +13,7 @@ public sealed class JsonFileStorage<T> : IJsonFileStorage<T> where T : class
 {
     private readonly string _basePath;
     private readonly JsonSerializerOptions _jsonOptions;
-    private readonly ReaderWriterLockSlim _lock = new();
+    private readonly SemaphoreSlim _semaphore = new(1, 1);
     private bool _disposed;
 
     /// <summary>
@@ -44,7 +44,7 @@ public sealed class JsonFileStorage<T> : IJsonFileStorage<T> where T : class
         ThrowIfDisposed();
         var filePath = GetSafeFilePath(key);
 
-        _lock.EnterReadLock();
+        await _semaphore.WaitAsync(ct).ConfigureAwait(false);
         try
         {
             if (!File.Exists(filePath))
@@ -57,7 +57,7 @@ public sealed class JsonFileStorage<T> : IJsonFileStorage<T> where T : class
         }
         finally
         {
-            _lock.ExitReadLock();
+            _semaphore.Release();
         }
     }
 
@@ -69,7 +69,7 @@ public sealed class JsonFileStorage<T> : IJsonFileStorage<T> where T : class
 
         var filePath = GetSafeFilePath(key);
 
-        _lock.EnterWriteLock();
+        await _semaphore.WaitAsync(ct).ConfigureAwait(false);
         try
         {
             var json = JsonSerializer.Serialize(entity, _jsonOptions);
@@ -77,7 +77,7 @@ public sealed class JsonFileStorage<T> : IJsonFileStorage<T> where T : class
         }
         finally
         {
-            _lock.ExitWriteLock();
+            _semaphore.Release();
         }
     }
 
@@ -87,7 +87,7 @@ public sealed class JsonFileStorage<T> : IJsonFileStorage<T> where T : class
         ThrowIfDisposed();
         var filePath = GetSafeFilePath(key);
 
-        _lock.EnterWriteLock();
+        await _semaphore.WaitAsync(ct).ConfigureAwait(false);
         try
         {
             if (!File.Exists(filePath))
@@ -95,13 +95,12 @@ public sealed class JsonFileStorage<T> : IJsonFileStorage<T> where T : class
                 return false;
             }
 
-            // Use async deletion pattern
-            await Task.Run(() => File.Delete(filePath), ct).ConfigureAwait(false);
+            File.Delete(filePath);
             return true;
         }
         finally
         {
-            _lock.ExitWriteLock();
+            _semaphore.Release();
         }
     }
 
@@ -110,7 +109,7 @@ public sealed class JsonFileStorage<T> : IJsonFileStorage<T> where T : class
     {
         ThrowIfDisposed();
 
-        _lock.EnterReadLock();
+        await _semaphore.WaitAsync(ct).ConfigureAwait(false);
         try
         {
             var files = Directory.GetFiles(_basePath, "*.json");
@@ -132,24 +131,24 @@ public sealed class JsonFileStorage<T> : IJsonFileStorage<T> where T : class
         }
         finally
         {
-            _lock.ExitReadLock();
+            _semaphore.Release();
         }
     }
 
     /// <inheritdoc />
-    public Task<bool> ExistsAsync(string key, CancellationToken ct = default)
+    public async Task<bool> ExistsAsync(string key, CancellationToken ct = default)
     {
         ThrowIfDisposed();
         var filePath = GetSafeFilePath(key);
 
-        _lock.EnterReadLock();
+        await _semaphore.WaitAsync(ct).ConfigureAwait(false);
         try
         {
-            return Task.FromResult(File.Exists(filePath));
+            return File.Exists(filePath);
         }
         finally
         {
-            _lock.ExitReadLock();
+            _semaphore.Release();
         }
     }
 
@@ -204,7 +203,7 @@ public sealed class JsonFileStorage<T> : IJsonFileStorage<T> where T : class
             return;
         }
 
-        _lock.Dispose();
+        _semaphore.Dispose();
         _disposed = true;
     }
 }
