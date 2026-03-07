@@ -6,7 +6,8 @@
     <RootNamespace>SmallEBot.Infrastructure</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../SmallEBot.Core/SmallEBot.Core.csproj" />
+    <ProjectReference Include="..\SmallEBot.Domain\SmallEBot.Domain.csproj" />
+    <ProjectReference Include="..\SmallEBot.Core\SmallEBot.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>

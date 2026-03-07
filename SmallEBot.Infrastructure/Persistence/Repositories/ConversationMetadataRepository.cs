@@ -1,0 +1,231 @@
+using System.Text.Encodings.Web;
+using System.Text.Json;
+using System.Text.Unicode;
+using SmallEBot.Domain.Conversations;
+
+namespace SmallEBot.Infrastructure.Persistence.Repositories;
+
+/// <summary>
+/// File-based implementation of IConversationMetadataRepository.
+/// Metadata is stored in .agents/conversations/{conversationId:N}/metadata.json
+/// Thread-safe with ReaderWriterLockSlim for concurrent access.
+/// </summary>
+public sealed class ConversationMetadataRepository : IConversationMetadataRepository, IDisposable
+{
+    private readonly string _basePath;
+    private readonly JsonSerializerOptions _jsonOptions;
+    private readonly ReaderWriterLockSlim _lock = new();
+    private bool _disposed;
+
+    /// <summary>
+    /// Initializes a new instance of ConversationMetadataRepository.
+    /// </summary>
+    /// <param name="basePath">The base path for storing conversation data (application root directory).</param>
+    public ConversationMetadataRepository(string basePath)
+    {
+        _basePath = basePath ?? throw new ArgumentNullException(nameof(basePath));
+        _jsonOptions = new JsonSerializerOptions
+        {
+            WriteIndented = true,
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+            Encoder = JavaScriptEncoder.Create(UnicodeRanges.All)
+        };
+    }
+
+    /// <inheritdoc />
+    public async Task<ConversationMetadata?> GetByIdAsync(Guid id, CancellationToken ct = default)
+    {
+        ThrowIfDisposed();
+        var filePath = GetMetadataFilePath(id);
+
+        _lock.EnterReadLock();
+        try
+        {
+            if (!File.Exists(filePath))
+            {
+                return null;
+            }
+
+            var json = await File.ReadAllTextAsync(filePath, ct).ConfigureAwait(false);
+            return JsonSerializer.Deserialize<ConversationMetadata>(json, _jsonOptions);
+        }
+        finally
+        {
+            _lock.ExitReadLock();
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<ConversationMetadata>> GetByUserNameAsync(
+        string userName,
+        CancellationToken ct = default)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(userName);
+
+        var allMetadata = await LoadAllAsync(ct).ConfigureAwait(false);
+        return allMetadata
+            .Where(m => m.UserName == userName)
+            .OrderByDescending(m => m.UpdatedAt)
+            .ToList();
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<ConversationMetadata>> SearchAsync(
+        string userName,
+        string query,
+        CancellationToken ct = default)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(userName);
+        ArgumentNullException.ThrowIfNull(query);
+
+        var allMetadata = await LoadAllAsync(ct).ConfigureAwait(false);
+        return allMetadata
+            .Where(m => m.UserName == userName &&
+                        m.Title.Contains(query, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(m => m.UpdatedAt)
+            .ToList();
+    }
+
+    /// <inheritdoc />
+    public async Task SaveAsync(ConversationMetadata metadata, CancellationToken ct = default)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(metadata);
+
+        var directoryPath = GetConversationDirectory(metadata.Id);
+        var filePath = GetMetadataFilePath(metadata.Id);
+
+        _lock.EnterWriteLock();
+        try
+        {
+            Directory.CreateDirectory(directoryPath);
+            var json = JsonSerializer.Serialize(metadata, _jsonOptions);
+            await File.WriteAllTextAsync(filePath, json, ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            _lock.ExitWriteLock();
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task DeleteAsync(Guid id, CancellationToken ct = default)
+    {
+        ThrowIfDisposed();
+        var directoryPath = GetConversationDirectory(id);
+
+        _lock.EnterWriteLock();
+        try
+        {
+            if (Directory.Exists(directoryPath))
+            {
+                await Task.Run(() => Directory.Delete(directoryPath, recursive: true), ct)
+                    .ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            _lock.ExitWriteLock();
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<int> GetTurnCountAsync(Guid conversationId, CancellationToken ct = default)
+    {
+        ThrowIfDisposed();
+
+        var metadata = await GetByIdAsync(conversationId, ct).ConfigureAwait(false);
+        return metadata?.Turns.Count ?? 0;
+    }
+
+    /// <summary>
+    /// Loads all conversation metadata from storage.
+    /// Handles corrupt files gracefully by skipping them.
+    /// </summary>
+    private async Task<IReadOnlyList<ConversationMetadata>> LoadAllAsync(CancellationToken ct = default)
+    {
+        var conversationsBasePath = Path.Combine(_basePath, ".agents", "conversations");
+
+        _lock.EnterReadLock();
+        try
+        {
+            if (!Directory.Exists(conversationsBasePath))
+            {
+                return Array.Empty<ConversationMetadata>();
+            }
+
+            var results = new List<ConversationMetadata>();
+            var conversationDirs = Directory.GetDirectories(conversationsBasePath);
+
+            foreach (var dir in conversationDirs)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                var filePath = Path.Combine(dir, "metadata.json");
+                if (!File.Exists(filePath))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    var json = await File.ReadAllTextAsync(filePath, ct).ConfigureAwait(false);
+                    var metadata = JsonSerializer.Deserialize<ConversationMetadata>(json, _jsonOptions);
+                    if (metadata is not null)
+                    {
+                        results.Add(metadata);
+                    }
+                }
+                catch (JsonException)
+                {
+                    // Skip corrupt files
+                }
+                catch (IOException)
+                {
+                    // Skip files that can't be read
+                }
+            }
+
+            return results;
+        }
+        finally
+        {
+            _lock.ExitReadLock();
+        }
+    }
+
+    private string GetConversationDirectory(Guid conversationId)
+    {
+        return Path.Combine(_basePath, ".agents", "conversations", conversationId.ToString("N"));
+    }
+
+    private string GetMetadataFilePath(Guid conversationId)
+    {
+        return Path.Combine(GetConversationDirectory(conversationId), "metadata.json");
+    }
+
+    private void ThrowIfDisposed()
+    {
+        if (_disposed)
+        {
+            throw new ObjectDisposedException(nameof(ConversationMetadataRepository));
+        }
+    }
+
+    /// <summary>
+    /// Releases all resources used by the ConversationMetadataRepository.
+    /// </summary>
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _lock.Dispose();
+        _disposed = true;
+    }
+}
