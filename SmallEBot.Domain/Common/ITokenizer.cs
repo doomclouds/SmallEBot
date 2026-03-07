@@ -1,5 +1,5 @@
 // SmallEBot.Domain/Common/Services/ITokenizer.cs
-namespace SmallEBot.Domain.Common.Services;
+namespace SmallEBot.Domain.Common;
 
 /// <summary>
 /// Tokenizer for counting tokens in text.

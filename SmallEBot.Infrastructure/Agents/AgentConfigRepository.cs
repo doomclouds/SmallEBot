@@ -4,7 +4,7 @@ using System.Text.Unicode;
 using SmallEBot.Domain.Agents;
 using SmallEBot.Domain.Agents.ValueObjects;
 
-namespace SmallEBot.Infrastructure.Persistence.Repositories;
+namespace SmallEBot.Infrastructure.Agents;
 
 /// <summary>
 /// File-based implementation of IAgentConfigRepository with in-memory caching.

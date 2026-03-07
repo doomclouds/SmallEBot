@@ -5,7 +5,7 @@ using SmallEBot.Application.Contracts.Conversations.Compression;
 using SmallEBot.Application.Contracts.Conversations.Session;
 using SmallEBot.Application.Conversations;
 using SmallEBot.Core.Models;
-using SmallEBot.Domain.Common.Services;
+using SmallEBot.Domain.Common;
 using SmallEBot.Domain.Conversations.Metadata;
 
 namespace SmallEBot.Services.Agent;

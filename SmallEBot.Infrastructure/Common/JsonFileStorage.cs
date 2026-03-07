@@ -1,8 +1,9 @@
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Unicode;
+using SmallEBot.Domain.Common;
 
-namespace SmallEBot.Infrastructure.Persistence.Json;
+namespace SmallEBot.Infrastructure.Common;
 
 /// <summary>
 /// Thread-safe JSON file storage implementation using SemaphoreSlim for async-safe locking.

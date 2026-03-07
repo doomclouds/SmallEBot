@@ -1,4 +1,4 @@
-namespace SmallEBot.Infrastructure.Persistence.Json;
+namespace SmallEBot.Domain.Common;
 
 /// <summary>
 /// Generic interface for JSON file-based storage operations.

@@ -75,6 +75,7 @@ Blazor UI → SignalR → ConversationService → IAgentConversationService
 | **Context** | `Application.Contracts/Conversations/Context/` | `ICommandConfirmationContext`, `IConversationTaskContext` |
 | **Session** | `Application.Contracts/Conversations/Session/` | `IConversationSessionCoordinator`, `IAgentSessionStore`, `IAgentSessionReader` |
 | **Orchestration** | `Application.Contracts/Conversations/` | `IAgentConversationService` |
+| **Metadata (impl)** | `Infrastructure/Conversations/Metadata/` | `ConversationMetadataRepository`, `ConversationMetadataPersistence` |
 | **Session (impl)** | `Infrastructure/Conversations/Session/` | `AgentSessionStore`, `AgentSessionSerializer`, `AgentSessionReader` |
 
 ### Workspace and Skills

@@ -1,4 +1,4 @@
-namespace SmallEBot.Infrastructure.Persistence.Conversations;
+namespace SmallEBot.Infrastructure.Conversations.Metadata;
 
 internal sealed class ConversationMetadataPersistence
 {

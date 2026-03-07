@@ -1,4 +1,4 @@
-using SmallEBot.Domain.Common.Services;
+using SmallEBot.Domain.Common;
 
 namespace SmallEBot.Infrastructure.Services;
 

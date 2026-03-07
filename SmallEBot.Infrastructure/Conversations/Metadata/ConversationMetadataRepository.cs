@@ -2,9 +2,9 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Unicode;
 using SmallEBot.Domain.Conversations.Metadata;
-using SmallEBot.Infrastructure.Persistence.Conversations;
+using SmallEBot.Infrastructure.Conversations.Metadata;
 
-namespace SmallEBot.Infrastructure.Persistence.Repositories;
+namespace SmallEBot.Infrastructure.Conversations.Metadata;
 
 /// <summary>
 /// File-based implementation of IConversationMetadataRepository.
