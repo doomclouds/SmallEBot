@@ -49,8 +49,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ICurrentConversationService, CurrentConversationService>();
         services.AddSingleton<ITaskListService, TaskListService>();
         services.AddSingleton<ICommandRunner, CommandRunner>();
-        services.AddSingleton<IVirtualFileSystem, VirtualFileSystem>();
-        services.AddSingleton<IWorkspaceWatcher, WorkspaceWatcher>();
+        // IVirtualFileSystem and IWorkspaceWatcher are registered in Infrastructure layer with factory delegates
+        // These registrations are removed here to avoid duplicate registrations
         services.AddScoped<IWorkspaceService, WorkspaceService>();
         services.AddScoped<IWorkspaceUploadService, WorkspaceUploadService>();
         services.AddScoped<IMcpToolsLoaderService, McpToolsLoaderService>();
