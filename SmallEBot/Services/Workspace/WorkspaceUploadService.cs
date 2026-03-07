@@ -1,3 +1,4 @@
+using SmallEBot.Application.Workspace;
 using SmallEBot.Core;
 using System.Security.Cryptography;
 using System.Text.Json;

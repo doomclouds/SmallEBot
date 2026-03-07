@@ -1,8 +1,9 @@
 using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage;
+using SmallEBot.Application.User;
 
 namespace SmallEBot.Services.User;
 
-public class UserNameService(ProtectedSessionStorage storage, UserPreferencesService preferences)
+public class UserNameService(ProtectedSessionStorage storage, UserPreferencesService preferences) : IUserNameProvider
 {
     private const string Key = "smallebot-username";
 

@@ -1,5 +1,6 @@
+using SmallEBot.Application.Agents;
 using SmallEBot.Application.Session;
-using SmallEBot.Models;
+using SmallEBot.Core.Models;
 using SmallEBot.Services.Conversation;
 using SmallEBot.Services.Skills;
 using SmallEBot.Services.Terminal;

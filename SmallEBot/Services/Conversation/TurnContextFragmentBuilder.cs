@@ -1,5 +1,5 @@
+using SmallEBot.Application.Agents;
 using SmallEBot.Core;
-using SmallEBot.Services.Skills;
 
 namespace SmallEBot.Services.Conversation;
 

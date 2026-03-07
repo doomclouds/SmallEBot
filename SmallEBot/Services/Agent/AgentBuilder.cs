@@ -2,6 +2,7 @@ using Anthropic;
 using Anthropic.Core;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
+using SmallEBot.Application.Agents;
 using SmallEBot.Services.Agent.Tools;
 using SmallEBot.Services.Workspace;
 

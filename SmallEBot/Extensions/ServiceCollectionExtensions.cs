@@ -1,6 +1,10 @@
+using SmallEBot.Application.Agents;
+using SmallEBot.Application.Context;
 using SmallEBot.Application.Conversation;
 using SmallEBot.Application.Session;
 using SmallEBot.Application.Streaming;
+using SmallEBot.Application.User;
+using SmallEBot.Application.Workspace;
 using SmallEBot.Services.Agent;
 using SmallEBot.Services.Conversation;
 using SmallEBot.Services.Mcp;
@@ -11,7 +15,6 @@ using SmallEBot.Services.Circuit;
 using SmallEBot.Services.Terminal;
 using SmallEBot.Services.User;
 using SmallEBot.Services.Workspace;
-using SmallEBot.Application.Context;
 using SmallEBot.Services.Context;
 using SmallEBot.Services.Agent.Tools;
 using SmallEBot.Components.Chat.Services;
@@ -19,7 +22,6 @@ using SmallEBot.Components.Chat.State;
 using SmallEBot.Services.Session;
 using SmallEBot.Infrastructure;
 using Microsoft.Agents.AI;
-using SmallEBot.Domain.Common.Services;
 
 namespace SmallEBot.Extensions;
 
@@ -84,6 +86,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ConversationService>();
         services.AddScoped<AgentCacheService>();
         services.AddScoped<UserNameService>();
+        services.AddScoped<IUserNameProvider>(sp => sp.GetRequiredService<UserNameService>());
         services.AddScoped<ICurrentCircuitAccessor, CurrentCircuitAccessor>();
         services.AddScoped<CircuitHandler, CircuitContextHandler>();
         services.AddSingleton<MarkdownService>();
@@ -96,19 +99,6 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ISkillsConfigService, SkillsConfigService>();
         services.AddSingleton<IMcpConfigService, McpConfigService>();
         services.AddSingleton<UserPreferencesService>();
-        services.AddSingleton<ITokenizer>(sp =>
-        {
-            var config = sp.GetRequiredService<IConfiguration>();
-            var path = config["Anthropic:TokenizerPath"];
-            try
-            {
-                return new DeepSeekTokenizer(path);
-            }
-            catch (FileNotFoundException)
-            {
-                return new CharEstimateTokenizer();
-            }
-        });
         return services;
     }
 }

@@ -1,22 +1,8 @@
-using SmallEBot.Models;
+using SmallEBot.Application.Agents;
+using SmallEBot.Core.Models;
 using SmallEBot.Services.Workspace;
 
 namespace SmallEBot.Services.Skills;
-
-public interface ISkillsConfigService
-{
-    Task<IReadOnlyList<SkillMetadata>> GetAllAsync(CancellationToken ct = default);
-    Task<IReadOnlyList<SkillMetadata>> GetMetadataForAgentAsync(CancellationToken ct = default);
-    Task AddUserSkillAsync(string id, string name, string description, string? body = null, CancellationToken ct = default);
-    Task DeleteUserSkillAsync(string id, CancellationToken ct = default);
-    Task ImportUserSkillFromFileContentsAsync(string? id, IReadOnlyDictionary<string, string> fileContents, CancellationToken ct = default);
-    /// <summary>Returns the raw content of SKILL.md for the given skill id, or null if not found.</summary>
-    Task<string?> GetSkillContentAsync(string id, CancellationToken ct = default);
-    /// <summary>Create a new skill directory and return its absolute path.</summary>
-    Task<string> CreateSkillAsync(string skillId, CancellationToken ct = default);
-    /// <summary>Write a file to a skill directory.</summary>
-    Task WriteSkillFileAsync(string skillId, string relativePath, string content, CancellationToken ct = default);
-}
 
 public class SkillsConfigService(ILogger<SkillsConfigService> log, IVirtualFileSystem vfs) : ISkillsConfigService
 {

@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.AI;
+using SmallEBot.Application.Agents;
 using SmallEBot.Application.Conversation;
 using SmallEBot.Application.Session;
 using SmallEBot.Core.Models;
