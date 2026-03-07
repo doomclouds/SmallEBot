@@ -68,22 +68,33 @@ public sealed class WorkspaceWatcher : IWorkspaceWatcher, IDisposable
 
     private void TriggerDebounce()
     {
+        if (_disposed) return;
+
         _debounceTask ??= Task.Run(async () =>
         {
-            await Task.Delay(_debounceDelay, _cts.Token);
-
-            var paths = new List<string>();
-            while (_changedPaths.TryTake(out var path))
+            try
             {
-                paths.Add(path);
-            }
+                await Task.Delay(_debounceDelay, _cts.Token);
 
-            if (paths.Count > 0)
+                var paths = new List<string>();
+                while (_changedPaths.TryTake(out var path))
+                {
+                    paths.Add(path);
+                }
+
+                if (paths.Count > 0)
+                {
+                    WorkspaceChanged?.Invoke(this, new WorkspaceChangedEventArgs(paths.ToArray()));
+                }
+            }
+            catch (OperationCanceledException)
             {
-                WorkspaceChanged?.Invoke(this, new WorkspaceChangedEventArgs(paths.ToArray()));
+                // Expected during dispose
             }
-
-            _debounceTask = null;
+            finally
+            {
+                _debounceTask = null;
+            }
         });
     }
 
