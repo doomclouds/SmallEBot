@@ -1,4 +1,7 @@
 // SmallEBot.Domain/Agents/ValueObjects/SkillConfig.cs
+
+using SmallEBot.Domain.Common;
+
 namespace SmallEBot.Domain.Agents.ValueObjects;
 
 /// <summary>

@@ -1,4 +1,7 @@
 // SmallEBot.Domain/Conversations/ValueObjects/ToolCallRecord.cs
+
+using SmallEBot.Domain.Common;
+
 namespace SmallEBot.Domain.Conversations.ValueObjects;
 
 /// <summary>

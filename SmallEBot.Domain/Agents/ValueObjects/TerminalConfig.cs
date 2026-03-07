@@ -1,4 +1,7 @@
 // SmallEBot.Domain/Agents/ValueObjects/TerminalConfig.cs
+
+using SmallEBot.Domain.Common;
+
 namespace SmallEBot.Domain.Agents.ValueObjects;
 
 /// <summary>

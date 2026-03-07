@@ -1,4 +1,7 @@
 // SmallEBot.Domain/Conversations/ValueObjects/TaskItem.cs
+
+using SmallEBot.Domain.Common;
+
 namespace SmallEBot.Domain.Conversations.ValueObjects;
 
 /// <summary>
