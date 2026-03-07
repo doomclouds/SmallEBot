@@ -260,6 +260,8 @@ git commit -m "feat(infra): add JsonFileStorage<T> for generic JSON file persist
 
 **Step 1: Create AgentSessionSerializer**
 
+**重要:** `AgentSession` 的序列化/反序列化 API 在 `AIAgent` 上，不是 `AgentSession` 本身：
+
 ```csharp
 // SmallEBot.Infrastructure/Persistence/AgentSession/AgentSessionSerializer.cs
 using System.Text.Json;
@@ -268,48 +270,59 @@ using Microsoft.Agents.AI;
 namespace SmallEBot.Infrastructure.Persistence.AgentSession;
 
 /// <summary>
-/// Serializes and deserializes AgentSession to/from JsonElement.
-/// Encapsulates the JSON structure knowledge - Domain layer doesn't need to know this.
+/// Serializes and deserializes AgentSession using AIAgent's serialization API.
+/// Note: Serialization methods are on AIAgent, not AgentSession itself.
 /// </summary>
-public static class AgentSessionSerializer
+public class AgentSessionSerializer
 {
-    /// <summary>
-    /// Serializes an AgentSession to JsonElement.
-    /// </summary>
-    public static JsonElement Serialize(AgentSession session)
+    private readonly AIAgent _agent;
+
+    public AgentSessionSerializer(AIAgent agent)
     {
-        // Microsoft.Agents.AI provides serialization via JsonElement
-        return session.ToJsonElement();
+        _agent = agent ?? throw new ArgumentNullException(nameof(agent));
     }
 
     /// <summary>
-    /// Deserializes a JsonElement to AgentSession.
+    /// Serializes an AgentSession to JsonElement using the AIAgent's API.
     /// </summary>
-    public static AgentSession? Deserialize(JsonElement json)
+    public async ValueTask<JsonElement> SerializeAsync(AgentSession session, CancellationToken ct = default)
     {
-        return AgentSession.FromJsonElement(json);
+        // Use AIAgent.SerializeSessionAsync - this is the correct API
+        return await _agent.SerializeSessionAsync(session, cancellationToken: ct);
+    }
+
+    /// <summary>
+    /// Deserializes a JsonElement to AgentSession using the AIAgent's API.
+    /// </summary>
+    public async ValueTask<AgentSession> DeserializeAsync(JsonElement json, CancellationToken ct = default)
+    {
+        // Use AIAgent.DeserializeSessionAsync - this is the correct API
+        return await _agent.DeserializeSessionAsync(json, cancellationToken: ct);
     }
 
     /// <summary>
     /// Serializes an AgentSession to JSON string.
     /// </summary>
-    public static string SerializeToString(AgentSession session)
+    public async Task<string> SerializeToStringAsync(AgentSession session, CancellationToken ct = default)
     {
-        return session.ToJsonElement().GetRawText();
+        var jsonElement = await SerializeAsync(session, ct);
+        return jsonElement.GetRawText();
     }
 
     /// <summary>
     /// Deserializes a JSON string to AgentSession.
     /// </summary>
-    public static AgentSession? DeserializeFromString(string json)
+    public async Task<AgentSession> DeserializeFromStringAsync(string json, CancellationToken ct = default)
     {
         using var doc = JsonDocument.Parse(json);
-        return Deserialize(doc.RootElement);
+        return await DeserializeAsync(doc.RootElement, ct);
     }
 }
 ```
 
 **Step 2: Create AgentSessionStore**
+
+**注意:** `AgentSessionStore` 需要依赖 `AgentSessionSerializer`，而 `AgentSessionSerializer` 需要 `AIAgent` 实例。
 
 ```csharp
 // SmallEBot.Infrastructure/Persistence/AgentSession/AgentSessionStore.cs
@@ -321,6 +334,7 @@ namespace SmallEBot.Infrastructure.Persistence.AgentSession;
 /// <summary>
 /// Stores and retrieves AgentSession data.
 /// Session data is stored in session.json alongside conversation metadata.
+/// Requires AIAgent instance for serialization (via AgentSessionSerializer).
 /// </summary>
 public interface IAgentSessionStore
 {
@@ -340,28 +354,40 @@ public interface IAgentSessionStore
     Task DeleteAsync(Guid conversationId, CancellationToken ct = default);
 
     /// <summary>
-    /// Truncates messages from a specific index.
+    /// Truncates messages from a specific turn (by firstMessageIndex).
     /// </summary>
-    Task TruncateFromIndexAsync(Guid conversationId, int firstMessageIndex, CancellationToken ct = default);
+    Task TruncateFromTurnAsync(Guid conversationId, int firstMessageIndex, CancellationToken ct = default);
 }
 
 public class AgentSessionStore : IAgentSessionStore
 {
     private readonly string _basePath;
+    private readonly AgentSessionSerializer _serializer;
+    private readonly ReaderWriterLockSlim _lock = new();
 
-    public AgentSessionStore(string basePath)
+    public AgentSessionStore(string basePath, AgentSessionSerializer serializer)
     {
         _basePath = basePath ?? throw new ArgumentNullException(nameof(basePath));
+        _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
     }
 
     public async Task<AgentSession?> LoadAsync(Guid conversationId, CancellationToken ct = default)
     {
         var filePath = GetSessionFilePath(conversationId);
-        if (!File.Exists(filePath))
-            return null;
 
-        var json = await File.ReadAllTextAsync(filePath, ct);
-        return AgentSessionSerializer.DeserializeFromString(json);
+        _lock.EnterReadLock();
+        try
+        {
+            if (!File.Exists(filePath))
+                return null;
+
+            var json = await File.ReadAllTextAsync(filePath, ct);
+            return await _serializer.DeserializeFromStringAsync(json, ct);
+        }
+        finally
+        {
+            _lock.ExitReadLock();
+        }
     }
 
     public async Task SaveAsync(Guid conversationId, AgentSession session, CancellationToken ct = default)
@@ -369,55 +395,58 @@ public class AgentSessionStore : IAgentSessionStore
         ArgumentNullException.ThrowIfNull(session);
 
         var directoryPath = GetConversationDirectory(conversationId);
-        Directory.CreateDirectory(directoryPath);
-
         var filePath = GetSessionFilePath(conversationId);
-        var json = AgentSessionSerializer.SerializeToString(session);
-        await File.WriteAllTextAsync(filePath, json, ct);
+
+        _lock.EnterWriteLock();
+        try
+        {
+            Directory.CreateDirectory(directoryPath);
+            var json = await _serializer.SerializeToStringAsync(session, ct);
+            await File.WriteAllTextAsync(filePath, json, ct);
+        }
+        finally
+        {
+            _lock.ExitWriteLock();
+        }
     }
 
-    public Task DeleteAsync(Guid conversationId, CancellationToken ct = default)
+    public async Task DeleteAsync(Guid conversationId, CancellationToken ct = default)
     {
         var filePath = GetSessionFilePath(conversationId);
-        if (File.Exists(filePath))
-        {
-            File.Delete(filePath);
-        }
-
-        // Also try to delete the directory if empty
         var directoryPath = GetConversationDirectory(conversationId);
-        if (Directory.Exists(directoryPath) && !Directory.EnumerateFiles(directoryPath).Any())
-        {
-            Directory.Delete(directoryPath);
-        }
 
-        return Task.CompletedTask;
+        _lock.EnterWriteLock();
+        try
+        {
+            if (File.Exists(filePath))
+            {
+                await Task.Run(() => File.Delete(filePath), ct);
+            }
+
+            // Also try to delete the directory if empty
+            if (Directory.Exists(directoryPath) && !Directory.EnumerateFiles(directoryPath).Any())
+            {
+                Directory.Delete(directoryPath);
+            }
+        }
+        finally
+        {
+            _lock.ExitWriteLock();
+        }
     }
 
-    public async Task TruncateFromIndexAsync(Guid conversationId, int firstMessageIndex, CancellationToken ct = default)
+    public async Task TruncateFromTurnAsync(Guid conversationId, int firstMessageIndex, CancellationToken ct = default)
     {
         var session = await LoadAsync(conversationId, ct);
         if (session == null) return;
 
-        // Use Microsoft.Agents.AI's built-in truncation if available
-        // Otherwise, we need to manipulate the session's state bag
-        var truncatedSession = TruncateMessages(session, firstMessageIndex);
-        await SaveAsync(conversationId, truncatedSession, ct);
-    }
+        // Note: Truncation requires understanding AgentSession's internal structure
+        // For now, we'll delete messages after firstMessageIndex
+        // This will be implemented using Microsoft.Agents.AI's public API when available
 
-    private static AgentSession TruncateMessages(AgentSession session, int fromIndex)
-    {
-        // Get the chat history from state bag
-        var stateBag = session.StateBag;
-        if (stateBag == null) return session;
-
-        // The InMemoryChatHistoryProvider contains the messages
-        // This is Microsoft.Agents.AI internal structure knowledge
-        // We'll need to use reflection or public API to truncate
-
-        // For now, return the session as-is
-        // TODO: Implement actual truncation using Microsoft.Agents.AI public API
-        return session;
+        // TODO: Use proper truncation API from Microsoft.Agents.AI
+        // For now, we save the session as-is (truncation is complex)
+        await SaveAsync(conversationId, session, ct);
     }
 
     private string GetConversationDirectory(Guid conversationId)
@@ -431,6 +460,12 @@ public class AgentSessionStore : IAgentSessionStore
     }
 }
 ```
+
+**设计说明:**
+1. `AgentSessionStore` 需要 `AgentSessionSerializer` 依赖
+2. `AgentSessionSerializer` 需要 `AIAgent` 实例
+3. 这意味着 DI 注册时需要确保 AIAgent 已创建
+4. 使用 `ReaderWriterLockSlim` 保证线程安全
 
 **Step 3: Verify build**
 
@@ -1029,7 +1064,7 @@ public static class ServiceCollectionExtensions
         this IServiceCollection services,
         string basePath)
     {
-        // Repositories
+        // Repositories (file-based, no dependencies)
         services.AddSingleton<IAgentConfigRepository>(sp =>
             new AgentConfigRepository(basePath));
         services.AddSingleton<IConversationMetadataRepository>(sp =>
@@ -1039,14 +1074,28 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IWorkspaceRepository>(sp =>
             new WorkspaceRepository(basePath));
 
-        // AgentSession storage
+        // AgentSession storage - requires AIAgent for serialization
+        // Note: AgentSessionSerializer needs AIAgent, so it's a transient dependency
+        services.AddTransient<AgentSessionSerializer>(sp =>
+        {
+            // AIAgent should be registered by Host layer (via AgentBuilder)
+            var agent = sp.GetRequiredService<Microsoft.Agents.AI.AIAgent>();
+            return new AgentSessionSerializer(agent);
+        });
+
         services.AddSingleton<IAgentSessionStore>(sp =>
-            new AgentSessionStore(basePath));
+        {
+            var serializer = sp.GetRequiredService<AgentSessionSerializer>();
+            return new AgentSessionStore(basePath, serializer);
+        });
 
         return services;
     }
 }
 ```
+
+**注意:** `AgentSessionStore` 依赖 `AgentSessionSerializer`，而 `AgentSessionSerializer` 需要 `AIAgent`。
+这要求 Host 层在调用 `AddInfrastructure` 之前先注册 `AIAgent`。
 
 **Step 3: Verify build**
 
