@@ -2,7 +2,7 @@ using System.ComponentModel;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.AI;
-using SmallEBot.Application.Contracts.Conversations;
+using SmallEBot.Application.Contracts.Conversations.Context;
 using SmallEBot.Application.Conversations;
 using SmallEBot.Services.Conversation;
 

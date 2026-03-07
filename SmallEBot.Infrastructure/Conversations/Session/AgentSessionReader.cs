@@ -1,11 +1,10 @@
 using System.Text.Json;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
-using SmallEBot.Application.Contracts.Session;
-using SmallEBot.Infrastructure.Persistence.AgentSession;
+using SmallEBot.Application.Contracts.Conversations.Session;
 using ChatMessage = Microsoft.Extensions.AI.ChatMessage;
 
-namespace SmallEBot.Infrastructure.Session;
+namespace SmallEBot.Infrastructure.Conversations.Session;
 
 /// <summary>
 /// Reads message history from serialized AgentSession data.

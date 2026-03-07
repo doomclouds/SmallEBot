@@ -1,11 +1,9 @@
-// SmallEBot.Application.Contracts/Session/IAgentSessionReader.cs
-
 using Microsoft.Extensions.AI;
 
-namespace SmallEBot.Application.Contracts.Session;
+namespace SmallEBot.Application.Contracts.Conversations.Session;
 
 /// <summary>
-/// Reads messages and content from agent sessions.
+/// Reads messages and content from conversation agent sessions.
 /// </summary>
 public interface IAgentSessionReader
 {

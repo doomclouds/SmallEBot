@@ -32,7 +32,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```
 SmallEBot.Core          → (no deps) — entities, models
-SmallEBot.Domain        → (no deps) — ConversationMetadata, TurnInfo, IConversationMetadataRepository
+SmallEBot.Domain        → (no deps) — Conversations.Metadata (aggregate, repository interface)
 SmallEBot.Application   → Core, Domain — IAgentConversationService, IAgentRunner, IStreamSink
 SmallEBot.Infrastructure→ Core, Domain — DbContext, ConversationMetadataRepository, AgentSessionStore
 SmallEBot (Host)        → Core, Domain, Application, Infrastructure — Blazor UI, DI
@@ -65,6 +65,17 @@ Blazor UI → SignalR → ConversationService → IAgentConversationService
 ```
 
 **AgentBuilder** composes: `IAgentContextFactory` (system prompt + skills) + `IToolProviderAggregator` + `IMcpConnectionManager` → caches `AIAgent`.
+
+### Conversations Domain (DDD subdomains)
+
+| Subdomain | Location | Contents |
+|-----------|----------|----------|
+| **Metadata** | `Domain/Conversations/Metadata/` | `ConversationMetadata`, `TurnInfo`, `IConversationMetadataRepository` |
+| **Compression** | `Application.Contracts/Conversations/Compression/` | `ICompressionService`, `ICompressionThresholdProvider`, `IContextUsageEstimator`, `IToolResultMaxProvider` |
+| **Context** | `Application.Contracts/Conversations/Context/` | `ICommandConfirmationContext`, `IConversationTaskContext` |
+| **Session** | `Application.Contracts/Conversations/Session/` | `IConversationSessionCoordinator`, `IAgentSessionStore`, `IAgentSessionReader` |
+| **Orchestration** | `Application.Contracts/Conversations/` | `IAgentConversationService` |
+| **Session (impl)** | `Infrastructure/Conversations/Session/` | `AgentSessionStore`, `AgentSessionSerializer`, `AgentSessionReader` |
 
 ### Workspace and Skills
 

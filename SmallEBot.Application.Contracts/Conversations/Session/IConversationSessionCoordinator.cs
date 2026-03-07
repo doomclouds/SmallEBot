@@ -1,7 +1,7 @@
 using Microsoft.Agents.AI;
-using SmallEBot.Domain.Conversations;
+using SmallEBot.Domain.Conversations.Metadata;
 
-namespace SmallEBot.Application.Contracts.Conversations;
+namespace SmallEBot.Application.Contracts.Conversations.Session;
 
 public interface IConversationSessionCoordinator
 {

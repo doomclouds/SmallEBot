@@ -1,10 +1,11 @@
 using SmallEBot.Application.Contracts.Conversations;
-using SmallEBot.Application.Contracts.Session;
+using SmallEBot.Application.Contracts.Conversations.Compression;
+using SmallEBot.Application.Contracts.Conversations.Context;
+using SmallEBot.Application.Contracts.Conversations.Session;
 using SmallEBot.Application.Contracts.Streaming;
 using SmallEBot.Core.Models;
-using SmallEBot.Domain.Conversations;
+using SmallEBot.Domain.Conversations.Metadata;
 using ConversationEntity = SmallEBot.Core.Entities.Conversation;
-using DomainConversationMetadata = SmallEBot.Domain.Conversations.ConversationMetadata;
 
 namespace SmallEBot.Application.Conversations;
 
@@ -25,7 +26,7 @@ public sealed class AgentConversationService(
 
     public async Task<ConversationEntity> CreateConversationAsync(string userName, CancellationToken cancellationToken = default)
     {
-        var metadata = DomainConversationMetadata.Create(userName);
+        var metadata = ConversationMetadata.Create(userName);
         await metadataRepository.SaveAsync(metadata, cancellationToken);
         return ToEntity(metadata);
     }
@@ -62,7 +63,7 @@ public sealed class AgentConversationService(
         return await metadataRepository.GetTurnCountAsync(conversationId, cancellationToken);
     }
 
-    private static ConversationEntity ToEntity(DomainConversationMetadata m) => new()
+    private static ConversationEntity ToEntity(ConversationMetadata m) => new()
     {
         Id = m.Id,
         Title = m.Title,

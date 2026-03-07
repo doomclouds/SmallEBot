@@ -1,7 +1,8 @@
 using Microsoft.Agents.AI;
 using AIAgentSession = Microsoft.Agents.AI.AgentSession;
+using SmallEBot.Application.Contracts.Conversations.Session;
 
-namespace SmallEBot.Infrastructure.Persistence.AgentSession;
+namespace SmallEBot.Infrastructure.Conversations.Session;
 
 /// <summary>
 /// File-based implementation of IAgentSessionStore.

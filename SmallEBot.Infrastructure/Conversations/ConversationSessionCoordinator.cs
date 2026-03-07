@@ -1,8 +1,7 @@
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.Logging;
-using SmallEBot.Application.Contracts.Conversations;
-using SmallEBot.Domain.Conversations;
-using SmallEBot.Infrastructure.Persistence.AgentSession;
+using SmallEBot.Application.Contracts.Conversations.Session;
+using SmallEBot.Domain.Conversations.Metadata;
 
 namespace SmallEBot.Infrastructure.Conversations;
 

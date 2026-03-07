@@ -1,10 +1,10 @@
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using Microsoft.Extensions.AI;
-using SmallEBot.Application.Contracts.Session;
+using SmallEBot.Application.Contracts.Conversations.Session;
 using SmallEBot.Core;
 using SmallEBot.Core.Models;
-using SmallEBot.Domain.Conversations;
+using SmallEBot.Domain.Conversations.Metadata;
 using ConversationEntity = SmallEBot.Core.Entities.Conversation;
 
 namespace SmallEBot.Services.Conversation;
@@ -35,7 +35,7 @@ public class ConversationService(
 
     public async Task<ConversationEntity> CreateAsync(string userName, string title, CancellationToken ct = default)
     {
-        var metadata = Domain.Conversations.ConversationMetadata.Create(userName, title);
+        var metadata = ConversationMetadata.Create(userName, title);
         await metadataRepository.SaveAsync(metadata, ct);
         return ToEntity(metadata);
     }
@@ -145,7 +145,7 @@ public class ConversationService(
         return ConversationBubbleHelper.BuildBubblesFromTimeline(turns);
     }
 
-    private static ConversationEntity ToEntity(Domain.Conversations.ConversationMetadata metadata) => new()
+    private static ConversationEntity ToEntity(ConversationMetadata metadata) => new()
     {
         Id = metadata.Id,
         Title = metadata.Title,

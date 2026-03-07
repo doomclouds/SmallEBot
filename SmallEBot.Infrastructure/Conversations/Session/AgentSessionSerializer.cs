@@ -2,7 +2,7 @@ using System.Text.Json;
 using AIAgentSession = Microsoft.Agents.AI.AgentSession;
 using Microsoft.Agents.AI;
 
-namespace SmallEBot.Infrastructure.Persistence.AgentSession;
+namespace SmallEBot.Infrastructure.Conversations.Session;
 
 /// <summary>
 /// Serializes and deserializes AgentSession using AIAgent's serialization API.

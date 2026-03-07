@@ -1,7 +1,7 @@
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Unicode;
-using SmallEBot.Domain.Conversations;
+using SmallEBot.Domain.Conversations.Metadata;
 using SmallEBot.Infrastructure.Persistence.Conversations;
 
 namespace SmallEBot.Infrastructure.Persistence.Repositories;

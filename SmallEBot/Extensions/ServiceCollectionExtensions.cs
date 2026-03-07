@@ -17,6 +17,8 @@ using Microsoft.Agents.AI;
 using SmallEBot.Application.Contracts.Agents;
 using SmallEBot.Application.Contracts.Context;
 using SmallEBot.Application.Contracts.Conversations;
+using SmallEBot.Application.Contracts.Conversations.Compression;
+using SmallEBot.Application.Contracts.Conversations.Context;
 using SmallEBot.Application.Contracts.Streaming;
 using SmallEBot.Application.Contracts.UserPreferences;
 using SmallEBot.Application.Contracts.Workspaces;

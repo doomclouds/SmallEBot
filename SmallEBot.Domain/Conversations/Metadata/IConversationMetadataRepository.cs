@@ -1,5 +1,5 @@
-// SmallEBot.Domain/Conversations/IConversationRepository.cs
-namespace SmallEBot.Domain.Conversations;
+// SmallEBot.Domain/Conversations/Metadata/IConversationMetadataRepository.cs
+namespace SmallEBot.Domain.Conversations.Metadata;
 
 /// <summary>
 /// Repository interface for conversation metadata.

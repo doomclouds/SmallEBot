@@ -1,7 +1,7 @@
-// SmallEBot.Domain/Conversations/ConversationMetadata.cs
+// SmallEBot.Domain/Conversations/Metadata/ConversationMetadata.cs
 using SmallEBot.Domain.Common;
 
-namespace SmallEBot.Domain.Conversations;
+namespace SmallEBot.Domain.Conversations.Metadata;
 
 /// <summary>
 /// Metadata for a conversation, stored in metadata.json.

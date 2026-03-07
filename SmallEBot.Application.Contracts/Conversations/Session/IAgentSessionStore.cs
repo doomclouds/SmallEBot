@@ -1,10 +1,10 @@
 using Microsoft.Agents.AI;
 using AIAgentSession = Microsoft.Agents.AI.AgentSession;
 
-namespace SmallEBot.Infrastructure.Persistence.AgentSession;
+namespace SmallEBot.Application.Contracts.Conversations.Session;
 
 /// <summary>
-/// Stores and retrieves AgentSession data.
+/// Stores and retrieves AgentSession data for a conversation.
 /// Session data is stored in .agents/conversations/{conversationId:N}/session.json
 /// </summary>
 public interface IAgentSessionStore : IDisposable

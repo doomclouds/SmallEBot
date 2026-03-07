@@ -1,4 +1,4 @@
-using SmallEBot.Application.Contracts.Conversations;
+using SmallEBot.Application.Contracts.Conversations.Context;
 using SmallEBot.Application.Conversations;
 
 namespace SmallEBot.Services.Conversation;

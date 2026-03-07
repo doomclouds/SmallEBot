@@ -1,7 +1,7 @@
-// SmallEBot.Domain/Conversations/TurnInfo.cs
+// SmallEBot.Domain/Conversations/Metadata/TurnInfo.cs
 using SmallEBot.Domain.Common;
 
-namespace SmallEBot.Domain.Conversations;
+namespace SmallEBot.Domain.Conversations.Metadata;
 
 /// <summary>
 /// Represents a single turn in a conversation.

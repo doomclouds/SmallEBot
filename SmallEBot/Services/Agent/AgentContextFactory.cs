@@ -1,6 +1,6 @@
 using SmallEBot.Application.Contracts.Agents;
 using SmallEBot.Core.Models;
-using SmallEBot.Domain.Conversations;
+using SmallEBot.Domain.Conversations.Metadata;
 using SmallEBot.Services.Conversation;
 using SmallEBot.Services.Skills;
 using SmallEBot.Services.Terminal;

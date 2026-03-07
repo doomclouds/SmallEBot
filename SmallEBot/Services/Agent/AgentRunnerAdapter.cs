@@ -4,10 +4,9 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
-using SmallEBot.Application.Contracts.Conversations;
-using SmallEBot.Application.Contracts.Session;
+using SmallEBot.Application.Contracts.Conversations.Session;
 using SmallEBot.Application.Contracts.Streaming;
-using DomainConversationMetadata = SmallEBot.Domain.Conversations.ConversationMetadata;
+using SmallEBot.Domain.Conversations.Metadata;
 using SmallEBot.Core.Models;
 using SmallEBot.Services.Conversation;
 using ChatMessage = Microsoft.Extensions.AI.ChatMessage;
@@ -157,7 +156,7 @@ public sealed class AgentRunnerAdapter(
         Guid conversationId,
         AIAgent agent,
         AgentSession session,
-        DomainConversationMetadata metadata,
+        ConversationMetadata metadata,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var toolTimers = new Dictionary<string, Stopwatch>();
