@@ -1,27 +1,21 @@
-// SmallEBot.Application/Workspace/WorkspaceService.cs
+// SmallEBot.Application/Workspaces/WorkspaceService.cs
 using Microsoft.Extensions.Logging;
-using SmallEBot.Application.Contracts.Workspace;
+using SmallEBot.Application.Contracts.Workspaces;
 using SmallEBot.Core;
 using SmallEBot.Domain.Workspaces;
-using SmallEBot.Domain.Workspaces.Services;
 
-namespace SmallEBot.Application.Workspace;
+namespace SmallEBot.Application.Workspaces;
 
 /// <summary>
 /// Application service for workspace operations.
 /// </summary>
-public sealed class WorkspaceService : IWorkspaceService
+public sealed class WorkspaceService(
+    IVirtualFileSystem vfs,
+    ILogger<WorkspaceService> logger)
+    : IWorkspaceService
 {
-    private readonly IVirtualFileSystem _vfs;
-    private readonly ILogger<WorkspaceService> _logger;
-
-    public WorkspaceService(
-        IVirtualFileSystem vfs,
-        ILogger<WorkspaceService> logger)
-    {
-        _vfs = vfs ?? throw new ArgumentNullException(nameof(vfs));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-    }
+    private readonly IVirtualFileSystem _vfs = vfs ?? throw new ArgumentNullException(nameof(vfs));
+    private readonly ILogger<WorkspaceService> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     public string RootPath => _vfs.RootPath;
 
@@ -121,7 +115,7 @@ public sealed class WorkspaceService : IWorkspaceService
 
     public bool IsReadOnly(string relativePath)
     {
-        return Domain.Workspaces.WorkspaceReadOnly.IsReadOnly(relativePath);
+        return WorkspaceReadOnly.IsReadOnly(relativePath);
     }
 
     public async Task<IReadOnlyList<string>> GetAllowedFilePathsAsync(CancellationToken ct = default)
@@ -162,7 +156,7 @@ public sealed class WorkspaceService : IWorkspaceService
             node.IsDirectory,
             node.Size,
             node.LastModified,
-            children as IReadOnlyList<WorkspaceNodeDto>
+            children
         );
     }
 

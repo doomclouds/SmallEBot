@@ -1,5 +1,5 @@
-// SmallEBot.Application.Contracts/Workspace/IWorkspaceService.cs
-namespace SmallEBot.Application.Contracts.Workspace;
+// SmallEBot.Application.Contracts/Workspaces/IWorkspaceService.cs
+namespace SmallEBot.Application.Contracts.Workspaces;
 
 /// <summary>
 /// Application service for workspace operations.

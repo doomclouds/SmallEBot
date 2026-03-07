@@ -1,8 +1,8 @@
-// SmallEBot.Infrastructure/Services/Workspace/WorkspaceWatcher.cs
+// SmallEBot.Infrastructure/Workspaces/WorkspaceWatcher.cs
 using System.Collections.Concurrent;
-using SmallEBot.Application.Contracts.Workspace;
+using SmallEBot.Application.Contracts.Workspaces;
 
-namespace SmallEBot.Infrastructure.Services.Workspace;
+namespace SmallEBot.Infrastructure.Workspaces;
 
 /// <summary>
 /// Watches for file system changes in the workspace.

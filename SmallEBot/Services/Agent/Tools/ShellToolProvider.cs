@@ -1,8 +1,8 @@
 using System.ComponentModel;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.AI;
+using SmallEBot.Domain.Workspaces;
 using SmallEBot.Services.Terminal;
-using SmallEBot.Domain.Workspaces.Services;
 
 namespace SmallEBot.Services.Agent.Tools;
 

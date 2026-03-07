@@ -1,5 +1,5 @@
-// SmallEBot.Application.Contracts/Workspace/WorkspaceChangedEventArgs.cs
-namespace SmallEBot.Application.Contracts.Workspace;
+// SmallEBot.Application.Contracts/Workspaces/WorkspaceChangedEventArgs.cs
+namespace SmallEBot.Application.Contracts.Workspaces;
 
 /// <summary>
 /// Event arguments for workspace change events.

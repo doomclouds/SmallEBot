@@ -21,12 +21,10 @@ using SmallEBot.Application.Contracts.Conversation;
 using SmallEBot.Application.Contracts.Session;
 using SmallEBot.Application.Contracts.Streaming;
 using SmallEBot.Application.Contracts.User;
-using SmallEBot.Application.Contracts.Workspace;
-using SmallEBot.Application.Workspace;
-using SmallEBot.Domain.Workspaces.Services;
-using SmallEBot.Infrastructure.Services.Workspace;
-using IWorkspaceUploadService = SmallEBot.Application.Contracts.Workspace.IWorkspaceUploadService;
-using WorkspaceUploadService = SmallEBot.Services.Workspace.WorkspaceUploadService;
+using SmallEBot.Application.Contracts.Workspaces;
+using SmallEBot.Application.Workspaces;
+using SmallEBot.Infrastructure.Workspaces;
+using SmallEBot.Services.Workspace;
 
 namespace SmallEBot.Extensions;
 

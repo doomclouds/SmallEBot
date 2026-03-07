@@ -1,8 +1,9 @@
+// SmallEBot/Services/Workspace/WorkspaceUploadService.cs
+using SmallEBot.Application.Contracts.Workspaces;
 using SmallEBot.Core;
 using System.Security.Cryptography;
 using System.Text.Json;
-using SmallEBot.Application.Contracts.Workspace;
-using SmallEBot.Domain.Workspaces.Services;
+using SmallEBot.Domain.Workspaces;
 
 namespace SmallEBot.Services.Workspace;
 

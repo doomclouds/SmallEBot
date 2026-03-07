@@ -1,5 +1,5 @@
-// SmallEBot.Application.Contracts/Workspace/WorkspaceNodeDto.cs
-namespace SmallEBot.Application.Contracts.Workspace;
+// SmallEBot.Application.Contracts/Workspaces/WorkspaceNodeDto.cs
+namespace SmallEBot.Application.Contracts.Workspaces;
 
 /// <summary>
 /// DTO for workspace node data transfer.

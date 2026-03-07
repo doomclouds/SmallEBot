@@ -1,5 +1,5 @@
-// SmallEBot.Application.Contracts/Workspace/IWorkspaceWatcher.cs
-namespace SmallEBot.Application.Contracts.Workspace;
+// SmallEBot.Application.Contracts/Workspaces/IWorkspaceWatcher.cs
+namespace SmallEBot.Application.Contracts.Workspaces;
 
 /// <summary>
 /// Watches for file system changes in the workspace.

@@ -2,17 +2,16 @@ using Microsoft.Agents.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using SmallEBot.Application.Contracts.Workspace;
+using SmallEBot.Application.Contracts.Workspaces;
 using SmallEBot.Domain.Agents;
 using SmallEBot.Domain.Common.Services;
 using SmallEBot.Domain.Conversations;
 using SmallEBot.Domain.UserPreferences;
 using SmallEBot.Domain.Workspaces;
-using SmallEBot.Domain.Workspaces.Services;
 using SmallEBot.Infrastructure.Persistence.AgentSession;
 using SmallEBot.Infrastructure.Persistence.Repositories;
 using SmallEBot.Infrastructure.Services;
-using SmallEBot.Infrastructure.Services.Workspace;
+using SmallEBot.Infrastructure.Workspaces;
 
 namespace SmallEBot.Infrastructure;
 
@@ -79,7 +78,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IVirtualFileSystem>(sp =>
             new VirtualFileSystem(workspaceRoot, sp.GetRequiredService<ILogger<VirtualFileSystem>>()));
 
-        services.AddSingleton<IWorkspaceWatcher>(sp =>
+        services.AddSingleton<IWorkspaceWatcher>(_ =>
             new WorkspaceWatcher(workspaceRoot));
 
         return services;

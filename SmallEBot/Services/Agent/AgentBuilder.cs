@@ -3,8 +3,8 @@ using Anthropic.Core;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using SmallEBot.Application.Contracts.Agents;
+using SmallEBot.Domain.Workspaces;
 using SmallEBot.Services.Agent.Tools;
-using SmallEBot.Domain.Workspaces.Services;
 
 namespace SmallEBot.Services.Agent;
 

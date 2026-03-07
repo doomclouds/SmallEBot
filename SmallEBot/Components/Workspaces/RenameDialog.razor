@@ -10,11 +10,11 @@
                       Immediate="true" />
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton OnClick="@Cancel">Cancel</MudButton>
         <MudButton Variant="Variant.Filled"
                    Color="Color.Primary"
-                   OnClick="Rename"
-                   Disabled="string.IsNullOrWhiteSpace(_newName) || _newName == OriginalName">Rename</MudButton>
+                   OnClick="@Rename"
+                   Disabled="@(string.IsNullOrWhiteSpace(_newName) || _newName == OriginalName)">Rename</MudButton>
     </DialogActions>
 </MudDialog>
 

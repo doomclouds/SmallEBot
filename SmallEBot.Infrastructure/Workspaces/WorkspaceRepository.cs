@@ -1,7 +1,8 @@
+// SmallEBot.Infrastructure/Workspaces/WorkspaceRepository.cs
 using SmallEBot.Domain.Workspaces;
 using SmallEBot.Domain.Workspaces.ValueObjects;
 
-namespace SmallEBot.Infrastructure.Persistence.Repositories;
+namespace SmallEBot.Infrastructure.Workspaces;
 
 /// <summary>
 /// File system implementation of IWorkspaceRepository.

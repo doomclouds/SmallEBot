@@ -1,9 +1,7 @@
-@using SmallEBot.Application.Contracts.Workspace
-
 @if (Node.IsDirectory)
 {
     <div class="workspace-tree-folder">
-        <div class="workspace-tree-row" @onclick="ToggleExpand">
+        <div class="workspace-tree-row" @onclick="@ToggleExpand">
             <MudIcon Icon="@(Expanded ? Icons.Material.Filled.ExpandMore : Icons.Material.Filled.ChevronRight)" Size="Size.Small" />
             <MudIcon Icon="@Icons.Material.Filled.Folder" Size="Size.Small" />
             <MudText Typo="Typo.body2">@Node.Name</MudText>
@@ -13,7 +11,7 @@
             <div class="workspace-tree-children">
                 @foreach (var child in Node.Children)
                 {
-                    <WorkspaceTreeItem Node="@child" OnFileSelected="OnFileSelected" OnDeleteRequested="OnDeleteRequested" />
+                    <WorkspaceTreeItem Node="@child" OnFileSelected="@OnFileSelected" OnDeleteRequested="@OnDeleteRequested" />
                 }
             </div>
         }

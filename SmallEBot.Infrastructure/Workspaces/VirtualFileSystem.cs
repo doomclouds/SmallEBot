@@ -1,11 +1,10 @@
-// SmallEBot.Infrastructure/Services/Workspace/VirtualFileSystem.cs
+// SmallEBot.Infrastructure/Workspaces/VirtualFileSystem.cs
 using System.Security;
 using Microsoft.Extensions.Logging;
-using SmallEBot.Core;
-using SmallEBot.Domain.Workspaces.Services;
+using SmallEBot.Domain.Workspaces;
 using SmallEBot.Domain.Workspaces.ValueObjects;
 
-namespace SmallEBot.Infrastructure.Services.Workspace;
+namespace SmallEBot.Infrastructure.Workspaces;
 
 /// <summary>
 /// Virtual file system implementation using physical file system.
