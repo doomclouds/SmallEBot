@@ -1,4 +1,8 @@
 @using System.IO
+@using WorkspaceNode = SmallEBot.Services.Workspace.WorkspaceNode
+@using IWorkspaceService = SmallEBot.Services.Workspace.IWorkspaceService
+@using IWorkspaceWatcher = SmallEBot.Services.Workspace.IWorkspaceWatcher
+@using WorkspaceChangeEvent = SmallEBot.Services.Workspace.WorkspaceChangeEvent
 @implements IDisposable
 @inject IWorkspaceService WorkspaceService
 @inject IWorkspaceWatcher WorkspaceWatcher

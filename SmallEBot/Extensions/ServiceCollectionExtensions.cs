@@ -8,7 +8,6 @@ using Microsoft.AspNetCore.Components.Server.Circuits;
 using SmallEBot.Services.Circuit;
 using SmallEBot.Services.Terminal;
 using SmallEBot.Services.User;
-using SmallEBot.Services.Workspace;
 using SmallEBot.Services.Context;
 using SmallEBot.Services.Agent.Tools;
 using SmallEBot.Components.Chat.Services;
@@ -22,7 +21,14 @@ using SmallEBot.Application.Contracts.Conversation;
 using SmallEBot.Application.Contracts.Session;
 using SmallEBot.Application.Contracts.Streaming;
 using SmallEBot.Application.Contracts.User;
-using SmallEBot.Application.Contracts.Workspace;
+using IWorkspaceService = SmallEBot.Services.Workspace.IWorkspaceService;
+using WorkspaceService = SmallEBot.Services.Workspace.WorkspaceService;
+using IWorkspaceWatcher = SmallEBot.Services.Workspace.IWorkspaceWatcher;
+using WorkspaceWatcher = SmallEBot.Services.Workspace.WorkspaceWatcher;
+using IVirtualFileSystem = SmallEBot.Services.Workspace.IVirtualFileSystem;
+using VirtualFileSystem = SmallEBot.Services.Workspace.VirtualFileSystem;
+using IWorkspaceUploadService = SmallEBot.Application.Contracts.Workspace.IWorkspaceUploadService;
+using WorkspaceUploadService = SmallEBot.Services.Workspace.WorkspaceUploadService;
 
 namespace SmallEBot.Extensions;
 

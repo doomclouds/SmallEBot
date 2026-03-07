@@ -1,0 +1,44 @@
+@* SmallEBot/Components/Workspace/RenameDialog.razor *@
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">Rename</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_newName"
+                      Label="New name"
+                      Variant="Variant.Outlined"
+                      Immediate="true" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   OnClick="Rename"
+                   Disabled="string.IsNullOrWhiteSpace(_newName) || _newName == OriginalName">Rename</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    public IMudDialogInstance Dialog { get; set; } = null!;
+
+    [Parameter]
+    public string OriginalName { get; set; } = "";
+
+    private string _newName = "";
+
+    protected override void OnInitialized()
+    {
+        _newName = OriginalName;
+    }
+
+    private void Rename()
+    {
+        if (!string.IsNullOrWhiteSpace(_newName) && _newName != OriginalName)
+        {
+            Dialog.Close(DialogResult.Ok(_newName.Trim()));
+        }
+    }
+
+    private void Cancel() => Dialog.Cancel();
+}
