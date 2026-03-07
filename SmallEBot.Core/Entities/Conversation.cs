@@ -25,5 +25,5 @@ public class Conversation
     public DateTime? CompressedAt { get; set; }
 
     // Navigation properties removed - message data now stored in AgentSession
-    // Turn metadata stored in ConversationMetadata.Turns
+    // Turn metadata stored in Domain.Conversations.ConversationMetadata.Turns
 }
