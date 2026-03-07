@@ -2,6 +2,7 @@
   <Project Path="SmallEBot.Core/SmallEBot.Core.csproj" />
   <Project Path="SmallEBot.Application.Contracts/SmallEBot.Application.Contracts.csproj" />
   <Project Path="SmallEBot.Application/SmallEBot.Application.csproj" />
+  <Project Path="SmallEBot.Domain/SmallEBot.Domain.csproj" />
   <Project Path="SmallEBot.Infrastructure/SmallEBot.Infrastructure.csproj" />
   <Project Path="SmallEBot/SmallEBot.csproj" />
 </Solution>
