@@ -39,35 +39,52 @@ public sealed class UserPreferenceRepository : IUserPreferenceRepository, IDispo
     {
         ThrowIfDisposed();
 
-        // Double-checked locking with upgradeable read lock for lazy loading
         _lock.EnterUpgradeableReadLock();
         try
         {
+            // First check (under upgradeable read lock)
             if (_cache is not null)
             {
                 return _cache;
             }
 
-            var filePath = GetSettingsFilePath();
-
-            if (!File.Exists(filePath))
+            // Upgrade to write lock
+            _lock.EnterWriteLock();
+            try
             {
-                // Return default preference if file doesn't exist
-                _cache = new UserPreference();
-                return _cache;
+                // Second check - must re-check after acquiring write lock!
+                if (_cache is not null)
+                {
+                    return _cache;
+                }
+
+                var filePath = GetSettingsFilePath();
+
+                if (!File.Exists(filePath))
+                {
+                    _cache = new UserPreference();
+                    return _cache;
+                }
+
+                try
+                {
+                    var json = await File.ReadAllTextAsync(filePath, ct).ConfigureAwait(false);
+                    var dto = JsonSerializer.Deserialize<UserPreferenceDto>(json, _jsonOptions);
+
+                    _cache = dto is not null ? MapToEntity(dto) : new UserPreference();
+                    return _cache;
+                }
+                catch (JsonException)
+                {
+                    // Handle corrupted JSON gracefully
+                    _cache = new UserPreference();
+                    return _cache;
+                }
             }
-
-            var json = await File.ReadAllTextAsync(filePath, ct).ConfigureAwait(false);
-            var dto = JsonSerializer.Deserialize<UserPreferenceDto>(json, _jsonOptions);
-
-            if (dto is null)
+            finally
             {
-                _cache = new UserPreference();
-                return _cache;
+                _lock.ExitWriteLock();
             }
-
-            _cache = MapToEntity(dto);
-            return _cache;
         }
         finally
         {
