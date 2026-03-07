@@ -1,17 +1,7 @@
 using SmallEBot.Domain.Common.Services;
 using Tokenizers.DotNet;
 
-namespace SmallEBot.Services.Agent;
-
-/// <summary>
-/// Extended tokenizer interface with encoding/decoding capabilities.
-/// Inherit from domain ITokenizer for backward compatibility.
-/// </summary>
-public interface IFullTokenizer : ITokenizer
-{
-    List<int> Encode(string text);
-    string Decode(List<int> tokens);
-}
+namespace SmallEBot.Infrastructure.Services;
 
 /// <summary>
 /// DeepSeek v3 Tokenizer implementation, using Tokenizers.DotNet library to load tokenizer.json
@@ -52,18 +42,18 @@ public class DeepSeekTokenizer : IFullTokenizer, IDisposable
             // If relative path, relative to running directory
             tokenizerPath = Path.Combine(Directory.GetCurrentDirectory(), tokenizerJsonPath);
         }
-        
+
         // Check if file exists
         if (!File.Exists(tokenizerPath))
         {
             throw new FileNotFoundException(
                 $"Tokenizer file not found: {tokenizerPath}. Please ensure tokenizer.json file exists at the specified location.");
         }
-        
+
         // Load tokenizer using Tokenizers.DotNet
         _tokenizer = new Tokenizer(vocabPath: tokenizerPath);
     }
-    
+
     /// <summary>
     /// Encode text to token ID list
     /// </summary>
@@ -75,12 +65,12 @@ public class DeepSeekTokenizer : IFullTokenizer, IDisposable
         {
             return [];
         }
-        
+
         // Tokenizers.DotNet Encode returns uint[], need to convert to List<int>
         var tokens = _tokenizer.Encode(text);
         return tokens.Select(t => (int)t).ToList();
     }
-    
+
     /// <summary>
     /// Decode token ID list to text
     /// </summary>
@@ -92,12 +82,12 @@ public class DeepSeekTokenizer : IFullTokenizer, IDisposable
         {
             return string.Empty;
         }
-        
+
         // Tokenizers.DotNet Decode accepts uint[] parameter
         var uintTokens = tokens.Select(t => (uint)t).ToArray();
         return _tokenizer.Decode(uintTokens);
     }
-    
+
     /// <summary>
     /// Count tokens in text
     /// </summary>
@@ -107,7 +97,7 @@ public class DeepSeekTokenizer : IFullTokenizer, IDisposable
     {
         return string.IsNullOrEmpty(text) ? 0 : Encode(text).Count;
     }
-    
+
     /// <summary>
     /// Dispose resources
     /// </summary>
@@ -116,14 +106,3 @@ public class DeepSeekTokenizer : IFullTokenizer, IDisposable
         _tokenizer.Dispose();
     }
 }
-
-/// <summary>
-/// Fallback token estimator when tokenizer.json is not available. Uses ~4 chars per token.
-/// </summary>
-public class CharEstimateTokenizer : IFullTokenizer
-{
-    public List<int> Encode(string text) => throw new NotSupportedException("CharEstimateTokenizer does not support Encode.");
-    public string Decode(List<int> tokens) => throw new NotSupportedException("CharEstimateTokenizer does not support Decode.");
-    public int CountTokens(string text) => (int)Math.Ceiling(text.Length / 4.0);
-}
-

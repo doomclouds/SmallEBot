@@ -1,4 +1,4 @@
-namespace SmallEBot.Models;
+namespace SmallEBot.Core.Models;
 
 /// <summary>Base type for chat attachment items shown as chips (resolved path or pending upload).</summary>
 public abstract record AttachmentItem;

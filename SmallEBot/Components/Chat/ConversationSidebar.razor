@@ -1,7 +1,8 @@
 @using SmallEBot.Core.Entities
+@using SmallEBot.Application.User
 @implements IDisposable
 @inject ConversationService ConvSvc
-@inject UserNameService UserNameSvc
+@inject IUserNameProvider UserNameSvc
 @inject IDialogService DialogSvc
 @inject ISnackbar Snackbar
 

@@ -2,7 +2,7 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
-using SmallEBot.Models;
+using SmallEBot.Core.Models;
 
 namespace SmallEBot.Components.Chat;
 

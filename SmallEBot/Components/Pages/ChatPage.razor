@@ -2,7 +2,8 @@
 @layout MainLayout
 @using SmallEBot.Core.Entities
 @using SmallEBot.Core.Models
-@inject UserNameService UserNameSvc
+@using SmallEBot.Application.User
+@inject IUserNameProvider UserNameSvc
 @inject ConversationService ConvSvc
 @inject IDialogService DialogSvc
 @inject ICurrentConversationService CurrentConversation
