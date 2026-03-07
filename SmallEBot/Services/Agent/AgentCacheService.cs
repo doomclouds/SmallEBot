@@ -6,6 +6,7 @@ using SmallEBot.Application.Contracts.Session;
 using SmallEBot.Application.Conversations;
 using SmallEBot.Core.Models;
 using SmallEBot.Domain.Common.Services;
+using SmallEBot.Domain.Conversations;
 
 namespace SmallEBot.Services.Agent;
 
@@ -15,7 +16,7 @@ public class AgentCacheService(
     IAgentBuilder agentBuilder,
     ITokenizer tokenizer,
     IAgentConfigService agentConfig,
-    ISessionFileService sessionFileService) : IAsyncDisposable, IContextUsageEstimator
+    IConversationMetadataRepository metadataRepository) : IAsyncDisposable, IContextUsageEstimator
 {
     private const string FallbackSystemPromptForTokenCount = "You are SmallEBot, a helpful personal assistant. Be concise and friendly. When the user asks for the current time or date, use the GetCurrentTime tool. Use any other available MCP tools when they help answer the user.";
 
@@ -25,7 +26,7 @@ public class AgentCacheService(
     public async Task<ContextUsageEstimate?> GetEstimatedContextUsageDetailAsync(Guid conversationId, CancellationToken ct = default)
     {
         // Get metadata to check CompressedAt
-        var metadata = await sessionFileService.LoadAsync(conversationId, ct);
+        var metadata = await metadataRepository.GetByIdAsync(conversationId, ct);
 
         // Get messages from AgentSession
         var allMessages = await sessionReader.GetMessagesAsync(conversationId, ct);

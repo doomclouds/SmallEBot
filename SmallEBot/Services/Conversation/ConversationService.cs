@@ -4,65 +4,54 @@ using Microsoft.Extensions.AI;
 using SmallEBot.Application.Contracts.Session;
 using SmallEBot.Core;
 using SmallEBot.Core.Models;
+using SmallEBot.Domain.Conversations;
 using ConversationEntity = SmallEBot.Core.Entities.Conversation;
 
 namespace SmallEBot.Services.Conversation;
 
-/// <summary>UI facade for conversation operations. Uses file-based session services.</summary>
+/// <summary>UI facade for conversation operations. Uses IConversationMetadataRepository.</summary>
 public class ConversationService(
     IAgentSessionReader sessionReader,
-    ISessionFileService sessionFileService,
-    ISessionManager sessionManager)
+    IConversationMetadataRepository metadataRepository)
 {
     public async Task<ConversationEntity?> GetByIdAsync(Guid id, string userName, CancellationToken ct = default)
     {
-        var metadata = await sessionFileService.LoadAsync(id, ct);
+        var metadata = await metadataRepository.GetByIdAsync(id, ct);
         if (metadata == null || metadata.UserName != userName) return null;
         return ToEntity(metadata);
     }
 
     public async Task<List<ConversationEntity>> GetListAsync(string userName, CancellationToken ct = default)
     {
-        var summaries = await sessionFileService.ListAsync(userName, ct);
-        return summaries.Select(s => new ConversationEntity
-        {
-            Id = s.Id,
-            Title = s.Title,
-            UserName = userName,
-            UpdatedAt = s.UpdatedAt
-        }).ToList();
+        var list = await metadataRepository.GetByUserNameAsync(userName, ct);
+        return list.Select(ToEntity).ToList();
     }
 
     public async Task<List<ConversationEntity>> SearchAsync(string userName, string query, bool includeContent = false, CancellationToken ct = default)
     {
-        var summaries = await sessionFileService.SearchAsync(userName, query, ct);
-        return summaries.Select(s => new ConversationEntity
-        {
-            Id = s.Id,
-            Title = s.Title,
-            UserName = userName,
-            UpdatedAt = s.UpdatedAt
-        }).ToList();
+        var list = await metadataRepository.SearchAsync(userName, query, ct);
+        return list.Select(ToEntity).ToList();
     }
 
     public async Task<ConversationEntity> CreateAsync(string userName, string title, CancellationToken ct = default)
     {
-        var metadata = await sessionManager.CreateConversationAsync(userName, title, ct);
+        var metadata = Domain.Conversations.ConversationMetadata.Create(userName, title);
+        await metadataRepository.SaveAsync(metadata, ct);
         return ToEntity(metadata);
     }
 
     public async Task<bool> DeleteAsync(Guid id, string userName, CancellationToken ct = default)
     {
-        var metadata = await sessionFileService.LoadAsync(id, ct);
+        var metadata = await metadataRepository.GetByIdAsync(id, ct);
         if (metadata == null || metadata.UserName != userName) return false;
-        await sessionFileService.DeleteAsync(id, ct);
+        await metadataRepository.DeleteAsync(id, ct);
         return true;
     }
 
     /// <summary>Get chat bubbles from a conversation's AgentSession.</summary>
     public async Task<List<ChatBubble>> GetChatBubblesAsync(Guid conversationId, CancellationToken ct = default)
     {
-        var metadata = await sessionFileService.LoadAsync(conversationId, ct);
+        var metadata = await metadataRepository.GetByIdAsync(conversationId, ct);
         if (metadata == null) return [];
 
         var messages = await sessionReader.GetMessagesAsync(conversationId, ct);
@@ -156,7 +145,7 @@ public class ConversationService(
         return ConversationBubbleHelper.BuildBubblesFromTimeline(turns);
     }
 
-    private static ConversationEntity ToEntity(ConversationMetadata metadata) => new()
+    private static ConversationEntity ToEntity(Domain.Conversations.ConversationMetadata metadata) => new()
     {
         Id = metadata.Id,
         Title = metadata.Title,

@@ -17,13 +17,11 @@ using Microsoft.Agents.AI;
 using SmallEBot.Application.Contracts.Agents;
 using SmallEBot.Application.Contracts.Context;
 using SmallEBot.Application.Contracts.Conversations;
-using SmallEBot.Application.Contracts.Session;
 using SmallEBot.Application.Contracts.Streaming;
 using SmallEBot.Application.Contracts.UserPreferences;
 using SmallEBot.Application.Contracts.Workspaces;
 using SmallEBot.Application.Workspaces;
 using SmallEBot.Infrastructure.Workspaces;
-using SmallEBot.Services.Session;
 
 namespace SmallEBot.Extensions;
 
@@ -35,12 +33,8 @@ public static class ServiceCollectionExtensions
         var baseDir = AppDomain.CurrentDomain.BaseDirectory;
         var dbPath = Path.Combine(baseDir, "smallebot.db");
 
-        // File-based session services
-        services.AddSingleton<ISessionFileService, SessionFileService>();
-        // IAgentSessionReader is registered in Infrastructure.AddInfrastructure
-        services.AddScoped<SessionManager>();
-        services.AddScoped<ISessionManager>(sp => sp.GetRequiredService<SessionManager>());
-        services.AddScoped<ISessionAgentManager>(sp => sp.GetRequiredService<SessionManager>());
+        // IConversationSessionCoordinator and IAgentSessionReader are registered in Infrastructure.AddInfrastructure
+        // IConversationMetadataRepository is registered in Infrastructure.AddInfrastructure
 
         services.AddSingleton<IConversationTaskContext, ConversationTaskContext>();
         services.AddSingleton<ICurrentConversationService, CurrentConversationService>();
