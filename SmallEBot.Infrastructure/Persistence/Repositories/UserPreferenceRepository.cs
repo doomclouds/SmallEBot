@@ -175,6 +175,6 @@ public sealed class UserPreferenceRepository : IUserPreferenceRepository, IDispo
         public string? UserName { get; set; }
         public string Theme { get; set; } = UserPreference.DefaultThemeId;
         public bool UseThinkingMode { get; set; } = true;
-        public bool ShowToolCalls { get; set; } = false;
+        public bool ShowToolCalls { get; set; }
     }
 }

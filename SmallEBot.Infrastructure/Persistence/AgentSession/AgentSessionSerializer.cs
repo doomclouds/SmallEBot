@@ -8,14 +8,9 @@ namespace SmallEBot.Infrastructure.Persistence.AgentSession;
 /// Serializes and deserializes AgentSession using AIAgent's serialization API.
 /// Note: Serialization methods are on AIAgent, not AgentSession itself.
 /// </summary>
-public class AgentSessionSerializer
+public class AgentSessionSerializer(AIAgent agent)
 {
-    private readonly AIAgent _agent;
-
-    public AgentSessionSerializer(AIAgent agent)
-    {
-        _agent = agent ?? throw new ArgumentNullException(nameof(agent));
-    }
+    private readonly AIAgent _agent = agent ?? throw new ArgumentNullException(nameof(agent));
 
     /// <summary>
     /// Serializes an AgentSession to JsonElement using the AIAgent's API.

@@ -28,31 +28,28 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(basePath);
 
         // Repositories (file-based, no external dependencies)
-        services.AddSingleton<IAgentConfigRepository>(sp =>
+        services.AddSingleton<IAgentConfigRepository>(_ =>
             new AgentConfigRepository(basePath));
 
-        services.AddSingleton<IConversationMetadataRepository>(sp =>
+        services.AddSingleton<IConversationMetadataRepository>(_ =>
             new ConversationMetadataRepository(basePath));
 
-        services.AddSingleton<IUserPreferenceRepository>(sp =>
+        services.AddSingleton<IUserPreferenceRepository>(_ =>
             new UserPreferenceRepository(basePath));
 
-        services.AddSingleton<IWorkspaceRepository>(sp =>
+        services.AddSingleton<IWorkspaceRepository>(_ =>
             new WorkspaceRepository(basePath));
 
         // AgentSession storage - requires AIAgent for serialization
-        // Note: AgentSessionSerializer needs AIAgent, so it's a transient dependency
+        // Note: AgentSessionSerializer needs AIAgent, so it's resolved lazily via IServiceProvider
+        // to avoid Singleton capturing a Transient/Scoped dependency.
         services.AddTransient<AgentSessionSerializer>(sp =>
         {
             var agent = sp.GetRequiredService<AIAgent>();
             return new AgentSessionSerializer(agent);
         });
 
-        services.AddSingleton<IAgentSessionStore>(sp =>
-        {
-            var serializer = sp.GetRequiredService<AgentSessionSerializer>();
-            return new AgentSessionStore(basePath, serializer);
-        });
+        services.AddSingleton<IAgentSessionStore>(sp => new AgentSessionStore(basePath, sp));
 
         return services;
     }

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using AIAgentSession = Microsoft.Agents.AI.AgentSession;
 
 namespace SmallEBot.Infrastructure.Persistence.AgentSession;
@@ -10,7 +11,7 @@ namespace SmallEBot.Infrastructure.Persistence.AgentSession;
 public sealed class AgentSessionStore : IAgentSessionStore
 {
     private readonly string _basePath;
-    private readonly AgentSessionSerializer _serializer;
+    private readonly IServiceProvider _serviceProvider;
     private readonly ReaderWriterLockSlim _lock = new();
     private bool _disposed;
 
@@ -18,11 +19,20 @@ public sealed class AgentSessionStore : IAgentSessionStore
     /// Initializes a new instance of AgentSessionStore.
     /// </summary>
     /// <param name="basePath">The base path for storing session data (application root directory).</param>
-    /// <param name="serializer">The serializer for AgentSession objects.</param>
-    public AgentSessionStore(string basePath, AgentSessionSerializer serializer)
+    /// <param name="serviceProvider">The service provider for resolving AgentSessionSerializer (scoped dependency).</param>
+    public AgentSessionStore(string basePath, IServiceProvider serviceProvider)
     {
         _basePath = basePath ?? throw new ArgumentNullException(nameof(basePath));
-        _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
+        _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
+    }
+
+    /// <summary>
+    /// Gets a fresh AgentSessionSerializer from the current scope.
+    /// This ensures we always use the current AIAgent instance.
+    /// </summary>
+    private AgentSessionSerializer GetSerializer()
+    {
+        return _serviceProvider.GetRequiredService<AgentSessionSerializer>();
     }
 
     /// <inheritdoc />
@@ -40,7 +50,8 @@ public sealed class AgentSessionStore : IAgentSessionStore
             }
 
             var json = await File.ReadAllTextAsync(filePath, ct).ConfigureAwait(false);
-            return await _serializer.DeserializeFromStringAsync(json, ct).ConfigureAwait(false);
+            var serializer = GetSerializer();
+            return await serializer.DeserializeFromStringAsync(json, ct).ConfigureAwait(false);
         }
         finally
         {
@@ -61,7 +72,8 @@ public sealed class AgentSessionStore : IAgentSessionStore
         try
         {
             Directory.CreateDirectory(directoryPath);
-            var json = await _serializer.SerializeToStringAsync(session, ct).ConfigureAwait(false);
+            var serializer = GetSerializer();
+            var json = await serializer.SerializeToStringAsync(session, ct).ConfigureAwait(false);
             await File.WriteAllTextAsync(filePath, json, ct).ConfigureAwait(false);
         }
         finally

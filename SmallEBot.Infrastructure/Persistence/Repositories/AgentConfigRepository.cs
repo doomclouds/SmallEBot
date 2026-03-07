@@ -74,7 +74,7 @@ public sealed class AgentConfigRepository : IAgentConfigRepository, IDisposable
         _lock.EnterReadLock();
         try
         {
-            return _cache.TryGetValue(id, out var agent) ? agent : null;
+            return _cache.GetValueOrDefault(id);
         }
         finally
         {

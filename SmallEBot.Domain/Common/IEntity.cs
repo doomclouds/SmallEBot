@@ -5,7 +5,7 @@ namespace SmallEBot.Domain.Common;
 /// Base interface for entities with identity.
 /// </summary>
 /// <typeparam name="TId">The type of the entity's identifier.</typeparam>
-public interface IEntity<TId> where TId : notnull
+public interface IEntity<out TId> where TId : notnull
 {
     TId Id { get; }
 }
