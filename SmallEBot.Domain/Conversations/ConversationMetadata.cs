@@ -42,6 +42,14 @@ public class ConversationMetadata(
     }
 
     /// <summary>
+    /// Creates a new conversation metadata with a specific ID (e.g. when creating from Core.Entities.Conversation).
+    /// </summary>
+    public static ConversationMetadata CreateWithId(Guid id, string userName, string title = "New conversation")
+    {
+        return new ConversationMetadata(id, title, userName, DateTime.UtcNow);
+    }
+
+    /// <summary>
     /// Adds a new turn.
     /// </summary>
     public TurnInfo AddTurn(int firstMessageIndex, string[]? attachedPaths = null, string[]? requestedSkillIds = null)

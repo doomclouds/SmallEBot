@@ -2,11 +2,13 @@ using Microsoft.Agents.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using SmallEBot.Application.Contracts.Conversations;
 using SmallEBot.Application.Contracts.Workspaces;
 using SmallEBot.Domain.Agents;
 using SmallEBot.Domain.Common.Services;
 using SmallEBot.Domain.Conversations;
 using SmallEBot.Domain.UserPreferences;
+using SmallEBot.Infrastructure.Conversations;
 using SmallEBot.Infrastructure.Persistence.AgentSession;
 using SmallEBot.Infrastructure.Persistence.Repositories;
 using SmallEBot.Infrastructure.UserPreferences;
@@ -53,6 +55,8 @@ public static class ServiceCollectionExtensions
         });
 
         services.AddSingleton<IAgentSessionStore>(sp => new AgentSessionStore(basePath, sp));
+
+        services.AddSingleton<IConversationSessionCoordinator, ConversationSessionCoordinator>();
 
         // Tokenizer services
         services.AddSingleton<ITokenizer>(sp =>
