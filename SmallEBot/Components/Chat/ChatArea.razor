@@ -216,7 +216,7 @@
         _bubbleCountBeforeSend = Bubbles.Count;
         StartWaitingCheckTimer();
         StateHasChanged();
-        await OnBeforeSend.InvokeAsync();
+        // Do not refresh before edit: current Bubbles are correct; refresh would reload non-truncated state and cause flash before OnEditSubmitted
         _ = RunReplaceStreamingLoopAsync(msg.Id, editResult.Content.Trim(), editResult.AttachedPaths, editResult.RequestedSkillIds);
     }
 
