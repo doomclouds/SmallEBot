@@ -28,12 +28,12 @@ else
             {
                 <div class="smallebot-chat-page">
                     <div class="smallebot-chat-outer">
-                        <ChatArea Bubbles="@_bubbles"
-                                  ConversationId="_selectedConversation.Id"
-                                  UserName="_userName"
-                                  OnMessageSent="@RefreshSidebar"
-                                  OnEditSubmitted="@OnEditSubmitted"
-                                  OnBeforeSend="@RefreshCurrentConversation" />
+                        <ChatContent Bubbles="@_bubbles"
+                                    ConversationId="_selectedConversation.Id"
+                                    UserName="_userName"
+                                    OnMessageSent="@RefreshSidebar"
+                                    OnEditSubmitted="@OnEditSubmitted"
+                                    OnBeforeSend="@RefreshCurrentConversation" />
                     </div>
                 </div>
             }

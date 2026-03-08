@@ -111,6 +111,38 @@ public class InputOrchestrator
         OnStateChanged?.Invoke();
     }
 
+    /// <summary>Add a pending upload attachment (for drop zone).</summary>
+    public void AddPendingUpload(string uploadId, string fileName)
+    {
+        Attachments.Add(new PendingUploadAttachment(uploadId, fileName));
+        OnStateChanged?.Invoke();
+    }
+
+    /// <summary>Update progress of a pending upload.</summary>
+    public void ReportUploadProgress(string uploadId, int progress)
+    {
+        var pending = Attachments.OfType<PendingUploadAttachment>().FirstOrDefault(p => p.UploadId == uploadId);
+        if (pending != null)
+        {
+            pending.Progress = progress;
+            OnStateChanged?.Invoke();
+        }
+    }
+
+    /// <summary>Complete upload: remove pending, add resolved path, optionally replace old path.</summary>
+    public void OnUploadComplete(string uploadId, string path, string? replacedOldPath)
+    {
+        var idx = Attachments.FindIndex(x => x is PendingUploadAttachment p && p.UploadId == uploadId);
+        if (idx >= 0)
+            Attachments.RemoveAt(idx);
+        if (string.IsNullOrEmpty(path)) return;
+        if (!string.IsNullOrEmpty(replacedOldPath))
+            Attachments.RemoveAll(x => x is ResolvedPathAttachment r && r.Path == replacedOldPath);
+        if (Attachments.OfType<ResolvedPathAttachment>().All(r => r.Path != path))
+            Attachments.Add(new ResolvedPathAttachment(path));
+        OnStateChanged?.Invoke();
+    }
+
     public void ClosePopover()
     {
         IsPopoverOpen = false;

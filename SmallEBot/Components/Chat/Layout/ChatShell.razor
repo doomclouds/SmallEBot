@@ -1,0 +1,14 @@
+@* Chat shell: layout with MessageArea and InputArea slots *@
+<div class="chat-shell" style="display: flex; flex-direction: column; height: 100%;">
+    <div class="chat-shell__messages" style="flex: 1; overflow: hidden; display: flex; flex-direction: column;">
+        @MessageArea
+    </div>
+    <div class="chat-shell__input">
+        @InputArea
+    </div>
+</div>
+
+@code {
+    [Parameter] public RenderFragment? MessageArea { get; set; }
+    [Parameter] public RenderFragment? InputArea { get; set; }
+}
