@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace SmallEBot.Services.Conversation;
+namespace SmallEBot.Core;
 
 /// <summary>Parses @path and /skillId tokens from chat input text.</summary>
 public static class AttachmentInputParser
