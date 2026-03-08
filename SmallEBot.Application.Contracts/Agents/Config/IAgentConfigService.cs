@@ -8,7 +8,7 @@ public interface IAgentConfigService
 {
     /// <summary>
     /// Maximum length for tool results before truncation.
-    /// Used by AgentRunnerAdapter for LLM history truncation.
+    /// Used for LLM history truncation.
     /// Default: 500.
     /// </summary>
     Task<int> GetToolResultMaxLengthAsync(CancellationToken ct = default);

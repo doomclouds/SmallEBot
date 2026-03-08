@@ -12,7 +12,8 @@ public interface IConversationService
     Task<List<ConversationDto>> SearchConversationsAsync(string userName, string query, CancellationToken cancellationToken = default);
     Task<ConversationDto?> GetConversationAsync(Guid id, string userName, CancellationToken cancellationToken = default);
     Task<bool> DeleteConversationAsync(Guid id, string userName, CancellationToken cancellationToken = default);
-    Task<int> GetMessageCountAsync(Guid conversationId, CancellationToken cancellationToken = default);
+    /// <summary>Returns the number of turns in the conversation. Use 0 to detect first message.</summary>
+    Task<int> GetTurnCountAsync(Guid conversationId, CancellationToken cancellationToken = default);
 
     /// <summary>Get chat bubbles from a conversation's AgentSession.</summary>
     Task<List<ChatBubble>> GetChatBubblesAsync(Guid conversationId, CancellationToken cancellationToken = default);

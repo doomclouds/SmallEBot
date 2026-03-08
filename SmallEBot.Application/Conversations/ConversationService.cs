@@ -51,7 +51,7 @@ public sealed class ConversationService(
         return true;
     }
 
-    public async Task<int> GetMessageCountAsync(Guid conversationId, CancellationToken cancellationToken = default)
+    public async Task<int> GetTurnCountAsync(Guid conversationId, CancellationToken cancellationToken = default)
     {
         return await metadataRepository.GetTurnCountAsync(conversationId, cancellationToken);
     }
@@ -76,33 +76,35 @@ public sealed class ConversationService(
             }
         }
 
-        int turnIndex = 0;
-        for (int i = 0; i < messages.Count; i++)
+        for (int turnIndex = 0; turnIndex < metadata.Turns.Count; turnIndex++)
         {
-            var msg = messages[i];
-            if (msg.Role != ChatRole.User) continue;
+            var turnMetadata = metadata.Turns[turnIndex];
+            var startIdx = turnMetadata.FirstMessageIndex;
+            var endIdx = turnIndex + 1 < metadata.Turns.Count
+                ? metadata.Turns[turnIndex + 1].FirstMessageIndex - 1
+                : messages.Count - 1;
 
-            var turnMetadata = turnIndex < metadata.Turns.Count ? metadata.Turns[turnIndex] : null;
-            turnIndex++;
+            if (startIdx < 0 || startIdx >= messages.Count) continue;
+            var userMsg = messages[startIdx];
+            if (userMsg.Role != ChatRole.User) continue;
 
             var userMessageInfo = new MessageInfo
             {
-                Id = turnMetadata?.Id ?? Guid.NewGuid(),
+                Id = turnMetadata.Id,
                 Role = "user",
-                Content = msg.Text,
-                CreatedAt = turnMetadata?.CreatedAt ?? DateTime.UtcNow,
+                Content = userMsg.Text,
+                CreatedAt = turnMetadata.CreatedAt,
                 IsEdited = false,
-                AttachedPaths = turnMetadata?.AttachedPaths ?? [],
-                RequestedSkillIds = turnMetadata?.RequestedSkillIds ?? []
+                AttachedPaths = turnMetadata.AttachedPaths ?? [],
+                RequestedSkillIds = turnMetadata.RequestedSkillIds ?? []
             };
 
             var assistantItems = new List<TimelineItem>();
             var isThinkingMode = false;
 
-            for (int j = i + 1; j < messages.Count; j++)
+            for (int j = startIdx + 1; j <= endIdx && j < messages.Count; j++)
             {
                 var nextMsg = messages[j];
-                if (nextMsg.Role == ChatRole.User) break;
                 if (nextMsg.Role == ChatRole.System) continue;
 
                 if (nextMsg.Role == ChatRole.Assistant)
@@ -132,7 +134,7 @@ public sealed class ConversationService(
                 }
             }
 
-            turns.Add((turnMetadata?.Id ?? Guid.NewGuid(), isThinkingMode, userMessageInfo, assistantItems));
+            turns.Add((turnMetadata.Id, isThinkingMode, userMessageInfo, assistantItems));
         }
 
         return ConversationBubbleHelper.BuildBubblesFromTimeline(turns);

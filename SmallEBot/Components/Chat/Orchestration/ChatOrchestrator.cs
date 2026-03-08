@@ -53,11 +53,16 @@ public class ChatOrchestrator : IDisposable
     public bool IsStreaming { get; private set; }
     public bool IsCompressing { get; private set; }
     public bool IsWaitingForApproval { get; private set; }
+    /// <summary>CallId of the approval currently being processed. Only that block's buttons are disabled; new approval requests remain clickable.</summary>
+    public string? ApprovalProcessingCallId { get; private set; }
     public bool ShowWaitingForToolParams { get; private set; }
     public TimeSpan WaitingElapsed => ShowWaitingForToolParams && _waitingForToolParamsSince.HasValue
         ? DateTime.UtcNow - _waitingForToolParamsSince.Value
         : TimeSpan.Zero;
     public IReadOnlyList<IBubbleBlock> StreamItems { get; private set; } = [];
+    /// <summary>First pending approval for popover display. Null when none.</summary>
+    public ApprovalBlockModel? PendingApprovalForPopover =>
+        _pendingApprovals.Values.FirstOrDefault(a => a.State == ApprovalState.Pending);
     public string ContextPercentText { get; private set; } = "—";
     public string? ContextUsageTooltip { get; private set; }
     public string CompressionMessage { get; private set; } = "";
@@ -162,129 +167,17 @@ public class ChatOrchestrator : IDisposable
         }
     }
 
-    public async Task RunStreamingLoopAsync(
+    public Task RunStreamingLoopAsync(
         Guid turnId,
         string userMessage,
         bool useThinking,
         IReadOnlyList<string> attachedPaths,
         IReadOnlyList<string> requestedSkillIds,
         string? circuitContextId,
-        CancellationTokenSource sendCts)
-    {
-        var didPersist = false;
-        _sendCts = sendCts;
-        IsStreaming = true;
-        _streamingUpdates.Clear();
-        StreamItems = [];
-        _lastStreamActivityAt = null;
-        ShowWaitingForToolParams = false;
-        _pendingApprovals.Clear();
-        _approvalWaitHandles.Clear();
-        StartWaitingCheckTimer();
-        OnStateChanged?.Invoke();
+        CancellationTokenSource sendCts) =>
+        RunStreamingLoopCoreAsync(turnId, userMessage, useThinking, attachedPaths, requestedSkillIds, circuitContextId, sendCts, truncateFromTurnId: null, userNameForTruncate: null);
 
-        var channel = System.Threading.Channels.Channel.CreateUnbounded<StreamUpdate>();
-        var sink = new ChannelStreamSink(channel.Writer);
-        var runTask = _agentDispatcher
-            .StreamResponseAndCompleteAsync(ConversationId!.Value, turnId, userMessage, useThinking, sink, sendCts.Token, circuitContextId, attachedPaths, requestedSkillIds)
-            .ContinueWith(_ => channel.Writer.Complete());
-
-        try
-        {
-            await foreach (var update in channel.Reader.ReadAllAsync(sendCts.Token))
-            {
-                sendCts.Token.ThrowIfCancellationRequested();
-                _lastStreamActivityAt = DateTime.UtcNow;
-                ShowWaitingForToolParams = false;
-
-                switch (update)
-                {
-                    case TextStreamUpdate:
-                    case ThinkStreamUpdate:
-                    case ToolCallStreamUpdate:
-                        _streamingUpdates.Add(update);
-                        break;
-                    case ApprovalRequestStreamUpdate approval:
-                        _streamingUpdates.Add(update);
-                        _pendingApprovals[approval.CallId] = new ApprovalBlockModel(
-                            approval.CallId,
-                            approval.ToolName,
-                            approval.Arguments,
-                            ApprovalState.Pending,
-                            approval.ConversationId,
-                            approval.FunctionCallId,
-                            approval.RawArguments);
-                        break;
-                }
-                StreamItems = _presentation.ConvertStreamToBubbleBlocks(_streamingUpdates, _pendingApprovals);
-                OnStateChanged?.Invoke();
-            }
-            await runTask;
-            didPersist = true;
-
-            while (_pendingApprovals.Count > 0)
-            {
-                var pendingApproval = _pendingApprovals.Values.FirstOrDefault(a => a.State == ApprovalState.Pending);
-                if (pendingApproval == null) break;
-
-                var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-                _approvalWaitHandles[pendingApproval.CallId] = tcs;
-
-                using var cts = new CancellationTokenSource(ApprovalTimeout);
-                try
-                {
-                    var completedTask = await Task.WhenAny(tcs.Task, Task.Delay(Timeout.Infinite, cts.Token));
-                    if (completedTask == tcs.Task) { /* user responded */ }
-                    else
-                    {
-                        _pendingApprovals[pendingApproval.CallId] = pendingApproval with { State = ApprovalState.Rejected };
-                        await ShowMessageAsync("Approval request timed out after 5 minutes.", Severity.Warning);
-                        break;
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-                    _pendingApprovals[pendingApproval.CallId] = pendingApproval with { State = ApprovalState.Rejected };
-                    await ShowMessageAsync("Approval request timed out after 5 minutes.", Severity.Warning);
-                    break;
-                }
-                finally
-                {
-                    _approvalWaitHandles.Remove(pendingApproval.CallId);
-                }
-                StreamItems = _presentation.ConvertStreamToBubbleBlocks(_streamingUpdates, _pendingApprovals);
-                OnStateChanged?.Invoke();
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            channel.Writer.Complete();
-        }
-        catch (Exception ex)
-        {
-            await InvokeOnUIAsync(async () =>
-            {
-                await ShowMessageAsync($"Error: {ex.Message}", Severity.Error);
-            });
-            channel.Writer.Complete();
-        }
-        finally
-        {
-            StopWaitingCheckTimer();
-            _sendCts = null;
-            _pendingApprovals.Clear();
-            _approvalWaitHandles.Clear();
-            if (didPersist)
-                OnStreamingCompleted?.Invoke();
-            IsStreaming = false;
-            ShowWaitingForToolParams = false;
-            _streamingUpdates.Clear();
-            StreamItems = [];
-            OnStateChanged?.Invoke();
-        }
-    }
-
-    public async Task RunStreamingLoopForTurnAsync(
+    public Task RunStreamingLoopForTurnAsync(
         Guid turnId,
         string userMessage,
         bool useThinking,
@@ -293,7 +186,19 @@ public class ChatOrchestrator : IDisposable
         string? circuitContextId,
         CancellationTokenSource sendCts,
         Guid? truncateFromTurnId = null,
-        string? userNameForTruncate = null)
+        string? userNameForTruncate = null) =>
+        RunStreamingLoopCoreAsync(turnId, userMessage, useThinking, attachedPaths, requestedSkillIds, circuitContextId, sendCts, truncateFromTurnId, userNameForTruncate);
+
+    private async Task RunStreamingLoopCoreAsync(
+        Guid turnId,
+        string userMessage,
+        bool useThinking,
+        IReadOnlyList<string> attachedPaths,
+        IReadOnlyList<string> requestedSkillIds,
+        string? circuitContextId,
+        CancellationTokenSource sendCts,
+        Guid? truncateFromTurnId,
+        string? userNameForTruncate)
     {
         var didPersist = false;
         _sendCts = sendCts;
@@ -311,7 +216,7 @@ public class ChatOrchestrator : IDisposable
         var sink = new ChannelStreamSink(channel.Writer);
         var runTask = _agentDispatcher
             .StreamResponseAndCompleteAsync(ConversationId!.Value, turnId, userMessage, useThinking, sink, sendCts.Token, circuitContextId, attachedPaths, requestedSkillIds, truncateFromTurnId, userNameForTruncate)
-            .ContinueWith(_ => channel.Writer.Complete());
+            .ContinueWith(_ => channel.Writer.TryComplete(null));
 
         try
         {
@@ -351,13 +256,16 @@ public class ChatOrchestrator : IDisposable
                 var pendingApproval = _pendingApprovals.Values.FirstOrDefault(a => a.State == ApprovalState.Pending);
                 if (pendingApproval == null) break;
 
+                OnStateChanged?.Invoke();
+
                 var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
                 _approvalWaitHandles[pendingApproval.CallId] = tcs;
 
-                using var cts = new CancellationTokenSource(ApprovalTimeout);
+                using var timeoutCts = new CancellationTokenSource(ApprovalTimeout);
+                using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(sendCts.Token, timeoutCts.Token);
                 try
                 {
-                    var completedTask = await Task.WhenAny(tcs.Task, Task.Delay(Timeout.Infinite, cts.Token));
+                    var completedTask = await Task.WhenAny(tcs.Task, Task.Delay(Timeout.Infinite, linkedCts.Token));
                     if (completedTask == tcs.Task) { /* user responded */ }
                     else
                     {
@@ -368,6 +276,11 @@ public class ChatOrchestrator : IDisposable
                 }
                 catch (OperationCanceledException)
                 {
+                    if (sendCts.Token.IsCancellationRequested)
+                    {
+                        _pendingApprovals[pendingApproval.CallId] = pendingApproval with { State = ApprovalState.Rejected };
+                        break;
+                    }
                     _pendingApprovals[pendingApproval.CallId] = pendingApproval with { State = ApprovalState.Rejected };
                     await ShowMessageAsync("Approval request timed out after 5 minutes.", Severity.Warning);
                     break;
@@ -382,7 +295,7 @@ public class ChatOrchestrator : IDisposable
         }
         catch (OperationCanceledException)
         {
-            channel.Writer.Complete();
+            channel.Writer.TryComplete(null);
         }
         catch (Exception ex)
         {
@@ -390,7 +303,7 @@ public class ChatOrchestrator : IDisposable
             {
                 await ShowMessageAsync($"Error: {ex.Message}", Severity.Error);
             });
-            channel.Writer.Complete();
+            channel.Writer.TryComplete(null);
         }
         finally
         {
@@ -398,9 +311,9 @@ public class ChatOrchestrator : IDisposable
             _sendCts = null;
             _pendingApprovals.Clear();
             _approvalWaitHandles.Clear();
+            IsStreaming = false;
             if (didPersist)
                 OnStreamingCompleted?.Invoke();
-            IsStreaming = false;
             ShowWaitingForToolParams = false;
             _streamingUpdates.Clear();
             StreamItems = [];
@@ -415,6 +328,7 @@ public class ChatOrchestrator : IDisposable
         _pendingApprovals[approval.CallId] = approval with { State = ApprovalState.Approved };
         StreamItems = _presentation.ConvertStreamToBubbleBlocks(_streamingUpdates, _pendingApprovals);
         IsWaitingForApproval = true;
+        ApprovalProcessingCallId = approval.CallId;
         OnStateChanged?.Invoke();
 
         try
@@ -470,6 +384,7 @@ public class ChatOrchestrator : IDisposable
         {
             StopWaitingCheckTimer();
             IsWaitingForApproval = false;
+            ApprovalProcessingCallId = null;
             if (_approvalWaitHandles.TryGetValue(approval.CallId, out var tcs))
                 tcs.TrySetResult(true);
             OnStateChanged?.Invoke();
@@ -522,7 +437,7 @@ public class ChatOrchestrator : IDisposable
         if (conversationId != ConversationId) return;
         IsCompressing = false;
         CompressionMessage = success ? "Context compressed" : "Compression failed";
-        _ = Task.Run(async () =>
+        _ = InvokeOnUIAsync(async () =>
         {
             await Task.Delay(2000);
             CompressionMessage = "";

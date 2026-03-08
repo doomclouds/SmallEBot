@@ -1,0 +1,40 @@
+@* 右下角审批确认弹窗，不再在 AI 气泡内渲染 *@
+@using SmallEBot.Components.Chat.ViewModels.Blocks
+
+@if (Approval != null)
+{
+    <div class="smallebot-approval-popover">
+        <MudPaper Elevation="4" Class="pa-3 smallebot-approval-popover-paper">
+            <MudStack Spacing="2">
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                    <MudIcon Icon="@Icons.Material.Filled.Warning" Color="Color.Warning" />
+                    <MudText Typo="Typo.subtitle2">需要审批</MudText>
+                </MudStack>
+                <MudText Typo="Typo.body2" Color="Color.Primary">@Approval.ToolName</MudText>
+                @if (!string.IsNullOrEmpty(Approval.Arguments))
+                {
+                    <div class="smallebot-approval-args">
+                        <MudText Typo="Typo.caption" Style="white-space: pre-wrap; word-break: break-all; font-family: monospace;">
+                            @Approval.Arguments
+                        </MudText>
+                    </div>
+                }
+                <MudStack Row="true" Justify="Justify.FlexEnd" Spacing="2">
+                    <MudButton Variant="Variant.Outlined" Color="Color.Error"
+                               Disabled="@IsProcessing"
+                               OnClick="@(() => OnReject.InvokeAsync(Approval))">拒绝</MudButton>
+                    <MudButton Variant="Variant.Filled" Color="Color.Success"
+                               Disabled="@IsProcessing"
+                               OnClick="@(() => OnApprove.InvokeAsync(Approval))">允许</MudButton>
+                </MudStack>
+            </MudStack>
+        </MudPaper>
+    </div>
+}
+
+@code {
+    [Parameter] public ApprovalBlockModel? Approval { get; set; }
+    [Parameter] public EventCallback<ApprovalBlockModel> OnApprove { get; set; }
+    [Parameter] public EventCallback<ApprovalBlockModel> OnReject { get; set; }
+    [Parameter] public bool IsProcessing { get; set; }
+}

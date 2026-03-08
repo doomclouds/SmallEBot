@@ -66,6 +66,8 @@ public sealed class ConversationAgentDispatcher(
         var result = await conversationService.ReplaceUserMessageAsync(conversationId, userName, messageId, newContent, useThinking, attachedPaths, requestedSkillIds, cancellationToken);
         if (result == null) return;
 
+        await agentRunner.TruncateSessionFromTurnAsync(conversationId, userName, result.Value.TurnId, cancellationToken);
+
         var effectivePaths = attachedPaths ?? result.Value.AttachedPaths;
         var effectiveSkills = requestedSkillIds ?? result.Value.RequestedSkillIds;
 

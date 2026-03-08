@@ -254,6 +254,27 @@ html, body {
     margin-top: 0.75rem;
 }
 
+/* Approval popover: fixed bottom-right */
+.smallebot-approval-popover {
+    position: fixed;
+    bottom: 1rem;
+    right: 1rem;
+    z-index: 1100;
+}
+.smallebot-approval-popover-paper {
+    min-width: 480px;
+    max-width: 760px;
+    min-height: 200px;
+    max-height: 640px;
+}
+.smallebot-approval-args {
+    background: var(--mud-palette-background-grey);
+    padding: 8px;
+    border-radius: 4px;
+    max-height: 320px;
+    overflow-y: auto;
+}
+
 /* Sidebar */
 .smallebot-drawer {
     background: var(--seb-surface) !important;

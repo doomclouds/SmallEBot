@@ -23,11 +23,7 @@
                 case ReasoningBlockModel reasoning:
                     <ReasoningBlock Content="@reasoning.Content" />
                     break;
-                case ApprovalBlockModel approval:
-                    <ApprovalBlock Model="@approval"
-                                   OnApprove="@(() => OnApprove.InvokeAsync(approval))"
-                                   OnReject="@(() => OnReject.InvokeAsync(approval))"
-                                   IsProcessing="@IsApprovalProcessing" />
+                case ApprovalBlockModel:
                     break;
                 case WaitingBlockModel waiting:
                     <WaitingBlock Model="@waiting" OnCancel="@OnCancel" />
@@ -40,7 +36,7 @@
 @code {
     [Parameter] public IReadOnlyList<IBubbleBlock> Blocks { get; set; } = [];
     [Parameter] public string? Caption { get; set; }
-    [Parameter] public bool IsApprovalProcessing { get; set; }
+    [Parameter] public string? ApprovalProcessingCallId { get; set; }
     [Parameter] public EventCallback<ApprovalBlockModel> OnApprove { get; set; }
     [Parameter] public EventCallback<ApprovalBlockModel> OnReject { get; set; }
     [Parameter] public EventCallback OnCancel { get; set; }

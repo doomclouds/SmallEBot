@@ -29,6 +29,10 @@
 @implements IDisposable
 
 <MudPaper Class="pa-4 pb-1 smallebot-chat-paper" Elevation="0">
+    <ApprovalPopover Approval="@Orchestrator.PendingApprovalForPopover"
+                     OnApprove="@HandleApprove"
+                     OnReject="@HandleReject"
+                     IsProcessing="@(Orchestrator.ApprovalProcessingCallId != null)" />
     <ChatShell>
         <MessageArea>
             <MessageThread Bubbles="@Bubbles"
@@ -44,7 +48,7 @@
                            OnApprove="@HandleApprove"
                            OnReject="@HandleReject"
                            OnCancel="@HandleCancel"
-                           IsApprovalProcessing="@Orchestrator.IsWaitingForApproval"
+                           ApprovalProcessingCallId="@Orchestrator.ApprovalProcessingCallId"
                            @ref="_messageThreadRef" />
         </MessageArea>
         <InputArea>
@@ -207,17 +211,31 @@
 
     private async void HandleOrchestratorStateChanged()
     {
-        _streamingBlocks = Orchestrator.StreamItems;
-        await InvokeAsync(StateHasChanged);
-        _messageThreadRef?.RequestScrollToBottom();
+        try
+        {
+            _streamingBlocks = Orchestrator.StreamItems;
+            await InvokeAsync(StateHasChanged);
+            _messageThreadRef?.RequestScrollToBottom();
+        }
+        catch (Exception ex)
+        {
+            Log.LogWarning(ex, "HandleOrchestratorStateChanged failed");
+        }
     }
 
     private async void HandleStreamingCompleted()
     {
-        _pendingUserMessageText = "";
-        RefreshPendingMessage();
-        await OnMessageSent.InvokeAsync();
-        await InvokeAsync(StateHasChanged);
+        try
+        {
+            _pendingUserMessageText = "";
+            RefreshPendingMessage();
+            await OnMessageSent.InvokeAsync();
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            Log.LogWarning(ex, "HandleStreamingCompleted failed");
+        }
     }
 
     private async Task HandleEditMessage(MessageInfo msg)
@@ -243,6 +261,7 @@
             return;
         }
 
+        _sendCts?.Dispose();
         _sendCts = new CancellationTokenSource();
         var replaceResult = await ConversationService.ReplaceUserMessageAsync(ConversationId!.Value, _userNameForAction!, message.Id, editResult.Content.Trim(), UseThinkingMode, editResult.AttachedPaths, editResult.RequestedSkillIds, _sendCts.Token);
         if (replaceResult == null)
@@ -255,6 +274,7 @@
         await AgentDispatcher.TruncateSessionFromTurnAsync(ConversationId!.Value, _userNameForAction!, replaceResult.Value.TurnId, _sendCts.Token);
         var originalCreatedAt = (Bubbles.FirstOrDefault(b => b is UserBubbleModel ub && ub.Message.Id == replaceResult.Value.TurnId) as UserBubbleModel)?.Message.CreatedAt ?? DateTime.UtcNow;
         await OnEditSubmitted.InvokeAsync(new EditSubmittedArgs(replaceResult.Value.TurnId, replaceResult.Value.UserMessage, replaceResult.Value.AttachedPaths, replaceResult.Value.RequestedSkillIds, originalCreatedAt));
+        _bubbleCountBeforeSend = Bubbles.Count;
         await Orchestrator.RunStreamingLoopForTurnAsync(replaceResult.Value.TurnId, replaceResult.Value.UserMessage, UseThinkingMode, replaceResult.Value.AttachedPaths, replaceResult.Value.RequestedSkillIds, CircuitAccessor.CurrentCircuit?.Id, _sendCts, truncateFromTurnId: null, userNameForTruncate: null);
     }
 
@@ -297,9 +317,10 @@
         RefreshPendingMessage();
         await InvokeAsync(StateHasChanged);
 
+        _sendCts?.Dispose();
         _sendCts = new CancellationTokenSource();
         string? suggestedTitle = null;
-        if (await ConversationService.GetMessageCountAsync(ConversationId!.Value, _sendCts.Token) == 0)
+        if (await ConversationService.GetTurnCountAsync(ConversationId!.Value, _sendCts.Token) == 0)
             suggestedTitle = await AgentDispatcher.GenerateTitleAsync(text, _sendCts.Token);
         var turnId = await ConversationService.CreateTurnAndUserMessageAsync(ConversationId!.Value, userName, text, UseThinkingMode, _sendCts.Token, attachedPaths, requestedSkillIds, suggestedTitle);
         await Orchestrator.RunStreamingLoopAsync(turnId, text, UseThinkingMode, attachedPaths, requestedSkillIds, CircuitAccessor.CurrentCircuit?.Id, _sendCts);
@@ -311,6 +332,9 @@
 
     public void Dispose()
     {
+        _sendCts?.Cancel();
+        _sendCts?.Dispose();
+        _sendCts = null;
         _inputOrchestrator.OnStateChanged -= StateHasChanged;
         Orchestrator.OnStateChanged -= HandleOrchestratorStateChanged;
         Orchestrator.OnStreamingCompleted -= HandleStreamingCompleted;
