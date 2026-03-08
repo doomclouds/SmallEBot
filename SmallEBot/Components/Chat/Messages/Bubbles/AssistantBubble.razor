@@ -1,0 +1,47 @@
+@* Unified assistant bubble: renders persisted or streaming blocks via IBubbleBlock *@
+@using SmallEBot.Components.Chat.ViewModels.Blocks
+@using SmallEBot.Components.Chat.Messages.Blocks
+
+<MudChat ChatPosition="ChatBubblePosition.Start" ArrowPosition="ChatArrowPosition.Top" Class="mb-3 smallebot-bubble">
+    <MudChatBubble>
+        @if (!string.IsNullOrEmpty(Caption))
+        {
+            <MudText Typo="Typo.caption">@Caption</MudText>
+        }
+        @foreach (var block in Blocks)
+        {
+            @switch (block)
+            {
+                case TextBlock text:
+                    <div class="smallebot-reasoning-step">
+                        <MarkdownBlock Content="@text.Content" />
+                    </div>
+                    break;
+                case ToolCallBlockModel tool:
+                    <ToolCallBlock Model="@tool" OnCancel="@OnCancel" />
+                    break;
+                case ReasoningBlockModel reasoning:
+                    <ReasoningBlock Content="@reasoning.Content" />
+                    break;
+                case ApprovalBlockModel approval:
+                    <ApprovalBlock Model="@approval"
+                                   OnApprove="@(() => OnApprove.InvokeAsync(approval))"
+                                   OnReject="@(() => OnReject.InvokeAsync(approval))"
+                                   IsProcessing="@IsApprovalProcessing" />
+                    break;
+                case WaitingBlockModel waiting:
+                    <WaitingBlock Model="@waiting" OnCancel="@OnCancel" />
+                    break;
+            }
+        }
+    </MudChatBubble>
+</MudChat>
+
+@code {
+    [Parameter] public IReadOnlyList<IBubbleBlock> Blocks { get; set; } = [];
+    [Parameter] public string? Caption { get; set; }
+    [Parameter] public bool IsApprovalProcessing { get; set; }
+    [Parameter] public EventCallback<ApprovalBlockModel> OnApprove { get; set; }
+    [Parameter] public EventCallback<ApprovalBlockModel> OnReject { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+}
