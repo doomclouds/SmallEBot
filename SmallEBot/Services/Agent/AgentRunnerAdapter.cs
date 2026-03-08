@@ -8,7 +8,6 @@ using SmallEBot.Application.Contracts.Conversations.Session;
 using SmallEBot.Application.Contracts.Streaming;
 using SmallEBot.Domain.Conversations.Metadata;
 using SmallEBot.Core.Models;
-using SmallEBot.Services.Conversation;
 using ChatMessage = Microsoft.Extensions.AI.ChatMessage;
 
 namespace SmallEBot.Services.Agent;

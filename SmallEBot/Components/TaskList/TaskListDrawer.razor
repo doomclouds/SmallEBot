@@ -1,3 +1,4 @@
+@using System.IO
 @implements IDisposable
 @inject ICurrentConversationService CurrentConversation
 @inject ITaskListService TaskListService
@@ -106,8 +107,10 @@
     private async void HandleChange(TaskListChangeEvent e)
     {
         if (_conversationId == null) return;
-        var currentFile = _conversationId.Value.ToString("N") + ".json";
-        if (!string.Equals(e.RelativePath, currentFile, StringComparison.OrdinalIgnoreCase))
+        var expectedPath = Path.Combine("conversations", _conversationId.Value.ToString("N"), "tasks.json");
+        var normalizedEvent = e.RelativePath.Replace('\\', '/');
+        var normalizedExpected = expectedPath.Replace('\\', '/');
+        if (!string.Equals(normalizedEvent, normalizedExpected, StringComparison.OrdinalIgnoreCase))
             return;
         await InvokeAsync(async () =>
         {

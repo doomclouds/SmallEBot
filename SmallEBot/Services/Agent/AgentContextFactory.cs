@@ -1,7 +1,7 @@
 using SmallEBot.Application.Contracts.Agents;
 using SmallEBot.Core.Models;
 using SmallEBot.Domain.Conversations.Metadata;
-using SmallEBot.Services.Conversation;
+using SmallEBot.Application.Contracts.Conversations;
 using SmallEBot.Services.Skills;
 using SmallEBot.Services.Terminal;
 using Tn = SmallEBot.Services.Agent.Tools.BuiltInToolNames;
