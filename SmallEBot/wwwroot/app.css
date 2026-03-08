@@ -186,6 +186,16 @@ html, body {
 }
 
 /* Override MudChat bubble look for dark theme */
+/* AI bubble only: fixed width 95% */
+.smallebot-chat-paper .smallebot-assistant-bubble,
+.smallebot-chat-paper .smallebot-assistant-bubble .mud-chat-bubble {
+    max-width: 95% !important;
+    width: 95% !important;
+}
+.smallebot-chat-paper .smallebot-assistant-bubble .mud-chat-bubble .mud-chat-bubble-message {
+    max-width: 100% !important;
+    width: 100% !important;
+}
 .smallebot-chat-paper .mud-chat-bubble {
     background: var(--seb-chat-assistant) !important;
     border: 1px solid var(--seb-border);
@@ -220,6 +230,16 @@ html, body {
     color: var(--seb-text-secondary);
 }
 
+/* Reasoning block: reduce left margin so Thinking aligns with tool blocks; no right margin so arrow aligns with tool arrows */
+.reasoning-block {
+    margin-left: -16px;
+}
+.reasoning-block .mud-expansion-panel-header,
+.reasoning-block .mud-expand-panel .mud-expand-panel-header {
+    justify-content: flex-start !important;
+    text-align: left;
+    padding-left: 12px !important;
+}
 /* Reasoning expansion panel - align header with content below */
 .smallebot-reasoning-panel {
     margin-left: -16px;
@@ -252,6 +272,11 @@ html, body {
 /* Spacing between content blocks inside a bubble (text, tool views, etc.) */
 .smallebot-chat-paper .mud-chat-bubble .mud-chat-bubble-message > * + * {
     margin-top: 0.75rem;
+}
+/* Ensure markdown and reasoning content use full bubble width */
+.smallebot-chat-paper .mud-chat-bubble .markdown-body,
+.smallebot-chat-paper .mud-chat-bubble .smallebot-reasoning-step {
+    max-width: none !important;
 }
 
 /* Approval popover: fixed bottom-right */
@@ -511,6 +536,11 @@ h1:focus {
     width: 100%;
     max-width: 42em;
 }
+/* Chat bubbles: tool calls and content use full width */
+.smallebot-chat-paper .tool-call-view,
+.smallebot-chat-paper .tool-call-outer .tool-call-view {
+    max-width: none !important;
+}
 .tool-call-header-row {
     display: flex;
     align-items: center;
@@ -525,7 +555,7 @@ h1:focus {
 .tool-call-header-center {
     flex: 1;
     display: flex;
-    justify-content: center;
+    justify-content: flex-start;
     align-items: center;
 }
 .tool-call-view .tool-call-header-center .tool-call-status-text,
