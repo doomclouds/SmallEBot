@@ -1,6 +1,7 @@
 // SmallEBot/Components/Chat/Services/ChatPresentationService.cs
 
 using SmallEBot.Components.Chat.ViewModels;
+using SmallEBot.Components.Chat.ViewModels.Blocks;
 using SmallEBot.Components.Chat.ViewModels.Bubbles;
 using SmallEBot.Components.Chat.ViewModels.Reasoning;
 using SmallEBot.Components.Chat.ViewModels.Streaming;
@@ -374,6 +375,72 @@ public sealed class ChatPresentationService
         FlushTextBuffer(ref textBuffer, items, ref order);
 
         return items;
+    }
+
+    /// <summary>
+    /// Convert persisted AssistantBubbleView to IBubbleBlock list for unified rendering.
+    /// </summary>
+    public IReadOnlyList<IBubbleBlock> ConvertToBubbleBlocks(AssistantBubbleView bubble)
+    {
+        var blocks = new List<IBubbleBlock>();
+        foreach (var step in bubble.Steps)
+        {
+            if (step.IsThink && !string.IsNullOrEmpty(step.Text))
+                blocks.Add(new ReasoningBlockModel(step.Text));
+            else if (!string.IsNullOrEmpty(step.ToolName))
+                blocks.Add(new ToolCallBlockModel(
+                    CallId: "",
+                    Name: step.ToolName,
+                    Phase: step.Phase,
+                    Arguments: step.ToolArguments,
+                    Result: step.ToolResult,
+                    Error: null,
+                    Elapsed: step.Elapsed));
+            else if (!string.IsNullOrEmpty(step.Text))
+                blocks.Add(new TextBlock(step.Text));
+        }
+        return blocks;
+    }
+
+    /// <summary>
+    /// Convert streaming StreamItemView list to IBubbleBlock list for unified rendering.
+    /// </summary>
+    public IReadOnlyList<IBubbleBlock> ConvertStreamToBubbleBlocks(IReadOnlyList<StreamItemView> items)
+    {
+        var blocks = new List<IBubbleBlock>();
+        foreach (var item in items)
+        {
+            switch (item)
+            {
+                case ThinkItemView think:
+                    blocks.Add(new ReasoningBlockModel(think.Content));
+                    break;
+                case TextItemView text:
+                    blocks.Add(new TextBlock(text.Content));
+                    break;
+                case ToolCallItemView tc:
+                    blocks.Add(new ToolCallBlockModel(
+                        CallId: tc.CallId,
+                        Name: tc.ToolName,
+                        Phase: tc.Phase,
+                        Arguments: tc.Arguments,
+                        Result: tc.Result,
+                        Error: null,
+                        Elapsed: tc.Elapsed));
+                    break;
+                case ApprovalItemView approval:
+                    blocks.Add(new ApprovalBlockModel(
+                        CallId: approval.CallId,
+                        ToolName: approval.ToolName,
+                        Arguments: approval.Arguments,
+                        State: approval.State,
+                        ConversationId: approval.ConversationId,
+                        FunctionCallId: approval.FunctionCallId,
+                        RawArguments: approval.RawArguments));
+                    break;
+            }
+        }
+        return blocks;
     }
 
     private static void FlushTextBuffer(ref string? buffer, List<StreamItemView> items, ref int order)
