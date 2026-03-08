@@ -1,8 +1,7 @@
 using SmallEBot.Application.Contracts.Agents;
-using SmallEBot.Application.Contracts.Conversations;
 using SmallEBot.Core;
 
-namespace SmallEBot.Application.Conversations.TurnContext;
+namespace SmallEBot.Application.Agents.TurnContext;
 
 /// <summary>Builds per-turn context instructions (attached files + requested skills) for AIContextProvider. Includes emphasis so the model knows this applies to the current message only.</summary>
 public sealed class TurnContextFragmentBuilder(ISkillsConfigService skillsConfig) : ITurnContextFragmentBuilder

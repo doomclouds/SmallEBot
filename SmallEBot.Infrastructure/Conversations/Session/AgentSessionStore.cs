@@ -163,6 +163,43 @@ public sealed class AgentSessionStore : IAgentSessionStore
         }
     }
 
+    /// <inheritdoc />
+    public async Task TruncateBeforeIndexAsync(Guid conversationId, int firstMessageIndex, CancellationToken ct = default)
+    {
+        ThrowIfDisposed();
+        var filePath = GetSessionFilePath(conversationId);
+        if (!File.Exists(filePath)) return;
+        if (firstMessageIndex <= 0) return;
+
+        await _semaphore.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            var json = await File.ReadAllTextAsync(filePath, ct).ConfigureAwait(false);
+            var root = JsonNode.Parse(json);
+            if (root == null) return;
+
+            var messages = root["stateBag"]?["InMemoryChatHistoryProvider"]?["messages"] as JsonArray;
+            if (messages == null || firstMessageIndex > messages.Count)
+                return;
+
+            var truncated = new JsonArray();
+            for (var i = firstMessageIndex; i < messages.Count; i++)
+            {
+                var node = messages[i];
+                if (node != null)
+                    truncated.Add(node.DeepClone());
+            }
+            root["stateBag"]!["InMemoryChatHistoryProvider"]!["messages"] = truncated;
+
+            var options = new JsonSerializerOptions { WriteIndented = true };
+            await File.WriteAllTextAsync(filePath, root.ToJsonString(options), ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
+    }
+
     private string GetConversationDirectory(Guid conversationId)
     {
         return Path.Combine(_basePath, ".agents", "conversations", conversationId.ToString("N"));

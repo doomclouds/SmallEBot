@@ -1,6 +1,6 @@
 using SmallEBot.Core.Models;
 
-namespace SmallEBot.Application.Contracts.Streaming;
+namespace SmallEBot.Application.Contracts.Agents;
 
 /// <summary>Runs the agent and yields stream updates. Implemented by the host (uses IAgentBuilder, MCP, etc.).</summary>
 public interface IAgentRunner

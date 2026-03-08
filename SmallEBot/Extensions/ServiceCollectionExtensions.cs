@@ -1,3 +1,4 @@
+using SmallEBot.Application.Agents;
 using SmallEBot.Application.Conversations;
 using SmallEBot.Services.Agent;
 using SmallEBot.Services.Mcp;
@@ -7,22 +8,18 @@ using Microsoft.AspNetCore.Components.Server.Circuits;
 using SmallEBot.Services.Circuit;
 using SmallEBot.Services.Terminal;
 using SmallEBot.Application.UserPreferences;
-using SmallEBot.Services.Context;
 using SmallEBot.Services.Agent.Tools;
 using SmallEBot.Components.Chat.Services;
 using SmallEBot.Components.Chat.State;
 using SmallEBot.Infrastructure;
 using Microsoft.Agents.AI;
 using SmallEBot.Application.Contracts.Agents;
-using SmallEBot.Application.Contracts.Context;
 using SmallEBot.Application.Contracts.Conversations;
-using SmallEBot.Application.Contracts.Conversations.Compression;
-using SmallEBot.Application.Contracts.Conversations.Context;
-using SmallEBot.Application.Contracts.Streaming;
+using SmallEBot.Application.Contracts.Agents.Compression;
 using SmallEBot.Application.Contracts.UserPreferences;
 using SmallEBot.Application.Contracts.Workspaces;
+using SmallEBot.Domain.Workspaces;
 using SmallEBot.Application.Workspaces;
-using SmallEBot.Infrastructure.Workspaces;
 
 namespace SmallEBot.Extensions;
 
@@ -32,10 +29,9 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddSmallEBotHostServices(this IServiceCollection services, IConfiguration configuration)
     {
         var baseDir = AppDomain.CurrentDomain.BaseDirectory;
-        var dbPath = Path.Combine(baseDir, "smallebot.db");
 
-        // IConversationSessionCoordinator, IAgentSessionReader, IConversationTaskContext, ICurrentConversationService,
-        // ITaskListService, IConversationTaskContext, ICurrentConversationService are registered in Infrastructure.AddInfrastructure
+        // IConversationSessionCoordinator, IAgentSessionReader, IAmbientConversationId, ICurrentConversationService,
+        // ITaskListService, IAmbientConversationId, ICurrentConversationService are registered in Infrastructure.AddInfrastructure
         // IConversationMetadataRepository is registered in Infrastructure.AddInfrastructure
 
         services.AddSingleton<ICommandRunner, CommandRunner>();
@@ -46,6 +42,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IMcpToolsLoaderService, McpToolsLoaderService>();
         services.AddScoped<IAgentContextFactory, AgentContextFactory>();
         services.AddSingleton<IToolProvider, TimeToolProvider>();
+        services.AddSingleton<IWorkspaceReadOnlyPolicy, WorkspaceReadOnlyPolicy>();
         services.AddSingleton<IToolProvider, FileToolProvider>();
         services.AddSingleton<IToolProvider, SearchToolProvider>();
         services.AddSingleton<IToolProvider, ShellToolProvider>();
@@ -74,9 +71,10 @@ public static class ServiceCollectionExtensions
         // Infrastructure layer (repositories, AgentSessionStore)
         services.AddInfrastructure(baseDir);
 
-        services.AddScoped<IAgentConversationService, AgentConversationService>();
+        services.AddScoped<IConversationService, ConversationService>();
+        services.AddScoped<IConversationAgentExecutor, ConversationAgentExecutor>();
         services.AddScoped<IAgentRunner, AgentRunnerAdapter>();
-        services.AddScoped<ITurnContextFragmentBuilder, SmallEBot.Application.Conversations.TurnContext.TurnContextFragmentBuilder>();
+        services.AddScoped<ITurnContextFragmentBuilder, SmallEBot.Application.Agents.TurnContext.TurnContextFragmentBuilder>();
         services.AddScoped<AgentCacheService>();
         services.AddSingleton<IUserPreferencesService, UserPreferencesService>();
         services.AddSingleton<IUserNameDisplayService, UserNameDisplayService>();
@@ -87,7 +85,6 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ChatState>();
         services.AddScoped<IContextUsageEstimator>(sp => sp.GetRequiredService<AgentCacheService>());
         services.AddScoped<ChatPresentationService>();
-        services.AddSingleton<IContextWindowManager, ContextWindowManager>();
         services.AddSingleton<ITerminalConfigService, TerminalConfigService>();
         services.AddScoped<ISkillsConfigService, SkillsConfigService>();
         services.AddSingleton<IMcpConfigService, McpConfigService>();

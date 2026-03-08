@@ -4,7 +4,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SmallEBot.Application.Contracts.Conversations;
 using SmallEBot.Application.Contracts.Conversations.TaskList;
-using SmallEBot.Application.Contracts.Conversations.Context;
 using SmallEBot.Application.Contracts.Conversations.Session;
 using SmallEBot.Application.Contracts.Workspaces;
 using SmallEBot.Domain.Agents;
@@ -16,6 +15,7 @@ using SmallEBot.Infrastructure.Common;
 using SmallEBot.Infrastructure.Conversations;
 using SmallEBot.Infrastructure.Conversations.Metadata;
 using SmallEBot.Infrastructure.Conversations.Session;
+using SmallEBot.Infrastructure.Conversations.TaskList;
 using SmallEBot.Infrastructure.UserPreferences;
 using SmallEBot.Infrastructure.Workspaces;
 
@@ -61,12 +61,13 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IAgentSessionStore>(_ => new AgentSessionStore(basePath));
 
         services.AddScoped<IAgentSessionReader, AgentSessionReader>();
+        services.AddScoped<IConversationMessageStore, ConversationMessageStore>();
 
         services.AddSingleton<IConversationSessionCoordinator, ConversationSessionCoordinator>();
 
         services.AddSingleton(_ => new TaskListCache(basePath));
         services.AddSingleton<ITaskListService, TaskListService>();
-        services.AddSingleton<IConversationTaskContext, ConversationTaskContext>();
+        services.AddSingleton<IAmbientConversationId, AmbientConversationId>();
         services.AddSingleton<ICurrentConversationService, CurrentConversationService>();
 
         // Tokenizer services

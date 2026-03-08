@@ -1,4 +1,4 @@
-namespace SmallEBot.Application.Contracts.Conversations.Compression;
+namespace SmallEBot.Application.Contracts.Agents.Compression;
 
 /// <summary>Provides the maximum length for tool call results.</summary>
 public interface IToolResultMaxProvider

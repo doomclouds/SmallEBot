@@ -1,7 +1,7 @@
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.AI;
 using SmallEBot.Application.Contracts.Agents;
-using SmallEBot.Application.Contracts.Conversations.Compression;
+using SmallEBot.Application.Contracts.Agents.Compression;
 using SmallEBot.Application.Contracts.Conversations.Session;
 using SmallEBot.Application.Conversations;
 using SmallEBot.Core.Models;
@@ -12,7 +12,7 @@ namespace SmallEBot.Services.Agent;
 
 /// <summary>Host service for agent cache invalidation and context usage estimation (UI). Implements IContextUsageEstimator for compression threshold checking.</summary>
 public class AgentCacheService(
-    IAgentSessionReader sessionReader,
+    IConversationMessageStore messageStore,
     IAgentBuilder agentBuilder,
     ITokenizer tokenizer,
     IAgentConfigService agentConfig,
@@ -29,13 +29,11 @@ public class AgentCacheService(
         var metadata = await metadataRepository.GetByIdAsync(conversationId, ct);
 
         // Get messages from AgentSession
-        var allMessages = await sessionReader.GetMessagesAsync(conversationId, ct);
+        var allMessages = await messageStore.GetMessagesAsync(conversationId, ct);
         var toolResultMaxLength = await agentConfig.GetToolResultMaxLengthAsync(ct);
 
-        // Filter messages by CompressedAt - only send messages after compression timestamp to LLM
-        var filteredMessages = metadata?.CompressedAt != null
-            ? allMessages.Where(m => ExtractTimestamp(m) > metadata.CompressedAt.Value).ToList()
-            : allMessages;
+        // Filter messages by CompressedAt - only include messages from turns after compression timestamp
+        var filteredMessages = FilterMessagesByCompressedAt(allMessages, metadata);
 
         // Truncate tool results to match what's actually sent to LLM
         var truncatedToolCalls = ExtractToolCalls(filteredMessages, toolResultMaxLength);
@@ -66,11 +64,30 @@ public class AgentCacheService(
         return $"{k:F1}k";
     }
 
-    private static DateTime ExtractTimestamp(ChatMessage message)
+    private static IReadOnlyList<ChatMessage> FilterMessagesByCompressedAt(
+        IReadOnlyList<ChatMessage> allMessages,
+        ConversationMetadata? metadata)
     {
-        // Try to get timestamp from message metadata if available
-        // For now, use current time as fallback
-        return DateTime.UtcNow;
+        if (metadata?.CompressedAt == null || metadata.Turns.Count == 0)
+            return allMessages;
+
+        var keepIndices = new HashSet<int>();
+        var turns = metadata.Turns;
+        for (var k = 0; k < turns.Count; k++)
+        {
+            if (turns[k].CreatedAt <= metadata.CompressedAt.Value)
+                continue;
+            var start = turns[k].FirstMessageIndex;
+            var end = k + 1 < turns.Count ? turns[k + 1].FirstMessageIndex : allMessages.Count;
+            for (var i = start; i < end && i < allMessages.Count; i++)
+                keepIndices.Add(i);
+        }
+
+        return allMessages
+            .Select((m, i) => (Message: m, Index: i))
+            .Where(x => keepIndices.Contains(x.Index))
+            .Select(x => x.Message)
+            .ToList();
     }
 
     private static List<ToolCallWithTruncatedResult> ExtractToolCalls(IReadOnlyList<ChatMessage> messages, int toolResultMaxLength)

@@ -1,4 +1,4 @@
-namespace SmallEBot.Application.Contracts.Conversations;
+namespace SmallEBot.Application.Contracts.Agents;
 
 /// <summary>Builds the per-turn context hint (attached files + requested skills) for injection as system context.</summary>
 public interface ITurnContextFragmentBuilder

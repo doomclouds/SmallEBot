@@ -1,7 +1,6 @@
 @using System.IO
 @using SmallEBot.Application.Contracts.Agents
 @using SmallEBot.Application.Contracts.Conversations
-@using SmallEBot.Application.Contracts.Streaming
 @using SmallEBot.Application.Contracts.Workspaces
 @using SmallEBot.Application.Conversations
 @using SmallEBot.Components.Chat.ViewModels
@@ -11,7 +10,8 @@
 @using SmallEBot.Core.Models
 @using SmallEBot.Models
 @using SmallEBot.Services.Circuit
-@inject IAgentConversationService ConversationPipeline
+@inject IConversationService ConversationService
+@inject IConversationAgentExecutor AgentExecutor
 @inject IAgentRunner AgentRunner
 @inject IDialogService DialogSvc
 @inject IWorkspaceUploadService UploadService
@@ -222,10 +222,10 @@
 
     private async Task RunReplaceStreamingLoopAsync(Guid messageId, string newContent, IReadOnlyList<string>? attachedPaths, IReadOnlyList<string>? requestedSkillIds)
     {
-        var result = await ConversationPipeline.ReplaceUserMessageAsync(ConversationId!.Value, _userNameForAction!, messageId, newContent, UseThinkingMode, attachedPaths, requestedSkillIds, _sendCts!.Token);
+        var result = await ConversationService.ReplaceUserMessageAsync(ConversationId!.Value, _userNameForAction!, messageId, newContent, UseThinkingMode, attachedPaths, requestedSkillIds, _sendCts!.Token);
         if (result == null) { _streaming = false;
             await InvokeAsync(StateHasChanged); return; }
-        await ConversationPipeline.PrepareSessionForEditAsync(ConversationId!.Value, _userNameForAction!, result.Value.TurnId, _sendCts!.Token);
+        await ConversationService.PrepareSessionForEditAsync(ConversationId!.Value, _userNameForAction!, result.Value.TurnId, _sendCts!.Token);
         var originalCreatedAt = (Bubbles.FirstOrDefault(b => b is UserBubble ub && ub.Message.Id == result.Value.TurnId) as UserBubble)?.Message.CreatedAt ?? DateTime.UtcNow;
         await OnEditSubmitted.InvokeAsync(new EditSubmittedArgs(result.Value.TurnId, result.Value.UserMessage, result.Value.AttachedPaths, result.Value.RequestedSkillIds, originalCreatedAt));
         await RunStreamingLoopForTurnAsync(result.Value.TurnId, result.Value.UserMessage, UseThinkingMode, result.Value.AttachedPaths, result.Value.RequestedSkillIds, truncateFromTurnId: null, userNameForTruncate: null);
@@ -236,7 +236,7 @@
         var persisted = false;
         var channel = System.Threading.Channels.Channel.CreateUnbounded<StreamUpdate>();
         var sink = new ChannelStreamSink(channel.Writer);
-        var runTask = ConversationPipeline
+        var runTask = AgentExecutor
             .StreamResponseAndCompleteAsync(ConversationId!.Value, turnId, userMessage, useThinking, sink, _sendCts!.Token, CircuitAccessor.CurrentCircuit?.Id, attachedPaths, requestedSkillIds, truncateFromTurnId, userNameForTruncate)
             .ContinueWith(_ => channel.Writer.Complete());
 
@@ -384,7 +384,7 @@
 
         try
         {
-            var compressed = await ConversationPipeline.CheckAndCompactIfNeededAsync(ConversationId!.Value);
+            var compressed = await AgentExecutor.CheckAndCompactIfNeededAsync(ConversationId!.Value);
             if (compressed)
             {
                 // Compression happened, refresh context display immediately
@@ -420,7 +420,7 @@
         _attachmentItems.RemoveAll(x => x is ResolvedPathAttachment);
         var requestedSkillIds = _requestedSkillIds.ToList();
         _requestedSkillIds.Clear();
-        var turnId = await ConversationPipeline.CreateTurnAndUserMessageAsync(ConversationId!.Value, userName, msg, UseThinkingMode, _sendCts!.Token, attachedPaths, requestedSkillIds);
+        var turnId = await ConversationService.CreateTurnAndUserMessageAsync(ConversationId!.Value, userName, msg, UseThinkingMode, _sendCts!.Token, attachedPaths, requestedSkillIds);
         _ = RunStreamingLoopAsync(turnId, msg, attachedPaths, requestedSkillIds);
     }
 
@@ -434,7 +434,7 @@
 
         try
         {
-            var compressed = await ConversationPipeline.CompactConversationAsync(ConversationId!.Value);
+            var compressed = await AgentExecutor.CompactConversationAsync(ConversationId!.Value);
             if (compressed)
             {
                 await RefreshContextUsageAsync();
@@ -465,7 +465,7 @@
         var channel = System.Threading.Channels.Channel.CreateUnbounded<StreamUpdate>();
         var sink = new ChannelStreamSink(channel.Writer);
         var contextId = CircuitAccessor.CurrentCircuit?.Id;
-        var runTask = ConversationPipeline
+        var runTask = AgentExecutor
             .StreamResponseAndCompleteAsync(ConversationId!.Value, turnId, msg, UseThinkingMode, sink, _sendCts!.Token, contextId, attachedPaths, requestedSkillIds)
             .ContinueWith(_ => channel.Writer.Complete());
 
@@ -709,9 +709,9 @@
                 _dropZoneDotNetRef?.Dispose();
                 _dropZoneDotNetRef = null;
             }
-            // Subscribe to compression events from ConversationPipeline
-            ConversationPipeline.CompressionStarted += OnCompressionStarted;
-            ConversationPipeline.CompressionCompleted += OnCompressionCompleted;
+            // Subscribe to compression events from AgentExecutor
+            AgentExecutor.CompressionStarted += OnCompressionStarted;
+            AgentExecutor.CompressionCompleted += OnCompressionCompleted;
             // Subscribe to model config changes to refresh context display
             ModelConfigService.OnChanged += OnModelConfigChanged;
         }
@@ -963,8 +963,8 @@
     public void Dispose()
     {
         StopWaitingCheckTimer();
-        ConversationPipeline.CompressionStarted -= OnCompressionStarted;
-        ConversationPipeline.CompressionCompleted -= OnCompressionCompleted;
+        AgentExecutor.CompressionStarted -= OnCompressionStarted;
+        AgentExecutor.CompressionCompleted -= OnCompressionCompleted;
         ModelConfigService.OnChanged -= OnModelConfigChanged;
         try { _ = JS.InvokeVoidAsync("SmallEBot.detachDropZone", "smallebot-chat-drop-zone"); } catch { /* ignore */ }
         _dropZoneDotNetRef?.Dispose();

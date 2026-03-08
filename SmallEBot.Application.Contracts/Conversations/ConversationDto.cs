@@ -1,7 +1,7 @@
 namespace SmallEBot.Application.Contracts.Conversations;
 
 /// <summary>
-/// DTO for conversation list/detail display. Returned by <see cref="IAgentConversationService"/>.
+/// DTO for conversation list/detail display. Returned by <see cref="IConversationService"/>.
 /// </summary>
 public class ConversationDto
 {

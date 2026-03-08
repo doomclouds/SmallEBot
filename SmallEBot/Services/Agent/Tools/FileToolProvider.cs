@@ -7,7 +7,7 @@ using SmallEBot.Domain.Workspaces;
 namespace SmallEBot.Services.Agent.Tools;
 
 /// <summary>Provides file operation tools (ReadFile, WriteFile, ListFiles).</summary>
-public sealed class FileToolProvider(IVirtualFileSystem vfs) : IToolProvider
+public sealed class FileToolProvider(IVirtualFileSystem vfs, IWorkspaceReadOnlyPolicy readOnlyPolicy) : IToolProvider
 {
     public string Name => "File";
     public bool IsEnabled => true;
@@ -54,8 +54,8 @@ public sealed class FileToolProvider(IVirtualFileSystem vfs) : IToolProvider
     {
         if (string.IsNullOrWhiteSpace(path)) return "Error: path is required.";
         var norm = path.Trim().Replace('\\', '/').TrimStart('/');
-        if (WorkspaceReadOnly.IsUnder(norm))
-            return WorkspaceReadOnly.RestrictedPathMessage;
+        if (readOnlyPolicy.IsUnder(norm))
+            return readOnlyPolicy.RestrictedPathMessage;
         var baseDir = Path.GetFullPath(vfs.GetRootPath());
         var fullPath = Path.GetFullPath(Path.Combine(baseDir, path.Trim().Replace('\\', Path.DirectorySeparatorChar)));
         if (!fullPath.StartsWith(baseDir, StringComparison.OrdinalIgnoreCase))
@@ -101,8 +101,8 @@ public sealed class FileToolProvider(IVirtualFileSystem vfs) : IToolProvider
     {
         if (string.IsNullOrWhiteSpace(path)) return "Error: path is required.";
         var norm = path.Trim().Replace('\\', '/').TrimStart('/');
-        if (WorkspaceReadOnly.IsUnder(norm))
-            return WorkspaceReadOnly.RestrictedPathMessage;
+        if (readOnlyPolicy.IsUnder(norm))
+            return readOnlyPolicy.RestrictedPathMessage;
         var baseDir = Path.GetFullPath(vfs.GetRootPath());
         var fullPath = Path.GetFullPath(Path.Combine(baseDir, path.Trim().Replace('\\', Path.DirectorySeparatorChar)));
         if (!fullPath.StartsWith(baseDir, StringComparison.OrdinalIgnoreCase))
@@ -129,8 +129,8 @@ public sealed class FileToolProvider(IVirtualFileSystem vfs) : IToolProvider
     {
         if (string.IsNullOrWhiteSpace(path)) return "Error: path is required.";
         var norm = path.Trim().Replace('\\', '/').TrimStart('/');
-        if (WorkspaceReadOnly.IsUnder(norm))
-            return WorkspaceReadOnly.RestrictedPathMessage;
+        if (readOnlyPolicy.IsUnder(norm))
+            return readOnlyPolicy.RestrictedPathMessage;
         var baseDir = Path.GetFullPath(vfs.GetRootPath());
         var fullPath = Path.GetFullPath(Path.Combine(baseDir, path.Trim().Replace('\\', Path.DirectorySeparatorChar)));
         if (!fullPath.StartsWith(baseDir, StringComparison.OrdinalIgnoreCase))
@@ -168,10 +168,10 @@ public sealed class FileToolProvider(IVirtualFileSystem vfs) : IToolProvider
         if (string.IsNullOrWhiteSpace(destPath)) return "Error: destPath is required.";
         var sourceNorm = sourcePath.Trim().Replace('\\', '/').TrimStart('/');
         var destNorm = destPath.Trim().Replace('\\', '/').TrimStart('/');
-        if (WorkspaceReadOnly.IsUnder(sourceNorm))
-            return WorkspaceReadOnly.RestrictedSourceMessage;
-        if (WorkspaceReadOnly.IsUnder(destNorm))
-            return WorkspaceReadOnly.RestrictedDestMessage;
+        if (readOnlyPolicy.IsUnder(sourceNorm))
+            return readOnlyPolicy.RestrictedSourceMessage;
+        if (readOnlyPolicy.IsUnder(destNorm))
+            return readOnlyPolicy.RestrictedDestMessage;
         var baseDir = Path.GetFullPath(vfs.GetRootPath());
         var sourceFull = Path.GetFullPath(Path.Combine(baseDir, sourcePath.Trim().Replace('\\', Path.DirectorySeparatorChar)));
         var destFull = Path.GetFullPath(Path.Combine(baseDir, destPath.Trim().Replace('\\', Path.DirectorySeparatorChar)));
@@ -210,10 +210,10 @@ public sealed class FileToolProvider(IVirtualFileSystem vfs) : IToolProvider
         if (string.IsNullOrWhiteSpace(destPath)) return "Error: destPath is required.";
         var sourceNorm = sourcePath.Trim().Replace('\\', '/').TrimStart('/');
         var destNorm = destPath.Trim().Replace('\\', '/').TrimStart('/');
-        if (WorkspaceReadOnly.IsUnder(sourceNorm))
-            return WorkspaceReadOnly.RestrictedSourceMessage;
-        if (WorkspaceReadOnly.IsUnder(destNorm))
-            return WorkspaceReadOnly.RestrictedDestMessage;
+        if (readOnlyPolicy.IsUnder(sourceNorm))
+            return readOnlyPolicy.RestrictedSourceMessage;
+        if (readOnlyPolicy.IsUnder(destNorm))
+            return readOnlyPolicy.RestrictedDestMessage;
         var baseDir = Path.GetFullPath(vfs.GetRootPath());
         var sourceFull = Path.GetFullPath(Path.Combine(baseDir, sourcePath.Trim().Replace('\\', Path.DirectorySeparatorChar)));
         var destFull = Path.GetFullPath(Path.Combine(baseDir, destPath.Trim().Replace('\\', Path.DirectorySeparatorChar)));
@@ -263,8 +263,8 @@ public sealed class FileToolProvider(IVirtualFileSystem vfs) : IToolProvider
     private string ListFiles(string? path = null)
     {
         var pathNorm = (path?.Trim() ?? ".").Replace('\\', '/').TrimStart('/');
-        if (!string.IsNullOrEmpty(pathNorm) && pathNorm != "." && WorkspaceReadOnly.IsUnder(pathNorm))
-            return WorkspaceReadOnly.RestrictedPathMessage;
+        if (!string.IsNullOrEmpty(pathNorm) && pathNorm != "." && readOnlyPolicy.IsUnder(pathNorm))
+            return readOnlyPolicy.RestrictedPathMessage;
         var baseDir = Path.GetFullPath(vfs.GetRootPath());
         var targetDir = string.IsNullOrWhiteSpace(path) || path.Trim() == "."
             ? baseDir

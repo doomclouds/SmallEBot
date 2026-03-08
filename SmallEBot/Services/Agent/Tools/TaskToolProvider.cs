@@ -3,14 +3,13 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.AI;
 using SmallEBot.Application.Contracts.Conversations;
-using SmallEBot.Application.Contracts.Conversations.Context;
 using SmallEBot.Application.Contracts.Conversations.TaskList;
 
 namespace SmallEBot.Services.Agent.Tools;
 
 /// <summary>Provides task list management tools.</summary>
 public sealed class TaskToolProvider(
-    IConversationTaskContext taskContext,
+    IAmbientConversationId ambientConversationId,
     ITaskListService taskService) : IToolProvider
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -34,7 +33,7 @@ public sealed class TaskToolProvider(
     [Description("List tasks for the current conversation. Returns JSON: { \"tasks\": [ { \"id\", \"title\", \"description\", \"done\" }, ... ] }. Use this to see progress and decide next steps.")]
     private string ListTasks()
     {
-        var conversationId = taskContext.GetConversationId();
+        var conversationId = ambientConversationId.GetConversationId();
         if (conversationId == null)
             return "Error: Task list is not available (no conversation context).";
         var data = taskService.GetTaskListData(conversationId.Value);
@@ -44,7 +43,7 @@ public sealed class TaskToolProvider(
     [Description("Create or replace the task list for the current conversation. Pass tasksJson: a JSON array of objects with \"title\" (required) and optional \"description\". Example: [{\"title\":\"Step 1\",\"description\":\"Brief\"},{\"title\":\"Step 2\"}]. Replaces the entire list; all tasks start as not done. Returns the created list as JSON { \"tasks\": [ ... ] }.")]
     private string SetTaskList(string tasksJson)
     {
-        var conversationId = taskContext.GetConversationId();
+        var conversationId = ambientConversationId.GetConversationId();
         if (conversationId == null)
             return "Error: Task list is not available (no conversation context).";
         List<TaskInputItem>? input;
@@ -77,7 +76,7 @@ public sealed class TaskToolProvider(
     [Description("Mark a task as done by id. Returns { \"ok\": true, \"task\": { ... }, \"nextTask\": { ... } | null, \"remaining\": N }. nextTask is the next undone task (null if all done) — use nextTask.id directly for the next CompleteTask call without calling ListTasks again. remaining is the count of undone tasks after this completion.")]
     private string CompleteTask(string taskId)
     {
-        var conversationId = taskContext.GetConversationId();
+        var conversationId = ambientConversationId.GetConversationId();
         if (conversationId == null)
             return "Error: Task list is not available (no conversation context).";
         var data = taskService.GetTaskListData(conversationId.Value);
@@ -94,7 +93,7 @@ public sealed class TaskToolProvider(
     [Description("Mark multiple tasks as done by their ids. Pass taskIds: a JSON array of task id strings. Example: [\"abc123\",\"def456\"]. Returns { \"ok\": true, \"completed\": [ { ... }, ... ], \"failed\": [ { \"id\", \"error\" }, ... ], \"nextTask\": { ... } | null, \"remaining\": N }. Use this instead of calling CompleteTask multiple times when marking several tasks done at once.")]
     private string CompleteTasks(string taskIdsJson)
     {
-        var conversationId = taskContext.GetConversationId();
+        var conversationId = ambientConversationId.GetConversationId();
         if (conversationId == null)
             return "Error: Task list is not available (no conversation context).";
         List<string>? ids;
@@ -142,7 +141,7 @@ public sealed class TaskToolProvider(
     [Description("Clear all tasks for the current conversation. Call this before SetTaskList when starting a new task breakdown to remove old tasks. Returns { \"ok\": true }.")]
     private string ClearTasks()
     {
-        var conversationId = taskContext.GetConversationId();
+        var conversationId = ambientConversationId.GetConversationId();
         if (conversationId == null)
             return "Error: Task list is not available (no conversation context).";
         taskService.ClearTasksAsync(conversationId.Value).GetAwaiter().GetResult();

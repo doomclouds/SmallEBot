@@ -1,16 +1,14 @@
 using SmallEBot.Application.Contracts.Conversations.TaskList;
 
-namespace SmallEBot.Infrastructure.Conversations;
+namespace SmallEBot.Infrastructure.Conversations.TaskList;
 
 /// <summary>Implements ITaskListService by delegating to TaskListCache. Merges former ITaskListService + ITaskListCache.</summary>
 public sealed class TaskListService(TaskListCache cache) : ITaskListService
 {
-    public IReadOnlyList<TaskItemViewModel> GetTasks(Guid conversationId)
+    public IReadOnlyList<TaskItem> GetTasks(Guid conversationId)
     {
         var data = cache.GetOrLoad(conversationId);
-        return data.Tasks
-            .Select(t => new TaskItemViewModel(t.Id, t.Title, t.Description, t.Done))
-            .ToList();
+        return data.Tasks;
     }
 
     public TaskListData GetTaskListData(Guid conversationId) => cache.GetOrLoad(conversationId);

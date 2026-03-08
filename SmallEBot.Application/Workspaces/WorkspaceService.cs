@@ -11,10 +11,12 @@ namespace SmallEBot.Application.Workspaces;
 /// </summary>
 public sealed class WorkspaceService(
     IVirtualFileSystem vfs,
+    IWorkspaceReadOnlyPolicy readOnlyPolicy,
     ILogger<WorkspaceService> logger)
     : IWorkspaceService
 {
     private readonly IVirtualFileSystem _vfs = vfs ?? throw new ArgumentNullException(nameof(vfs));
+    private readonly IWorkspaceReadOnlyPolicy _readOnlyPolicy = readOnlyPolicy ?? throw new ArgumentNullException(nameof(readOnlyPolicy));
     private readonly ILogger<WorkspaceService> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     public string RootPath => _vfs.RootPath;
@@ -115,7 +117,7 @@ public sealed class WorkspaceService(
 
     public bool IsReadOnly(string relativePath)
     {
-        return WorkspaceReadOnly.IsReadOnly(relativePath);
+        return _readOnlyPolicy.IsReadOnly(relativePath);
     }
 
     public async Task<IReadOnlyList<string>> GetAllowedFilePathsAsync(CancellationToken ct = default)

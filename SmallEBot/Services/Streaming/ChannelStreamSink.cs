@@ -1,5 +1,5 @@
 using System.Threading.Channels;
-using SmallEBot.Application.Contracts.Streaming;
+using SmallEBot.Application.Contracts.Agents;
 using SmallEBot.Core.Models;
 
 namespace SmallEBot.Services.Streaming;

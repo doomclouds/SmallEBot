@@ -122,13 +122,49 @@ public class ConversationMetadata(
     }
 
     /// <summary>
-    /// Sets the compressed context.
+    /// Sets the compressed context with current time as CompressedAt.
     /// </summary>
     public void SetCompressedContext(string compressedContext)
     {
+        SetCompressedContext(compressedContext, DateTime.UtcNow);
+    }
+
+    /// <summary>
+    /// Sets the compressed context with a specific timestamp (e.g. last compressed turn's CreatedAt).
+    /// </summary>
+    public void SetCompressedContext(string compressedContext, DateTime compressedAt)
+    {
         CompressedContext = compressedContext;
-        CompressedAt = DateTime.UtcNow;
+        CompressedAt = compressedAt;
         UpdatedAt = DateTime.UtcNow;
+    }
+
+    /// <summary>
+    /// Gets the FirstMessageIndex of the first turn where CreatedAt is after the cutoff.
+    /// Used to determine which messages to keep after compression.
+    /// </summary>
+    /// <returns>The FirstMessageIndex of the first turn after cutoff, or null if all turns are before cutoff.</returns>
+    public int? GetFirstMessageIndexAfterCutoff(DateTime cutoff)
+    {
+        var turn = _turns.FirstOrDefault(t => t.CreatedAt > cutoff);
+        return turn != null ? turn.FirstMessageIndex : null;
+    }
+
+    /// <summary>
+    /// Removes turns before the given message index and reindexes remaining turns.
+    /// Called after session truncation to keep metadata in sync.
+    /// </summary>
+    public void RemoveTurnsBeforeCompression(int firstMessageIndexToKeep)
+    {
+        var toRemove = _turns.Where(t => t.FirstMessageIndex < firstMessageIndexToKeep).ToList();
+        foreach (var t in toRemove)
+            _turns.Remove(t);
+
+        foreach (var t in _turns)
+            t.SetFirstMessageIndex(t.FirstMessageIndex - firstMessageIndexToKeep);
+
+        if (toRemove.Count > 0)
+            UpdatedAt = DateTime.UtcNow;
     }
 
     /// <summary>

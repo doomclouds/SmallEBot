@@ -1,34 +1,23 @@
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using Microsoft.Extensions.AI;
+using SmallEBot.Application.Contracts.Agents;
 using SmallEBot.Application.Contracts.Conversations;
-using SmallEBot.Application.Contracts.Conversations.Compression;
-using SmallEBot.Application.Contracts.Conversations.Context;
 using SmallEBot.Application.Contracts.Conversations.Session;
 using SmallEBot.Application.Contracts.Conversations.TaskList;
-using SmallEBot.Application.Contracts.Streaming;
 using SmallEBot.Core;
 using SmallEBot.Core.Models;
 using SmallEBot.Domain.Conversations.Metadata;
 
 namespace SmallEBot.Application.Conversations;
 
-public sealed class AgentConversationService(
+/// <summary>Orchestrates conversation CRUD and turn management. Agent execution is handled by IConversationAgentExecutor.</summary>
+public sealed class ConversationService(
     IConversationMetadataRepository metadataRepository,
     IAgentRunner agentRunner,
-    IConversationTaskContext conversationTaskContext,
-    ICompressionService compressionService,
-    IToolResultMaxProvider toolResultMaxProvider,
-    ICompressionThresholdProvider compressionThresholdProvider,
-    IContextUsageEstimator contextUsageEstimator,
-    IAgentSessionReader sessionReader,
-    ITaskListService taskListService) : IAgentConversationService
+    IConversationMessageStore messageStore,
+    ITaskListService taskListService) : IConversationService
 {
-    public event Action<Guid>? CompressionStarted;
-    public event Action<Guid, bool>? CompressionCompleted;
-
-    private readonly HashSet<Guid> _compressingConversations = [];
-
     public async Task<ConversationDto> CreateConversationAsync(string userName, string title = "New conversation", CancellationToken cancellationToken = default)
     {
         var metadata = ConversationMetadata.Create(userName, title);
@@ -74,7 +63,7 @@ public sealed class AgentConversationService(
         var metadata = await metadataRepository.GetByIdAsync(conversationId, cancellationToken);
         if (metadata == null) return [];
 
-        var messages = await sessionReader.GetMessagesAsync(conversationId, cancellationToken);
+        var messages = await messageStore.GetMessagesAsync(conversationId, cancellationToken);
         if (messages.Count == 0) return [];
 
         var turns = new List<(Guid TurnId, bool IsThinkingMode, MessageInfo UserMessage, IReadOnlyList<TimelineItem> AssistantItems)>();
@@ -192,35 +181,6 @@ public sealed class AgentConversationService(
         return turn.Id;
     }
 
-    public async Task StreamResponseAndCompleteAsync(
-        Guid conversationId,
-        Guid turnId,
-        string userMessage,
-        bool useThinking,
-        IStreamSink sink,
-        CancellationToken cancellationToken = default,
-        string? commandConfirmationContextId = null,
-        IReadOnlyList<string>? attachedPaths = null,
-        IReadOnlyList<string>? requestedSkillIds = null,
-        Guid? truncateFromTurnId = null,
-        string? userNameForTruncate = null)
-    {
-        conversationTaskContext.SetConversationId(conversationId);
-        try
-        {
-            await foreach (var update in agentRunner.RunStreamingAsync(conversationId, userMessage, useThinking, cancellationToken, attachedPaths, requestedSkillIds, truncateFromTurnId, userNameForTruncate))
-            {
-                await sink.OnNextAsync(update, cancellationToken);
-            }
-            // Assistant response is persisted by AgentRunnerAdapter via SessionManager.PersistSessionAsync
-            // No need to call repository for turn completion
-        }
-        finally
-        {
-            conversationTaskContext.SetConversationId(null);
-        }
-    }
-
     public async Task PrepareSessionForEditAsync(Guid conversationId, string userName, Guid turnId, CancellationToken cancellationToken = default)
     {
         await agentRunner.TruncateSessionFromTurnAsync(conversationId, userName, turnId, cancellationToken);
@@ -247,106 +207,5 @@ public sealed class AgentConversationService(
         await metadataRepository.SaveAsync(metadata, cancellationToken);
 
         return (turn.Id, newContent, turn.AttachedPaths, turn.RequestedSkillIds);
-    }
-
-    public async Task ReplaceMessageAndRegenerateAsync(
-        Guid conversationId,
-        string userName,
-        Guid messageId,
-        string newContent,
-        bool useThinking,
-        IStreamSink sink,
-        CancellationToken cancellationToken = default,
-        IReadOnlyList<string>? attachedPaths = null,
-        IReadOnlyList<string>? requestedSkillIds = null)
-    {
-        var result = await ReplaceUserMessageAsync(conversationId, userName, messageId, newContent, useThinking, attachedPaths, requestedSkillIds, cancellationToken);
-        if (result == null) return;
-
-        var effectivePaths = attachedPaths ?? result.Value.AttachedPaths;
-        var effectiveSkills = requestedSkillIds ?? result.Value.RequestedSkillIds;
-
-        conversationTaskContext.SetConversationId(conversationId);
-        try
-        {
-            await foreach (var update in agentRunner.RunStreamingAsync(conversationId, result.Value.UserMessage, useThinking, cancellationToken, effectivePaths, effectiveSkills))
-            {
-                await sink.OnNextAsync(update, cancellationToken);
-            }
-            // Assistant response is persisted by AgentRunnerAdapter via SessionManager.PersistSessionAsync
-        }
-        finally
-        {
-            conversationTaskContext.SetConversationId(null);
-        }
-    }
-
-    public async Task<bool> CompactConversationAsync(Guid conversationId, CancellationToken ct = default)
-    {
-        if (!_compressingConversations.Add(conversationId))
-            return false;
-
-        CompressionStarted?.Invoke(conversationId);
-
-        try
-        {
-            var metadata = await metadataRepository.GetByIdAsync(conversationId, ct);
-            if (metadata == null)
-            {
-                CompressionCompleted?.Invoke(conversationId, false);
-                return false;
-            }
-
-            var messages = await sessionReader.GetMessagesAsync(conversationId, ct);
-            if (messages.Count == 0)
-            {
-                CompressionCompleted?.Invoke(conversationId, false);
-                return false;
-            }
-
-            var summary = await compressionService.GenerateSummaryAsync(
-                messages,
-                toolResultMaxProvider.GetToolResultMaxLength(),
-                metadata.CompressedContext,
-                ct);
-
-            if (string.IsNullOrWhiteSpace(summary))
-            {
-                CompressionCompleted?.Invoke(conversationId, false);
-                return false;
-            }
-
-            metadata.SetCompressedContext(summary);
-            await metadataRepository.SaveAsync(metadata, ct);
-
-            CompressionCompleted?.Invoke(conversationId, true);
-            return true;
-        }
-        catch
-        {
-            CompressionCompleted?.Invoke(conversationId, false);
-            return false;
-        }
-        finally
-        {
-            _compressingConversations.Remove(conversationId);
-        }
-    }
-
-    /// <summary>Check if context exceeds threshold and compress if needed. Call before streaming to show UI indicator.</summary>
-    public async Task<bool> CheckAndCompactIfNeededAsync(Guid conversationId, CancellationToken ct = default)
-    {
-        // Use IContextUsageEstimator for accurate token estimation with tokenizer
-        var estimate = await contextUsageEstimator.GetEstimatedContextUsageDetailAsync(conversationId, ct);
-        if (estimate is not { ContextWindowTokens: > 0 }) return false;
-
-        var threshold = compressionThresholdProvider.GetCompressionThreshold();
-
-        if (estimate.Ratio >= threshold)
-        {
-            return await CompactConversationAsync(conversationId, ct);
-        }
-
-        return false;
     }
 }

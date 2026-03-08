@@ -36,12 +36,22 @@ public interface IAgentSessionStore : IDisposable
 
     /// <summary>
     /// Truncates messages from a specific turn (by firstMessageIndex).
+    /// Keeps [0, firstMessageIndex), removes [firstMessageIndex, ...).
     /// </summary>
     /// <param name="conversationId">The conversation ID.</param>
     /// <param name="firstMessageIndex">The index of the first message to remove.</param>
     /// <param name="agent">Agent used for load/save (avoids blocking DI resolution).</param>
     /// <param name="ct">Cancellation token.</param>
     Task TruncateFromTurnAsync(Guid conversationId, int firstMessageIndex, AIAgent agent, CancellationToken ct = default);
+
+    /// <summary>
+    /// Truncates messages before a specific index (used after compression).
+    /// Keeps [firstMessageIndex, ...), removes [0, firstMessageIndex).
+    /// </summary>
+    /// <param name="conversationId">The conversation ID.</param>
+    /// <param name="firstMessageIndex">The index of the first message to keep.</param>
+    /// <param name="ct">Cancellation token.</param>
+    Task TruncateBeforeIndexAsync(Guid conversationId, int firstMessageIndex, CancellationToken ct = default);
 
     /// <summary>
     /// Gets raw session JSON for message parsing (e.g. by AgentSessionReader).

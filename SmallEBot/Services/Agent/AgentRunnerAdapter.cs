@@ -5,7 +5,7 @@ using System.Text.Json;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using SmallEBot.Application.Contracts.Conversations.Session;
-using SmallEBot.Application.Contracts.Streaming;
+using SmallEBot.Application.Contracts.Agents;
 using SmallEBot.Domain.Conversations.Metadata;
 using SmallEBot.Core.Models;
 using ChatMessage = Microsoft.Extensions.AI.ChatMessage;

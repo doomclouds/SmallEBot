@@ -4,6 +4,8 @@ namespace SmallEBot.Application.Contracts.Conversations;
 public interface ICurrentConversationService
 {
     Guid? CurrentConversationId { get; }
+    
     void SetCurrentConversationId(Guid? id);
+    
     event Action? CurrentConversationChanged;
 }

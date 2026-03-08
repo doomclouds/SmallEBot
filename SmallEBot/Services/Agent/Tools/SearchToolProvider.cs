@@ -11,7 +11,7 @@ using SmallEBot.Domain.Workspaces;
 namespace SmallEBot.Services.Agent.Tools;
 
 /// <summary>Provides file search tools (GrepFiles, GrepContent).</summary>
-public sealed class SearchToolProvider(IVirtualFileSystem vfs) : IToolProvider
+public sealed class SearchToolProvider(IVirtualFileSystem vfs, IWorkspaceReadOnlyPolicy readOnlyPolicy) : IToolProvider
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -42,8 +42,8 @@ public sealed class SearchToolProvider(IVirtualFileSystem vfs) : IToolProvider
             return "Error: pattern is required.";
 
         var pathNorm = (path?.Trim() ?? ".").Replace('\\', '/').TrimStart('/');
-        if (!string.IsNullOrEmpty(pathNorm) && pathNorm != "." && WorkspaceReadOnly.IsUnder(pathNorm))
-            return WorkspaceReadOnly.RestrictedSearchMessage;
+        if (!string.IsNullOrEmpty(pathNorm) && pathNorm != "." && readOnlyPolicy.IsUnder(pathNorm))
+            return readOnlyPolicy.RestrictedSearchMessage;
 
         var baseDir = Path.GetFullPath(vfs.GetRootPath());
         var searchDir = string.IsNullOrWhiteSpace(path) || path.Trim() == "."
@@ -74,7 +74,7 @@ public sealed class SearchToolProvider(IVirtualFileSystem vfs) : IToolProvider
                         var absolute = Path.GetFullPath(Path.Combine(searchDir, relFromSearch));
                         return Path.GetRelativePath(baseDir, absolute);
                     })
-                    .Where(f => AllowedFileExtensions.IsAllowed(Path.GetExtension(f)) && !WorkspaceReadOnly.IsUnder(f.Replace('\\', '/')))
+                    .Where(f => AllowedFileExtensions.IsAllowed(Path.GetExtension(f)) && !readOnlyPolicy.IsUnder(f.Replace('\\', '/')))
                     .ToList();
             }
             else if (matchMode == "regex")
@@ -101,7 +101,7 @@ public sealed class SearchToolProvider(IVirtualFileSystem vfs) : IToolProvider
                     return regex.IsMatch(relativePath);
                 })
                 .Select(f => Path.GetRelativePath(baseDir, f))
-                .Where(rel => !WorkspaceReadOnly.IsUnder(rel.Replace('\\', '/')))
+                .Where(rel => !readOnlyPolicy.IsUnder(rel.Replace('\\', '/')))
                 .ToList();
             }
             else
@@ -160,8 +160,8 @@ public sealed class SearchToolProvider(IVirtualFileSystem vfs) : IToolProvider
         }
 
         var pathNorm = (path?.Trim() ?? ".").Replace('\\', '/').TrimStart('/');
-        if (!string.IsNullOrEmpty(pathNorm) && pathNorm != "." && WorkspaceReadOnly.IsUnder(pathNorm))
-            return WorkspaceReadOnly.RestrictedSearchMessage;
+        if (!string.IsNullOrEmpty(pathNorm) && pathNorm != "." && readOnlyPolicy.IsUnder(pathNorm))
+            return readOnlyPolicy.RestrictedSearchMessage;
 
         var baseDir = Path.GetFullPath(vfs.GetRootPath());
         var searchDir = string.IsNullOrWhiteSpace(path) || path.Trim() == "."
@@ -210,7 +210,7 @@ public sealed class SearchToolProvider(IVirtualFileSystem vfs) : IToolProvider
                 if (truncated) break;
 
                 var relPath = Path.GetRelativePath(baseDir, filePath).Replace('\\', '/');
-                if (WorkspaceReadOnly.IsUnder(relPath))
+                if (readOnlyPolicy.IsUnder(relPath))
                     continue;
 
                 var fileInfo = new FileInfo(filePath);

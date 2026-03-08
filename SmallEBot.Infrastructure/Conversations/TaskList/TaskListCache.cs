@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 using System.Text.Json;
 using SmallEBot.Application.Contracts.Conversations.TaskList;
 
-namespace SmallEBot.Infrastructure.Conversations;
+namespace SmallEBot.Infrastructure.Conversations.TaskList;
 
 /// <summary>In-memory cache for task lists with write-back to file.</summary>
 /// <summary>Internal cache implementation. Use ITaskListService for all consumers.</summary>

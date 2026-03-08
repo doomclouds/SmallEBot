@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 using SmallEBot.Application.Contracts.Conversations.Session;
 using SmallEBot.Domain.Conversations.Metadata;
 
-namespace SmallEBot.Infrastructure.Conversations;
+namespace SmallEBot.Infrastructure.Conversations.Session;
 
 /// <summary>
 /// Coordinates conversation metadata and agent session lifecycle.

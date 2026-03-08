@@ -1,4 +1,5 @@
 @using System.IO
+@using SmallEBot.Application.Contracts.Conversations.TaskList
 @implements IDisposable
 @inject ICurrentConversationService CurrentConversation
 @inject ITaskListService TaskListService
@@ -65,7 +66,7 @@
     [Parameter] public EventCallback OnClose { get; set; }
 
     private Guid? _conversationId;
-    private IReadOnlyList<TaskItemViewModel>? _tasks;
+    private IReadOnlyList<TaskItem>? _tasks;
 
     protected override void OnInitialized()
     {

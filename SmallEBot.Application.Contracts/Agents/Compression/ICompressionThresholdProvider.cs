@@ -1,4 +1,4 @@
-namespace SmallEBot.Application.Contracts.Conversations.Compression;
+namespace SmallEBot.Application.Contracts.Agents.Compression;
 
 /// <summary>Provides compression threshold for automatic context compression.</summary>
 public interface ICompressionThresholdProvider

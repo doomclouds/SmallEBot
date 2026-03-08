@@ -1,5 +1,5 @@
 using Microsoft.Agents.AI;
-using SmallEBot.Application.Contracts.Conversations;
+using SmallEBot.Application.Contracts.Agents;
 
 namespace SmallEBot.Services.Agent;
 
