@@ -221,41 +221,6 @@ public sealed class AgentConversationService(
         }
     }
 
-    public Task CompleteTurnWithAssistantAsync(
-        Guid conversationId,
-        Guid turnId,
-        IReadOnlyList<AssistantSegment> segments,
-        CancellationToken cancellationToken = default)
-    {
-        // Assistant response is persisted by AgentRunnerAdapter via SessionManager.PersistSessionAsync
-        // This method is kept for interface compatibility but does nothing
-        return Task.CompletedTask;
-    }
-
-    public Task CompleteTurnWithErrorAsync(
-        Guid conversationId,
-        Guid turnId,
-        string errorMessage,
-        CancellationToken cancellationToken = default)
-    {
-        // Error handling is managed by AgentSession
-        // This method is kept for interface compatibility but does nothing
-        return Task.CompletedTask;
-    }
-
-    public Task CompleteTurnWithPartialContentAsync(
-        Guid conversationId,
-        Guid turnId,
-        IReadOnlyList<StreamUpdate> updates,
-        bool useThinking,
-        string? stoppedOrErrorMessage,
-        CancellationToken cancellationToken = default)
-    {
-        // Partial content is not persisted - agent response is managed by AgentRunnerAdapter
-        // This method is kept for interface compatibility but does nothing
-        return Task.CompletedTask;
-    }
-
     public async Task PrepareSessionForEditAsync(Guid conversationId, string userName, Guid turnId, CancellationToken cancellationToken = default)
     {
         await agentRunner.TruncateSessionFromTurnAsync(conversationId, userName, turnId, cancellationToken);

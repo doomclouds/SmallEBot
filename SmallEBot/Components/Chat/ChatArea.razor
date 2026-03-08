@@ -323,13 +323,11 @@
         }
         catch (OperationCanceledException)
         {
-            try { await ConversationPipeline.CompleteTurnWithPartialContentAsync(ConversationId!.Value, turnId, _streamingUpdates, useThinking, "Stopped by user.", CancellationToken.None); persisted = true; } catch { /* ignore */ }
             channel.Writer.Complete();
         }
         catch (Exception ex)
         {
             await InvokeAsync(() => Snackbar.Add($"Error: {ex.Message}", Severity.Error));
-            try { await ConversationPipeline.CompleteTurnWithPartialContentAsync(ConversationId!.Value, turnId, _streamingUpdates, useThinking, ex.Message, CancellationToken.None); persisted = true; } catch { /* ignore */ }
             channel.Writer.Complete();
         }
         finally
@@ -553,29 +551,11 @@
         }
         catch (OperationCanceledException)
         {
-            try
-            {
-                await ConversationPipeline.CompleteTurnWithPartialContentAsync(ConversationId!.Value, turnId, _streamingUpdates, UseThinkingMode, "Stopped by user.", CancellationToken.None);
-                persisted = true;
-            }
-            catch (Exception persistEx)
-            {
-                Log.LogError(persistEx, "Failed to persist partial content for turn {TurnId}", turnId);
-            }
             channel.Writer.Complete();
         }
         catch (Exception ex)
         {
             await InvokeAsync(() => Snackbar.Add($"Error: {ex.Message}", Severity.Error));
-            try
-            {
-                await ConversationPipeline.CompleteTurnWithPartialContentAsync(ConversationId!.Value, turnId, _streamingUpdates, UseThinkingMode, ex.Message, CancellationToken.None);
-                persisted = true;
-            }
-            catch (Exception persistEx)
-            {
-                Log.LogError(persistEx, "Failed to persist partial content for turn {TurnId}", turnId);
-            }
             channel.Writer.Complete();
         }
         finally

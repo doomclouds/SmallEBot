@@ -45,29 +45,6 @@ public interface IAgentConversationService
         Guid? truncateFromTurnId = null,
         string? userNameForTruncate = null);
 
-    /// <summary>Persist assistant segments for an existing turn (e.g. on success).</summary>
-    Task CompleteTurnWithAssistantAsync(
-        Guid conversationId,
-        Guid turnId,
-        IReadOnlyList<AssistantSegment> segments,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>Persist error as assistant reply for the turn.</summary>
-    Task CompleteTurnWithErrorAsync(
-        Guid conversationId,
-        Guid turnId,
-        string errorMessage,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>Persist partial assistant content when stream is interrupted (cancel/error). Saves thinking, tool calls, and text received so far; appends stoppedOrErrorMessage as final text segment when provided.</summary>
-    Task CompleteTurnWithPartialContentAsync(
-        Guid conversationId,
-        Guid turnId,
-        IReadOnlyList<StreamUpdate> updates,
-        bool useThinking,
-        string? stoppedOrErrorMessage,
-        CancellationToken cancellationToken = default);
-
     /// <summary>Truncates session from turn. Call after ReplaceUserMessageAsync and before streaming so JSON is updated before UI refresh.</summary>
     Task PrepareSessionForEditAsync(Guid conversationId, string userName, Guid turnId, CancellationToken cancellationToken = default);
 
