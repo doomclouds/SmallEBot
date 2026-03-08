@@ -1,0 +1,105 @@
+@* Message thread: bubbles + pending user + streaming + compression indicator *@
+@using SmallEBot.Components.Chat.Services
+@using SmallEBot.Components.Chat.ViewModels.Bubbles
+@using SmallEBot.Components.Chat.ViewModels.Blocks
+@using SmallEBot.Components.Chat.Messages.Bubbles
+@inject IJSRuntime JS
+@inject ChatPresentationService Presentation
+
+<div @ref="_scrollRef" class="smallebot-chat-scroll">
+    @foreach (var bubble in Bubbles)
+    {
+        @switch (bubble)
+        {
+            case UserBubbleView user:
+                <UserBubble View="@user"
+                           ShowEditButton="@ShowEditButtons"
+                           OnEdit="@OnEditMessage" />
+                break;
+            case AssistantBubbleView asst:
+                <AssistantBubble Blocks="@GetBlocksForAssistant(asst)"
+                                 Caption="@($"SmallEBot · {asst.CreatedAt:g}")" />
+                break;
+        }
+    }
+
+    @if (PendingUserBubble != null)
+    {
+        <UserBubble View="@PendingUserBubble" ShowEditButton="false" />
+    }
+
+    @if (IsCompressing)
+    {
+        <div class="d-flex align-center ga-2 pa-3 mud-width-full">
+            <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Small" />
+            <MudText Typo="Typo.body2" Style="color: var(--mud-palette-text-secondary);">
+                @CompressionMessage
+            </MudText>
+        </div>
+    }
+
+    @if (IsStreaming)
+    {
+        var streamingBlocksToShow = GetStreamingBlocks();
+        @if (streamingBlocksToShow.Count > 0)
+        {
+        <AssistantBubble Blocks="@streamingBlocksToShow"
+                         Caption="@($"SmallEBot · {DateTime.Now:g}")"
+                         IsApprovalProcessing="@IsApprovalProcessing"
+                         OnApprove="@OnApprove"
+                         OnReject="@OnReject"
+                         OnCancel="@OnCancel" />
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public IReadOnlyList<BubbleViewBase> Bubbles { get; set; } = [];
+    [Parameter] public UserBubbleView? PendingUserBubble { get; set; }
+    [Parameter] public IReadOnlyList<IBubbleBlock> StreamingBlocks { get; set; } = [];
+    [Parameter] public bool IsStreaming { get; set; }
+    [Parameter] public bool IsCompressing { get; set; }
+    [Parameter] public string CompressionMessage { get; set; } = "Compressing context...";
+    [Parameter] public bool ShowWaitingForToolParams { get; set; }
+    [Parameter] public TimeSpan WaitingElapsed { get; set; }
+    [Parameter] public bool ShowToolCalls { get; set; } = true;
+    [Parameter] public bool ShowEditButtons { get; set; } = true;
+    [Parameter] public EventCallback<UserBubbleView> OnEditMessage { get; set; }
+    [Parameter] public EventCallback<ApprovalBlockModel> OnApprove { get; set; }
+    [Parameter] public EventCallback<ApprovalBlockModel> OnReject { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+    [Parameter] public bool IsApprovalProcessing { get; set; }
+
+    private ElementReference _scrollRef;
+    private bool _scrollToBottomRequested;
+
+    public void RequestScrollToBottom() => _scrollToBottomRequested = true;
+
+    private IReadOnlyList<IBubbleBlock> GetBlocksForAssistant(AssistantBubbleView asst)
+    {
+        var blocks = Presentation.ConvertToBubbleBlocks(asst);
+        if (ShowToolCalls) return blocks;
+        return blocks.Where(b => b is not ToolCallBlockModel).ToList();
+    }
+
+    private IReadOnlyList<IBubbleBlock> GetStreamingBlocks()
+    {
+        var list = ShowToolCalls ? StreamingBlocks.ToList() : StreamingBlocks.Where(b => b is not ToolCallBlockModel).ToList();
+        if (ShowWaitingForToolParams)
+            list.Add(new WaitingBlockModel(WaitingElapsed));
+        return list;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_scrollToBottomRequested)
+        {
+            _scrollToBottomRequested = false;
+            try
+            {
+                await JS.InvokeVoidAsync("SmallEBot.scrollChatToBottom", _scrollRef);
+            }
+            catch { /* ignore if JS not loaded */ }
+        }
+    }
+}
