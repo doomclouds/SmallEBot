@@ -164,6 +164,54 @@ public sealed class AgentSessionStore : IAgentSessionStore
     }
 
     /// <inheritdoc />
+    public async Task<bool> RemoveLastMessageIfAssistantApprovalRequestAsync(Guid conversationId, CancellationToken ct = default)
+    {
+        ThrowIfDisposed();
+        var filePath = GetSessionFilePath(conversationId);
+        if (!File.Exists(filePath)) return false;
+
+        await _semaphore.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            var json = await File.ReadAllTextAsync(filePath, ct).ConfigureAwait(false);
+            var root = JsonNode.Parse(json);
+            if (root == null) return false;
+
+            var messages = root["stateBag"]?["InMemoryChatHistoryProvider"]?["messages"] as JsonArray;
+            if (messages == null || messages.Count == 0) return false;
+
+            var last = messages[^1];
+            if (last == null) return false;
+
+            var roleNode = last["role"] as JsonValue;
+            var role = roleNode?.GetValue<string>();
+            if (!string.Equals(role, "assistant", StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            var contents = last["contents"] as JsonArray;
+            if (contents == null || contents.Count == 0) return false;
+
+            var hasApprovalRequest = contents.Any(c =>
+            {
+                var typeNode = c?["$type"] as JsonValue;
+                var type = typeNode?.GetValue<string>();
+                return string.Equals(type, "functionApprovalRequest", StringComparison.OrdinalIgnoreCase);
+            });
+
+            if (!hasApprovalRequest) return false;
+
+            messages.RemoveAt(messages.Count - 1);
+            var options = new JsonSerializerOptions { WriteIndented = true };
+            await File.WriteAllTextAsync(filePath, root.ToJsonString(options), ct).ConfigureAwait(false);
+            return true;
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
+    }
+
+    /// <inheritdoc />
     public async Task TruncateBeforeIndexAsync(Guid conversationId, int firstMessageIndex, CancellationToken ct = default)
     {
         ThrowIfDisposed();

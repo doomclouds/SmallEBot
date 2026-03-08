@@ -1,12 +1,8 @@
 @* Chat content: drop-in replacement for ChatArea. Uses ChatShell, MessageThread, ChatInput, ChatOrchestrator, InputOrchestrator. *@
 @using SmallEBot.Components.Chat.ViewModels.Blocks
-@using SmallEBot.Components.Chat.Services
 @using SmallEBot.Components.Chat.Messages
-@using SmallEBot.Components.Chat.Messages.Bubbles
 @using SmallEBot.Components.Chat.Input
-@using SmallEBot.Components.Chat.Layout
 @using SmallEBot.Components.Chat.Orchestration
-@using SmallEBot.Components.Chat.Dialogs
 @using SmallEBot.Core.Models
 @using UserBubbleModel = SmallEBot.Core.Models.UserBubble
 @using SmallEBot.Models
@@ -16,12 +12,10 @@
 @inject IDialogService DialogSvc
 @inject IWorkspaceUploadService UploadService
 @inject ICurrentCircuitAccessor CircuitAccessor
-@inject IContextUsageEstimator ContextUsageEstimator
 @inject IUserNameDisplayService UserNameDisplay
 @inject IWorkspaceService WorkspaceService
 @inject ISkillsConfigService SkillsConfigService
 @inject IModelConfigService ModelConfigService
-@inject ChatPresentationService Presentation
 @inject IJSRuntime JS
 @inject ISnackbar Snackbar
 @inject ILogger<ChatContent> Log
@@ -92,7 +86,7 @@
         _inputOrchestrator = new InputOrchestrator(WorkspaceService, SkillsConfigService, UploadService);
         _inputOrchestrator.OnStateChanged += StateHasChanged;
 
-        Orchestrator.InvokeOnUI = work => InvokeAsync(work);
+        Orchestrator.InvokeOnUI = InvokeAsync;
         Orchestrator.ShowMessage = (msg, sev) => { Snackbar.Add(msg, sev); return Task.CompletedTask; };
         Orchestrator.SetConversation(ConversationId);
         Orchestrator.OnStateChanged += HandleOrchestratorStateChanged;
@@ -175,7 +169,7 @@
     }
 
     [JSInvokable]
-    public async Task OnUploadFailed(string message)
+    public async Task OnUploadFailed(string? message)
     {
         Snackbar.Add(message ?? "Upload failed", Severity.Error);
         await InvokeAsync(StateHasChanged);
@@ -230,6 +224,7 @@
             _pendingUserMessageText = "";
             RefreshPendingMessage();
             await OnMessageSent.InvokeAsync();
+            _messageThreadRef?.RequestScrollToBottom();
             await InvokeAsync(StateHasChanged);
         }
         catch (Exception ex)

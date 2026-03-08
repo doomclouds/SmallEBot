@@ -57,4 +57,14 @@ public interface IAgentSessionStore : IDisposable
     /// Gets raw session JSON for message parsing (e.g. by AgentSessionReader).
     /// </summary>
     Task<string?> GetSessionJsonAsync(Guid conversationId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Removes the last message if it is an assistant message containing only functionApprovalRequest.
+    /// Called when starting a new turn to avoid MAF framework blocking on stale approval requests
+    /// left after user rejection.
+    /// </summary>
+    /// <param name="conversationId">Conversation ID.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>True if a message was removed, false otherwise.</returns>
+    Task<bool> RemoveLastMessageIfAssistantApprovalRequestAsync(Guid conversationId, CancellationToken ct = default);
 }

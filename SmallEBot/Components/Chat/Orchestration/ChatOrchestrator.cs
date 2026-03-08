@@ -397,12 +397,16 @@ public class ChatOrchestrator : IDisposable
 
         _pendingApprovals[approval.CallId] = approval with { State = ApprovalState.Rejected };
         StreamItems = _presentation.ConvertStreamToBubbleBlocks(_streamingUpdates, _pendingApprovals);
+        IsWaitingForApproval = true;
+        ApprovalProcessingCallId = approval.CallId;
         OnStateChanged?.Invoke();
 
         try
         {
             _sendCts ??= new CancellationTokenSource();
-            await foreach (var _ in _agentDispatcher.ContinueWithApprovalAsync(
+            StartWaitingCheckTimer();
+
+            await foreach (var update in _agentDispatcher.ContinueWithApprovalAsync(
                 approval.ConversationId,
                 approval.CallId,
                 approval.ToolName,
@@ -411,16 +415,43 @@ public class ChatOrchestrator : IDisposable
                 reason: "User rejected",
                 rawArguments: null,
                 _sendCts.Token))
-            { }
+            {
+                _lastStreamActivityAt = DateTime.UtcNow;
+                ShowWaitingForToolParams = false;
+
+                if (update is ApprovalRequestStreamUpdate newApproval)
+                {
+                    _pendingApprovals[newApproval.CallId] = new ApprovalBlockModel(
+                        newApproval.CallId,
+                        newApproval.ToolName,
+                        newApproval.Arguments,
+                        ApprovalState.Pending,
+                        newApproval.ConversationId,
+                        newApproval.FunctionCallId,
+                        newApproval.RawArguments);
+                }
+                else
+                {
+                    _streamingUpdates.Add(update);
+                }
+                StreamItems = _presentation.ConvertStreamToBubbleBlocks(_streamingUpdates, _pendingApprovals);
+                OnStateChanged?.Invoke();
+            }
         }
+        catch (OperationCanceledException) { }
         catch (Exception ex)
         {
             _log.LogError(ex, "Error sending rejection response");
+            await ShowMessageAsync($"Error: {ex.Message}", Severity.Error);
         }
         finally
         {
+            StopWaitingCheckTimer();
+            IsWaitingForApproval = false;
+            ApprovalProcessingCallId = null;
             if (_approvalWaitHandles.TryGetValue(approval.CallId, out var tcs))
                 tcs.TrySetResult(false);
+            OnStateChanged?.Invoke();
         }
     }
 

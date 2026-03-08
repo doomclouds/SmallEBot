@@ -250,6 +250,79 @@ public sealed class AgentSessionReader(
         return new FunctionResultContent(callId ?? string.Empty, result);
     }
 
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<(string Id, string CallId, string Name, IDictionary<string, object?>? Arguments)>> GetOrphanedApprovalRequestsAsync(
+        Guid conversationId,
+        CancellationToken ct = default)
+    {
+        var json = await sessionStore.GetSessionJsonAsync(conversationId, ct);
+        if (string.IsNullOrEmpty(json))
+            return [];
+
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            return ParseOrphanedApprovalRequests(doc.RootElement);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to parse orphaned approval requests for {ConversationId}", conversationId);
+            return [];
+        }
+    }
+
+    private static List<(string Id, string CallId, string Name, IDictionary<string, object?>? Arguments)> ParseOrphanedApprovalRequests(JsonElement sessionData)
+    {
+        var result = new List<(string, string, string, IDictionary<string, object?>?)>();
+        var respondedIds = new HashSet<string>(StringComparer.Ordinal);
+
+        if (!sessionData.TryGetProperty("stateBag", out var stateBag) ||
+            !stateBag.TryGetProperty("InMemoryChatHistoryProvider", out var historyProvider) ||
+            !historyProvider.TryGetProperty("messages", out var messagesArray) ||
+            messagesArray.ValueKind != JsonValueKind.Array)
+            return result;
+
+        foreach (var msgElement in messagesArray.EnumerateArray())
+        {
+            if (!msgElement.TryGetProperty("contents", out var contents) || contents.ValueKind != JsonValueKind.Array)
+                continue;
+
+            foreach (var content in contents.EnumerateArray())
+            {
+                if (!content.TryGetProperty("$type", out var typeEl))
+                    continue;
+
+                var type = typeEl.GetString()?.ToLowerInvariant();
+                if (type == "functionapprovalresponse")
+                {
+                    if (content.TryGetProperty("id", out var idEl))
+                        respondedIds.Add(idEl.GetString() ?? "");
+                }
+                else if (type == "functionapprovalrequest")
+                {
+                    var id = content.TryGetProperty("id", out var idEl) ? idEl.GetString() ?? "" : "";
+                    if (string.IsNullOrEmpty(id) || respondedIds.Contains(id))
+                        continue;
+
+                    if (!content.TryGetProperty("functionCall", out var fc))
+                        continue;
+
+                    var callId = fc.TryGetProperty("callId", out var cid) ? cid.GetString() ?? "" : "";
+                    var name = fc.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
+                    IDictionary<string, object?>? args = null;
+                    if (fc.TryGetProperty("arguments", out var argsEl) && argsEl.ValueKind == JsonValueKind.Object)
+                    {
+                        args = new Dictionary<string, object?>();
+                        foreach (var prop in argsEl.EnumerateObject())
+                            args[prop.Name] = ParseJsonValue(prop.Value);
+                    }
+                    result.Add((id, callId, name, args));
+                }
+            }
+        }
+        return result;
+    }
+
     private static object? ParseJsonValue(JsonElement element)
     {
         return element.ValueKind switch

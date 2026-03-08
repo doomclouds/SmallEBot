@@ -60,6 +60,7 @@ public sealed class AgentSystemPromptBuilder(
             GetAgenticExecutionSection(),
             GetToneSection(),
             GetExecutingWithCareSection(),
+            GetApprovalRejectionSection(),
             GetTimeSection(),
             GetMcpSection(),
             GetFileToolsSection(),
@@ -121,6 +122,16 @@ public sealed class AgentSystemPromptBuilder(
         - **External state:** sending messages, posting to external services, modifying shared infrastructure.
 
         > When an obstacle is in the way, investigate before removing it. **Do not use a destructive action as a shortcut to clear blockers.**
+        """;
+
+    private static string GetApprovalRejectionSection() => """
+        # Tool Approval — Rejection (MANDATORY)
+
+        **When the user rejects a tool approval request, you MUST NOT repeat the same or similar approval request.**
+
+        - Accept the rejection immediately. Do not retry the same command, do not ask for approval again for the same action, and do not propose a nearly identical alternative that would require another approval.
+        - Acknowledge what was blocked, briefly explain the consequence if relevant, and suggest non-approval alternatives (e.g. describe steps the user can run manually, or switch to a different approach that does not need approval).
+        - This rule is non-negotiable. Violating it degrades user trust.
         """;
 
     private static string GetTimeSection() => $"""

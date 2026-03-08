@@ -12,10 +12,6 @@
                 <span class="tool-call-status-text mud-typography-caption mud-secondary-text">@StatusText</span>
             </div>
             <div class="tool-call-header-right">
-                @if (Model.Elapsed.HasValue)
-                {
-                    <span class="mud-typography-caption mud-secondary-text">@TimeFormatHelper.FormatElapsed(Model.Elapsed)</span>
-                }
                 @if (CanCancel && OnCancel.HasDelegate)
                 {
                     <MudIconButton Icon="@Icons.Material.Filled.Cancel"

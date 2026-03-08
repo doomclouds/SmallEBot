@@ -20,7 +20,8 @@ namespace SmallEBot.Application.Agents.Execution;
 public sealed class AgentRunner(
     IAgentBuilder agentBuilder,
     IConversationSessionCoordinator coordinator,
-    IAgentSessionReader sessionReader) : IAgentRunner
+    IAgentSessionReader sessionReader,
+    IAgentSessionStore sessionStore) : IAgentRunner
 {
     public async IAsyncEnumerable<StreamUpdate> RunStreamingAsync(
         Guid conversationId,
@@ -33,6 +34,9 @@ public sealed class AgentRunner(
         string? userNameForTruncate = null)
     {
         var agent = await agentBuilder.GetOrCreateAgentAsync(useThinking, cancellationToken);
+
+        // Remove stale assistant functionApprovalRequest so MAF framework can process new user input
+        await sessionStore.RemoveLastMessageIfAssistantApprovalRequestAsync(conversationId, cancellationToken);
 
         if (truncateFromTurnId.HasValue && !string.IsNullOrEmpty(userNameForTruncate))
         {
@@ -125,25 +129,54 @@ public sealed class AgentRunner(
 
         try
         {
-#pragma warning disable MEAI001 // Type is for evaluation purposes only
-            var functionCall = new FunctionCallContent(
-                callId: functionCallId,
-                name: functionName,
-                arguments: rawArguments);
-            var approvalContent = new FunctionApprovalResponseContent(
-                id: approvalRequestId,
-                approved: approved,
-                functionCall: functionCall)
+            var orphaned = await sessionReader.GetOrphanedApprovalRequestsAsync(conversationId, cancellationToken);
+            var messages = new List<ChatMessage>();
+
+            foreach (var (id, callId, name, args) in orphaned)
             {
-                Reason = reason
-            };
+                var isOurs = id == approvalRequestId;
+                var approvedForThis = isOurs && approved;
+                var reasonForThis = isOurs ? reason : "User chose a different action";
+                var argsForThis = isOurs ? rawArguments : args;
+
+#pragma warning disable MEAI001 // Type is for evaluation purposes only
+                var functionCall = new FunctionCallContent(
+                    callId: callId,
+                    name: name,
+                    arguments: argsForThis);
+                var approvalContent = new FunctionApprovalResponseContent(
+                    id: id,
+                    approved: approvedForThis,
+                    functionCall: functionCall)
+                {
+                    Reason = reasonForThis
+                };
 #pragma warning restore MEAI001
-            var message = new ChatMessage(ChatRole.User, [approvalContent]);
+                messages.Add(new ChatMessage(ChatRole.User, [approvalContent]));
+            }
+
+            if (messages.Count == 0)
+            {
+#pragma warning disable MEAI001 // Type is for evaluation purposes only
+                var functionCall = new FunctionCallContent(
+                    callId: functionCallId,
+                    name: functionName,
+                    arguments: rawArguments);
+                var approvalContent = new FunctionApprovalResponseContent(
+                    id: approvalRequestId,
+                    approved: approved,
+                    functionCall: functionCall)
+                {
+                    Reason = reason
+                };
+#pragma warning restore MEAI001
+                messages.Add(new ChatMessage(ChatRole.User, [approvalContent]));
+            }
 
             var chatOptions = new ChatOptions { Reasoning = null };
             var runOptions = new ChatClientAgentRunOptions(chatOptions);
 
-            var agentUpdates = agent.RunStreamingAsync([message], session, runOptions, cancellationToken);
+            var agentUpdates = agent.RunStreamingAsync(messages, session, runOptions, cancellationToken);
 
             await foreach (var update in ProcessStreamingUpdates(agentUpdates, conversationId, agent, session, metadata, cancellationToken))
             {
