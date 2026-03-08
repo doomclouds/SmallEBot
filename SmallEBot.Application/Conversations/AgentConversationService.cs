@@ -5,6 +5,7 @@ using SmallEBot.Application.Contracts.Conversations;
 using SmallEBot.Application.Contracts.Conversations.Compression;
 using SmallEBot.Application.Contracts.Conversations.Context;
 using SmallEBot.Application.Contracts.Conversations.Session;
+using SmallEBot.Application.Contracts.Conversations.TaskList;
 using SmallEBot.Application.Contracts.Streaming;
 using SmallEBot.Core;
 using SmallEBot.Core.Models;
@@ -21,7 +22,7 @@ public sealed class AgentConversationService(
     ICompressionThresholdProvider compressionThresholdProvider,
     IContextUsageEstimator contextUsageEstimator,
     IAgentSessionReader sessionReader,
-    IConversationTaskRemover taskRemover) : IAgentConversationService
+    ITaskListService taskListService) : IAgentConversationService
 {
     public event Action<Guid>? CompressionStarted;
     public event Action<Guid, bool>? CompressionCompleted;
@@ -59,7 +60,7 @@ public sealed class AgentConversationService(
         var m = await metadataRepository.GetByIdAsync(id, cancellationToken);
         if (m == null || m.UserName != userName) return false;
         await metadataRepository.DeleteAsync(id, cancellationToken);
-        taskRemover.RemoveTasks(id);
+        await taskListService.ClearTasksAsync(id, cancellationToken);
         return true;
     }
 
@@ -337,7 +338,7 @@ public sealed class AgentConversationService(
     {
         // Use IContextUsageEstimator for accurate token estimation with tokenizer
         var estimate = await contextUsageEstimator.GetEstimatedContextUsageDetailAsync(conversationId, ct);
-        if (estimate == null || estimate.ContextWindowTokens <= 0) return false;
+        if (estimate is not { ContextWindowTokens: > 0 }) return false;
 
         var threshold = compressionThresholdProvider.GetCompressionThreshold();
 

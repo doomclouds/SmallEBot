@@ -35,7 +35,7 @@ public static class ServiceCollectionExtensions
         var dbPath = Path.Combine(baseDir, "smallebot.db");
 
         // IConversationSessionCoordinator, IAgentSessionReader, IConversationTaskContext, ICurrentConversationService,
-        // ITaskListService, ITaskListCache, IConversationTaskRemover are registered in Infrastructure.AddInfrastructure
+        // ITaskListService, IConversationTaskContext, ICurrentConversationService are registered in Infrastructure.AddInfrastructure
         // IConversationMetadataRepository is registered in Infrastructure.AddInfrastructure
 
         services.AddSingleton<ICommandRunner, CommandRunner>();

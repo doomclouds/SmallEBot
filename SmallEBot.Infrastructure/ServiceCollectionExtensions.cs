@@ -68,7 +68,6 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ITaskListService, TaskListService>();
         services.AddSingleton<IConversationTaskContext, ConversationTaskContext>();
         services.AddSingleton<ICurrentConversationService, CurrentConversationService>();
-        services.AddSingleton<IConversationTaskRemover, ConversationTaskRemover>();
 
         // Tokenizer services
         services.AddSingleton<ITokenizer>(sp =>
