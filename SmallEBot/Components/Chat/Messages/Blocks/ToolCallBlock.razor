@@ -14,7 +14,7 @@
             <div class="tool-call-header-right">
                 @if (Model.Elapsed.HasValue)
                 {
-                    <span class="mud-typography-caption mud-secondary-text">@FormatElapsed(Model.Elapsed.Value)</span>
+                    <span class="mud-typography-caption mud-secondary-text">@TimeFormatHelper.FormatElapsed(Model.Elapsed)</span>
                 }
                 @if (CanCancel && OnCancel.HasDelegate)
                 {
@@ -111,10 +111,4 @@
         _ => ""
     };
 
-    private static string FormatElapsed(TimeSpan e)
-    {
-        if (e.TotalMinutes >= 1) return $"{(int)e.TotalMinutes}m {e.Seconds}s";
-        if (e.TotalSeconds >= 1) return $"{e.TotalSeconds:F1}s";
-        return $"{e.TotalMilliseconds:F0}ms";
-    }
 }
