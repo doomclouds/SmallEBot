@@ -1,11 +1,15 @@
-@* Chat input: popover + chips + input bar, driven by InputOrchestrator *@
+@* Chat input: add buttons + chips + input bar, driven by InputOrchestrator *@
 @using SmallEBot.Components.Chat.Orchestration
+@using SmallEBot.Components.Chat.Dialogs
 @using SmallEBot.Core.Models
-@inject IJSRuntime JS
+@inject IDialogService DialogSvc
 @implements IDisposable
 
 <div id="smallebot-chat-drop-zone" class="position-relative">
-    <InputAttachmentPopover Orchestrator="@Orchestrator" @ref="_popoverRef" />
+    <div class="d-flex gap-1 mb-1">
+        <MudIconButton Icon="@Icons.Material.Filled.InsertDriveFile" Size="Size.Small" OnClick="@OpenAddFilesDialog" title="Add files" aria-label="Add files" />
+        <MudIconButton Icon="@Icons.Material.Filled.Psychology" Size="Size.Small" OnClick="@OpenAddSkillsDialog" title="Add skills" aria-label="Add skills" />
+    </div>
     <InputAttachmentChips Orchestrator="@Orchestrator" />
     <InputBar Text="@Orchestrator.InputText"
               TextChanged="@HandleTextChanged"
@@ -16,8 +20,7 @@
               OnSend="@OnSend"
               OnStop="@OnStop"
               OnCompress="@OnCompress"
-              IsDisabled="@IsInputDisabled"
-              OnKeyDown="@HandleKeyDown" />
+              IsDisabled="@IsInputDisabled" />
 </div>
 
 @code {
@@ -30,11 +33,6 @@
     [Parameter] public EventCallback OnStop { get; set; }
     [Parameter] public EventCallback OnCompress { get; set; }
 
-    private InputAttachmentPopover? _popoverRef;
-    private DotNetObjectReference<ChatInput>? _suggestionKeysDotNetRef;
-    private bool _suggestionKeysAttached;
-    private bool _prevPopoverOpen;
-
     private bool IsInputDisabled => string.IsNullOrWhiteSpace(Orchestrator.InputText) ||
                                     Orchestrator.Attachments.OfType<PendingUploadAttachment>().Any();
 
@@ -43,46 +41,20 @@
         Orchestrator.OnStateChanged += StateHasChanged;
     }
 
-    protected override void OnParametersSet()
+    private async Task OpenAddFilesDialog()
     {
-        if (Orchestrator.IsPopoverOpen != _prevPopoverOpen)
-        {
-            _prevPopoverOpen = Orchestrator.IsPopoverOpen;
-        }
+        var dialog = await DialogSvc.ShowAsync<AddFilesDialog>("Add files", new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dialog.Result;
+        if (result?.Data is List<string> paths)
+            Orchestrator.AddFiles(paths);
     }
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    private async Task OpenAddSkillsDialog()
     {
-        if (Orchestrator.IsPopoverOpen != _prevPopoverOpen)
-        {
-            _prevPopoverOpen = Orchestrator.IsPopoverOpen;
-            if (Orchestrator.IsPopoverOpen && !_suggestionKeysAttached)
-            {
-                _suggestionKeysAttached = true;
-                _suggestionKeysDotNetRef = DotNetObjectReference.Create(this);
-                try
-                {
-                    await JS.InvokeVoidAsync("SmallEBot.attachChatInputSuggestionKeys", "smallebot-chat-input-wrap", _suggestionKeysDotNetRef);
-                }
-                catch
-                {
-                    _suggestionKeysAttached = false;
-                    _suggestionKeysDotNetRef?.Dispose();
-                    _suggestionKeysDotNetRef = null;
-                }
-            }
-            else if (!Orchestrator.IsPopoverOpen && _suggestionKeysAttached)
-            {
-                try
-                {
-                    await JS.InvokeVoidAsync("SmallEBot.detachChatInputSuggestionKeys", "smallebot-chat-input-wrap");
-                }
-                catch { /* ignore */ }
-                _suggestionKeysAttached = false;
-                _suggestionKeysDotNetRef?.Dispose();
-                _suggestionKeysDotNetRef = null;
-            }
-        }
+        var dialog = await DialogSvc.ShowAsync<AddSkillsDialog>("Add skills", new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dialog.Result;
+        if (result?.Data is List<string> skillIds)
+            Orchestrator.AddSkills(skillIds);
     }
 
     private async Task HandleTextChanged(string value)
@@ -90,25 +62,8 @@
         await Orchestrator.HandleInputChangedAsync(value);
     }
 
-    [JSInvokable]
-    public async Task OnSuggestionKeyDown(string key)
-    {
-        if (_popoverRef != null)
-            await _popoverRef.HandleKeyFromInputAsync(key);
-    }
-
-    private async Task HandleKeyDown(KeyboardEventArgs e)
-    {
-        if (Orchestrator.IsPopoverOpen && _popoverRef != null &&
-            (e.Key == "ArrowDown" || e.Key == "ArrowUp" || e.Key == "Enter" || e.Key == "Escape"))
-        {
-            await _popoverRef.HandleKeyFromInputAsync(e.Key);
-        }
-    }
-
     public void Dispose()
     {
         Orchestrator.OnStateChanged -= StateHasChanged;
-        _suggestionKeysDotNetRef?.Dispose();
     }
 }

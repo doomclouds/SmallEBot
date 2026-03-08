@@ -1,10 +1,12 @@
-@* Edit message dialog: uses InputOrchestrator + InputAttachmentPopover + InputAttachmentChips *@
+@* Edit message dialog: uses InputOrchestrator + add buttons + InputAttachmentChips *@
 @using SmallEBot.Components.Chat.Orchestration
 @using SmallEBot.Components.Chat.Input
+@using SmallEBot.Components.Chat.Dialogs
 @using SmallEBot.Core.Models
 @using SmallEBot.Models
 @inject IWorkspaceService WorkspaceService
 @inject ISkillsConfigService SkillsConfigService
+@inject IDialogService DialogSvc
 @inject IJSRuntime JS
 @implements IDisposable
 
@@ -14,13 +16,16 @@
     </TitleContent>
     <DialogContent>
         <div id="edit-message-dialog-input-wrap" class="position-relative">
-            <InputAttachmentPopover Orchestrator="@_orchestrator" @ref="_popoverRef" />
+            <div class="d-flex gap-1 mb-1">
+                <MudIconButton Icon="@Icons.Material.Filled.InsertDriveFile" Size="Size.Small" OnClick="@OpenAddFilesDialog" title="Add files" aria-label="Add files" />
+                <MudIconButton Icon="@Icons.Material.Filled.Psychology" Size="Size.Small" OnClick="@OpenAddSkillsDialog" title="Add skills" aria-label="Add skills" />
+            </div>
             <InputAttachmentChips Orchestrator="@_orchestrator" />
             <MudTextField Value="@_orchestrator.InputText"
                           ValueChanged="@(async (string v) => await _orchestrator.HandleInputChangedAsync(v))"
                           Immediate="true"
                           Label="Message"
-                          Placeholder="@("Use @ for files, / for skills")"
+                          Placeholder="@("Plan or ask...")"
                           Variant="Variant.Outlined"
                           Lines="4"
                           Style="min-width: 400px" />
@@ -39,10 +44,6 @@
     [Parameter] public IReadOnlyList<string> InitialRequestedSkillIds { get; set; } = [];
 
     private InputOrchestrator _orchestrator = null!;
-    private InputAttachmentPopover? _popoverRef;
-    private DotNetObjectReference<EditMessageDialog>? _suggestionKeysDotNetRef;
-    private bool _suggestionKeysAttached;
-    private bool _prevPopoverOpen;
 
     protected override void OnInitialized()
     {
@@ -52,41 +53,33 @@
         _orchestrator.OnStateChanged += StateHasChanged;
     }
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    private async Task OpenAddFilesDialog()
     {
-        if (_orchestrator.IsPopoverOpen != _prevPopoverOpen)
-        {
-            _prevPopoverOpen = _orchestrator.IsPopoverOpen;
-            if (_orchestrator.IsPopoverOpen && !_suggestionKeysAttached)
-            {
-                _suggestionKeysAttached = true;
-                _suggestionKeysDotNetRef = DotNetObjectReference.Create(this);
-                try
-                {
-                    await JS.InvokeVoidAsync("SmallEBot.attachChatInputSuggestionKeys", "edit-message-dialog-input-wrap", _suggestionKeysDotNetRef);
-                }
-                catch
-                {
-                    _suggestionKeysAttached = false;
-                    _suggestionKeysDotNetRef?.Dispose();
-                    _suggestionKeysDotNetRef = null;
-                }
-            }
-            else if (!_orchestrator.IsPopoverOpen && _suggestionKeysAttached)
-            {
-                try { await JS.InvokeVoidAsync("SmallEBot.detachChatInputSuggestionKeys", "edit-message-dialog-input-wrap"); } catch { /* ignore */ }
-                _suggestionKeysAttached = false;
-                _suggestionKeysDotNetRef?.Dispose();
-                _suggestionKeysDotNetRef = null;
-            }
-        }
+        var dialog = await DialogSvc.ShowAsync<AddFilesDialog>("Add files", new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dialog.Result;
+        if (result?.Data is List<string> paths)
+            _orchestrator.AddFiles(paths);
     }
 
-    [JSInvokable]
-    public async Task OnSuggestionKeyDown(string key)
+    private async Task OpenAddSkillsDialog()
     {
-        if (_popoverRef != null)
-            await _popoverRef.HandleKeyFromInputAsync(key);
+        var dialog = await DialogSvc.ShowAsync<AddSkillsDialog>("Add skills", new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dialog.Result;
+        if (result?.Data is List<string> skillIds)
+            _orchestrator.AddSkills(skillIds);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                await Task.Delay(50);
+                await JS.InvokeVoidAsync("SmallEBot.setChatInputCursorToEnd", "edit-message-dialog-input-wrap");
+            }
+            catch { /* ignore */ }
+        }
     }
 
     private void Cancel() => MudDialog.Cancel();
@@ -99,8 +92,5 @@
     public void Dispose()
     {
         _orchestrator.OnStateChanged -= StateHasChanged;
-        try { _ = JS.InvokeVoidAsync("SmallEBot.detachChatInputSuggestionKeys", "edit-message-dialog-input-wrap"); } catch { /* ignore */ }
-        _suggestionKeysDotNetRef?.Dispose();
-        _suggestionKeysDotNetRef = null;
     }
 }

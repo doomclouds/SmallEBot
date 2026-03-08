@@ -1,0 +1,73 @@
+@using SmallEBot.Core.Models
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">Add skills</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_search" Label="Search" Variant="Variant.Outlined" Immediate="true" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Class="mb-2" />
+        <div style="max-height: 300px; overflow-y: auto;">
+            @if (_skills.Count == 0)
+            {
+                <MudText Typo="Typo.body2" Class="text-secondary">No skills available.</MudText>
+            }
+            else
+            {
+                <MudList T="string" Dense="true" Style="overflow: visible;">
+                    @foreach (var skill in FilteredSkills)
+                    {
+                        var id = skill.Id;
+                        var isSelected = _selectedIds.Contains(id);
+                        <MudListItem T="string" Value="@id" OnClick="@(() => ToggleSelect(id))">
+                            @if (isSelected)
+                            {
+                                <MudIcon Icon="@Icons.Material.Filled.Check" Size="Size.Small" Class="me-2" Color="Color.Primary" />
+                            }
+                            else
+                            {
+                                <MudIcon Icon="@Icons.Material.Filled.Psychology" Size="Size.Small" Class="me-2" />
+                            }
+                            <MudText Typo="Typo.body2">@skill.Name</MudText>
+                            <MudText Typo="Typo.caption" Class="text-secondary ms-1">@skill.Id</MudText>
+                        </MudListItem>
+                    }
+                </MudList>
+            }
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@Add" Disabled="@(_selectedIds.Count == 0)">Add</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+
+    [Inject] private ISkillsConfigService SkillsConfigService { get; set; } = null!;
+
+    private List<SkillMetadata> _skills = [];
+    private readonly HashSet<string> _selectedIds = [];
+    private string _search = "";
+
+    private IReadOnlyList<SkillMetadata> FilteredSkills => string.IsNullOrWhiteSpace(_search)
+        ? _skills
+        : _skills.Where(s => s.Id.Contains(_search, StringComparison.OrdinalIgnoreCase) || (s.Name.Contains(_search, StringComparison.OrdinalIgnoreCase))).ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _skills = (await SkillsConfigService.GetMetadataForAgentAsync()).ToList();
+    }
+
+    private void ToggleSelect(string id)
+    {
+        if (!_selectedIds.Add(id))
+            _selectedIds.Remove(id);
+
+        StateHasChanged();
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private void Add() => MudDialog.Close(DialogResult.Ok(_selectedIds.ToList()));
+}

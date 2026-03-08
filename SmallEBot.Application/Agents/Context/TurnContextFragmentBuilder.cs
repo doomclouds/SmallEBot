@@ -1,5 +1,6 @@
 using SmallEBot.Application.Contracts.Agents.Context;
 using SmallEBot.Application.Contracts.Agents.Skills;
+using SmallEBot.Application.Contracts.Agents.Tools;
 using SmallEBot.Core;
 
 namespace SmallEBot.Application.Agents.Context;
@@ -8,9 +9,9 @@ namespace SmallEBot.Application.Agents.Context;
 public sealed class TurnContextFragmentBuilder(ISkillsConfigService skillsConfig) : ITurnContextFragmentBuilder
 {
     private const string PerTurnHeader = """
-        # IMPORTANT: Per-Turn Context (this message only)
+        # Key context for this message
 
-        The following context applies to THIS user message only. You MUST pay attention and follow it.
+        The following applies to this user message only. Pay attention and follow it.
 
         """;
 
@@ -59,9 +60,13 @@ public sealed class TurnContextFragmentBuilder(ISkillsConfigService skillsConfig
 
         var lines = new List<string>
         {
-            "# Attached Files",
+            "## Attached files",
             "",
-            "The following files are attached to this message. Use ReadFile to read their contents when needed:"
+            "**Important:** The user explicitly attached these files. If the user's request involves analyzing, reviewing, or modifying files, prioritize these first.",
+            "",
+            $"**How to read:** Use `{BuiltInToolNames.ReadFile}(path, startLine?, endLine?, lineNumbers?)` with the path exactly as listed below. Paths are relative to the workspace root.",
+            "",
+            "Paths:"
         };
         lines.AddRange(validPaths.Select(p => $"- {p}"));
 
@@ -78,7 +83,9 @@ public sealed class TurnContextFragmentBuilder(ISkillsConfigService skillsConfig
         var knownIds = new HashSet<string>(metadata.Select(m => m.Id), StringComparer.OrdinalIgnoreCase);
         var lines = new List<string>
         {
-            "# Requested Skills",
+            "## Requested skills",
+            "",
+            "**How to use:** Call `load_skill(skillId)` with the skill id exactly as listed. This loads the skill's instructions. Use `read_skill_resource(skillId, resourcePath)` to read other files in the skill folder.",
             ""
         };
 
@@ -88,10 +95,10 @@ public sealed class TurnContextFragmentBuilder(ISkillsConfigService skillsConfig
                 continue;
             var trimmed = id.Trim();
             lines.Add(knownIds.Contains(trimmed)
-                ? $"The user wants you to use the skill \"{trimmed}\". Call load_skill(\"{trimmed}\") to learn and apply it."
-                : $"The user requested skill \"{trimmed}\"; it was not found in the skills list.");
+                ? $"- \"{trimmed}\" — call `load_skill(\"{trimmed}\")` to load and apply."
+                : $"- \"{trimmed}\" — not found in the skills list.");
         }
 
-        return lines.Count <= 2 ? "" : string.Join("\n", lines);
+        return lines.Count <= 4 ? "" : string.Join("\n", lines);
     }
 }

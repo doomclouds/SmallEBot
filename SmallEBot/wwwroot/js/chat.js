@@ -27,7 +27,17 @@ window.SmallEBot.setTheme = function (id) {
     } catch (e) {}
 };
 
-// Set chat input cursor to end (e.g. after inserting @path or /skillId)
+// Scroll list so the selected index is in view (used by AttachmentPopover if present)
+window.SmallEBot.scrollAttachmentPopoverToIndex = function (scrollContainerId, selectedIndex) {
+    let container = document.getElementById(scrollContainerId);
+    if (!container) return;
+    let list = container.querySelector('.mud-list');
+    if (!list) return;
+    let item = list.children[selectedIndex];
+    if (item) item.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+};
+
+// Set chat input cursor to end (e.g. when focusing edit dialog)
 window.SmallEBot.setChatInputCursorToEnd = function (wrapperId) {
     let wrap = document.getElementById(wrapperId);
     if (!wrap) return;
@@ -38,75 +48,32 @@ window.SmallEBot.setChatInputCursorToEnd = function (wrapperId) {
     input.focus();
 };
 
-// Scroll attachment popover list so the selected index is in view (for arrow key nav)
-window.SmallEBot.scrollAttachmentPopoverToIndex = function (scrollContainerId, selectedIndex) {
-    let container = document.getElementById(scrollContainerId);
-    if (!container) return;
-    let list = container.querySelector('.mud-list');
-    if (!list) return;
-    let item = list.children[selectedIndex];
-    if (item) item.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-};
-
-// Set chat input value and cursor to end (after @ or / completion so DOM is in sync)
-window.SmallEBot.setChatInputValueAndCursorToEnd = function (wrapperId, value) {
-    let wrap = document.getElementById(wrapperId);
-    if (!wrap) return;
-    let input = wrap.querySelector('textarea, input');
-    if (!input) return;
-    if (value !== undefined && value !== null) input.value = value;
-    let len = input.value.length;
-    input.setSelectionRange(len, len);
-    input.focus();
-};
-
-// Chat input: Enter sends, Shift+Enter newline (preventDefault only for Enter)
+// Chat input: Enter sends, Shift+Enter newline. Attach to wrapper so handlers survive input re-renders.
+let _sendHandler = null;
+let _sendWrapperId = null;
 window.SmallEBot.attachChatInputSend = function (wrapperId, dotNetRef) {
     let wrap = document.getElementById(wrapperId);
     if (!wrap) return;
-    let input = wrap.querySelector('textarea, input');
-    if (!input) return;
-    input.addEventListener('keydown', function (e) {
+    window.SmallEBot.detachChatInputSend(wrapperId);
+    _sendHandler = function (e) {
+        let input = wrap.querySelector('textarea, input');
+        if (!input || e.target !== input) return;
         if (e.key === 'Enter' && !e.shiftKey) {
-            // If suggestion popover is open (has active key handler), don't send - let it handle navigation/selection
-            if (_suggestionKeyHandler) return;
             e.preventDefault();
             dotNetRef.invokeMethodAsync('InvokeSend');
         }
-    });
-};
-
-// Suggestion popover: when open, intercept ArrowUp/ArrowDown/Enter/Escape on input so user can navigate and select without leaving input
-let _suggestionKeyHandler = null;
-let _suggestionKeyWrapperId = null;
-window.SmallEBot.attachChatInputSuggestionKeys = function (wrapperId, dotNetRef) {
-    let wrap = document.getElementById(wrapperId);
-    if (!wrap) return;
-    let input = wrap.querySelector('textarea, input');
-    if (!input) return;
-    window.SmallEBot.detachChatInputSuggestionKeys(wrapperId);
-    let keys = ['ArrowDown', 'ArrowUp', 'Enter', 'Escape'];
-    _suggestionKeyHandler = function (e) {
-        if (keys.indexOf(e.key) !== -1) {
-            e.preventDefault();
-            e.stopPropagation();
-            dotNetRef.invokeMethodAsync('OnSuggestionKeyDown', e.key);
-        }
     };
-    _suggestionKeyWrapperId = wrapperId;
-    input.addEventListener('keydown', _suggestionKeyHandler, true);
+    _sendWrapperId = wrapperId;
+    wrap.addEventListener('keydown', _sendHandler);
 };
-window.SmallEBot.detachChatInputSuggestionKeys = function (wrapperId) {
-    if (!_suggestionKeyHandler || _suggestionKeyWrapperId !== wrapperId) return;
+window.SmallEBot.detachChatInputSend = function (wrapperId) {
+    if (!_sendHandler || _sendWrapperId !== wrapperId) return;
     let wrap = document.getElementById(wrapperId);
-    if (wrap) {
-        let input = wrap.querySelector('textarea, input');
-        if (input) input.removeEventListener('keydown', _suggestionKeyHandler, true);
-    }
-    _suggestionKeyHandler = null;
-    _suggestionKeyWrapperId = null;
+    if (wrap) wrap.removeEventListener('keydown', _sendHandler);
+    _sendHandler = null;
+    _sendWrapperId = null;
 };
 
 // Expose for Blazor JSInvoke (cannot call SmallEBot.getTheme directly)
 window.SmallEBotGetTheme = function () { return window.SmallEBot.getTheme(); };
-window.SmallEBotSetTheme = function (id) { window.SmallEBot.setTheme(id); };
+window.SmallEBotSetTheme = function (id) { return window.SmallEBot.setTheme(id); };

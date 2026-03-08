@@ -135,7 +135,8 @@ public sealed class WorkspaceService(
     {
         if (!node.IsDirectory)
         {
-            if (AllowedFileExtensions.IsAllowed(node.Name))
+            var ext = Path.GetExtension(node.Name);
+            if (AllowedFileExtensions.IsAllowed(ext))
             {
                 paths.Add(node.RelativePath);
             }

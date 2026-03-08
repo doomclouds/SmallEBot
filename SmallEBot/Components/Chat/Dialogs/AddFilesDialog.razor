@@ -1,0 +1,70 @@
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">Add files</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_search" Label="Search" Variant="Variant.Outlined" Immediate="true" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Class="mb-2" />
+        <div style="max-height: 300px; overflow-y: auto;">
+            @if (_paths.Count == 0)
+            {
+                <MudText Typo="Typo.body2" Class="text-secondary">No files with allowed extensions.</MudText>
+            }
+            else
+            {
+                <MudList T="string" Dense="true" Style="overflow: visible;">
+                    @foreach (var path in FilteredPaths)
+                    {
+                        var p = path;
+                        var isSelected = _selected.Contains(p);
+                        <MudListItem T="string" Value="@p" OnClick="@(() => ToggleSelect(p))">
+                            @if (isSelected)
+                            {
+                                <MudIcon Icon="@Icons.Material.Filled.Check" Size="Size.Small" Class="me-2" Color="Color.Primary" />
+                            }
+                            else
+                            {
+                                <MudIcon Icon="@Icons.Material.Filled.InsertDriveFile" Size="Size.Small" Class="me-2" />
+                            }
+                            @path
+                        </MudListItem>
+                    }
+                </MudList>
+            }
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@Add" Disabled="@(_selected.Count == 0)">Add</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] IMudDialogInstance MudDialog { get; set; } = null!;
+
+    [Inject] private IWorkspaceService WorkspaceService { get; set; } = null!;
+
+    private List<string> _paths = [];
+    private readonly HashSet<string> _selected = [];
+    private string _search = "";
+
+    private IReadOnlyList<string> FilteredPaths => string.IsNullOrWhiteSpace(_search)
+        ? _paths
+        : _paths.Where(p => p.Contains(_search, StringComparison.OrdinalIgnoreCase)).ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _paths = (await WorkspaceService.GetAllowedFilePathsAsync()).ToList();
+    }
+
+    private void ToggleSelect(string path)
+    {
+        if (!_selected.Add(path))
+            _selected.Remove(path);
+
+        StateHasChanged();
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private void Add() => MudDialog.Close(DialogResult.Ok(_selected.ToList()));
+}

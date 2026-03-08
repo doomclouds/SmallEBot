@@ -5,95 +5,48 @@ using SmallEBot.Core.Models;
 namespace SmallEBot.Components.Chat.Orchestration;
 
 /// <summary>
-/// Shared logic for @ and / input triggering and attachment management.
+/// Shared logic for attachment and skill management in chat input.
 /// Used by ChatInput and EditMessageDialog. Not registered in DI; components instantiate with injected services.
 /// </summary>
 public class InputOrchestrator
 {
-    private readonly IWorkspaceService _workspaceService;
-    private readonly ISkillsConfigService _skillsConfigService;
     private readonly IWorkspaceUploadService? _uploadService;
-
-    private bool _justSelectedAttachment;
-    private List<string> _filePaths = [];
-    private List<SkillMetadata> _skills = [];
 
     public InputOrchestrator(IWorkspaceService workspaceService, ISkillsConfigService skillsConfigService, IWorkspaceUploadService? uploadService = null)
     {
-        _workspaceService = workspaceService;
-        _skillsConfigService = skillsConfigService;
         _uploadService = uploadService;
     }
 
     public string InputText { get; set; } = "";
     public List<AttachmentItem> Attachments { get; } = [];
     public List<string> RequestedSkillIds { get; } = [];
-    public bool IsPopoverOpen { get; private set; }
-    public string PopoverKind { get; private set; } = "file";
-    public string PopoverFilter { get; private set; } = "";
-    public IReadOnlyList<string> FilePaths => _filePaths;
-    public IReadOnlyList<SkillMetadata> Skills => _skills;
 
     public event Action? OnStateChanged;
 
-    public async Task HandleInputChangedAsync(string value)
+    public Task HandleInputChangedAsync(string value)
     {
-        if (_justSelectedAttachment)
-        {
-            _justSelectedAttachment = false;
-            return;
-        }
         InputText = value;
+        OnStateChanged?.Invoke();
+        return Task.CompletedTask;
+    }
 
-        var lastAt = value.LastIndexOf('@');
-        var lastSlash = value.LastIndexOf('/');
-
-        if (lastSlash > lastAt)
+    public void AddFiles(IEnumerable<string> paths)
+    {
+        foreach (var path in paths)
         {
-            PopoverKind = "skill";
-            IsPopoverOpen = true;
-            PopoverFilter = lastSlash + 1 < value.Length ? value[(lastSlash + 1)..] : "";
-            if (_skills.Count == 0)
-                _skills = (await _skillsConfigService.GetMetadataForAgentAsync()).ToList();
+            if (Attachments.OfType<ResolvedPathAttachment>().All(x => x.Path != path))
+                Attachments.Add(new ResolvedPathAttachment(path));
         }
-        else if (lastAt >= 0)
-        {
-            PopoverKind = "file";
-            IsPopoverOpen = true;
-            PopoverFilter = lastAt + 1 < value.Length ? value[(lastAt + 1)..] : "";
-            if (_filePaths.Count == 0)
-                _filePaths = (await _workspaceService.GetAllowedFilePathsAsync()).ToList();
-        }
-        else
-        {
-            IsPopoverOpen = false;
-        }
-
         OnStateChanged?.Invoke();
     }
 
-    public void SelectAttachment(string value)
+    public void AddSkills(IEnumerable<string> skillIds)
     {
-        if (PopoverKind == "file")
+        foreach (var id in skillIds)
         {
-            if (Attachments.OfType<ResolvedPathAttachment>().All(x => x.Path != value))
-                Attachments.Add(new ResolvedPathAttachment(value));
-            var lastAt = InputText.LastIndexOf('@');
-            InputText = lastAt >= 0 ? InputText[..lastAt].TrimEnd() : InputText;
+            if (!RequestedSkillIds.Any(s => string.Equals(s, id, StringComparison.OrdinalIgnoreCase)))
+                RequestedSkillIds.Add(id);
         }
-        else
-        {
-            if (!RequestedSkillIds.Any(s => string.Equals(s, value, StringComparison.OrdinalIgnoreCase)))
-                RequestedSkillIds.Add(value);
-            var lastSlash = InputText.LastIndexOf('/');
-            InputText = lastSlash >= 0 ? InputText[..lastSlash].TrimEnd() : InputText;
-        }
-
-        if (InputText.Length > 0 && !InputText.EndsWith(' '))
-            InputText += " ";
-
-        _justSelectedAttachment = true;
-        IsPopoverOpen = false;
         OnStateChanged?.Invoke();
     }
 
@@ -143,13 +96,6 @@ public class InputOrchestrator
         OnStateChanged?.Invoke();
     }
 
-    public void ClosePopover()
-    {
-        IsPopoverOpen = false;
-        PopoverFilter = "";
-        OnStateChanged?.Invoke();
-    }
-
     /// <summary>
     /// Collect current input and attachments, then reset for next send.
     /// </summary>
@@ -172,10 +118,6 @@ public class InputOrchestrator
         InputText = "";
         Attachments.Clear();
         RequestedSkillIds.Clear();
-        IsPopoverOpen = false;
-        PopoverFilter = "";
-        _filePaths.Clear();
-        _skills.Clear();
         OnStateChanged?.Invoke();
     }
 

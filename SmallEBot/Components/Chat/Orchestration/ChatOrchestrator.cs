@@ -349,12 +349,12 @@ public class ChatOrchestrator : IDisposable
             try
             {
                 await _terminalConfig.AddToWhitelistAndSaveAsync(executable.Trim());
-                await ShowMessageAsync($"已加入白名单: {executable.Trim()}", Severity.Success);
+                await ShowMessageAsync($"Added to whitelist: {executable.Trim()}", Severity.Success);
             }
             catch (Exception ex)
             {
                 _log.LogWarning(ex, "Failed to add {Executable} to whitelist", executable);
-                await ShowMessageAsync($"加入白名单失败: {ex.Message}", Severity.Warning);
+                await ShowMessageAsync($"Failed to add to whitelist: {ex.Message}", Severity.Warning);
             }
         }
 

@@ -248,7 +248,7 @@ public sealed class AgentSystemPromptBuilder(
         **Intermediate / temporary files:** Use the workspace `docs/` directory for working scripts, intermediate results, and downloaded data. Do not write to system-level paths like `/tmp` unless the user explicitly requests it.
 
         **Do not use file tools on these paths:**
-        - `temp/` — reserved for **file uploads** only. Do not use `{BuiltInToolNames.ReadFile}`, `{BuiltInToolNames.WriteFile}`, `{BuiltInToolNames.ListFiles}`, `{BuiltInToolNames.AppendFile}`, `{BuiltInToolNames.CopyFile}`, `{BuiltInToolNames.CopyDirectory}`, `{BuiltInToolNames.GrepFiles}`, or `{BuiltInToolNames.GrepContent}` on `temp/` or any path under it.
+        - `temp/` — reserved for **file uploads**. ReadFile and GrepContent are allowed. WriteFile, AppendFile, CopyFile, CopyDirectory, ListFiles on temp/ are not allowed.
         - `sys.skills/` and `skills/` — use native skill tools (`load_skill`, `read_skill_resource`) to access skill content.
         """;
 

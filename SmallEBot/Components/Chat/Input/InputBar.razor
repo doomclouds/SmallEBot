@@ -6,7 +6,7 @@
     <MudTextField Value="@Text"
                   ValueChanged="@(EventCallback.Factory.Create<string>(this, OnTextChanged))"
                   Lines="2"
-                  Placeholder="@("Plan, @ for context, / for commands")"
+                  Placeholder="@("Plan or ask...")"
                   Variant="Variant.Outlined"
                   FullWidth="true"
                   Immediate="true"
@@ -97,5 +97,10 @@
         }
     }
 
-    public void Dispose() => _dotNetRef?.Dispose();
+    public void Dispose()
+    {
+        _dotNetRef?.Dispose();
+        _dotNetRef = null;
+        try { _ = JS.InvokeVoidAsync("SmallEBot.detachChatInputSend", "smallebot-chat-input-wrap"); } catch { /* ignore */ }
+    }
 }
