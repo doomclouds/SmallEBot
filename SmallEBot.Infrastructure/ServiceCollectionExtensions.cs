@@ -2,6 +2,7 @@ using Microsoft.Agents.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using SmallEBot.Application.Contracts.Conversations;
 using SmallEBot.Application.Contracts.Conversations.Session;
 using SmallEBot.Application.Contracts.Workspaces;
 using SmallEBot.Domain.Agents;
@@ -60,6 +61,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAgentSessionReader, AgentSessionReader>();
 
         services.AddSingleton<IConversationSessionCoordinator, ConversationSessionCoordinator>();
+
+        services.AddSingleton<ITaskListCache>(_ => new TaskListCache(basePath));
 
         // Tokenizer services
         services.AddSingleton<ITokenizer>(sp =>
