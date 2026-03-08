@@ -42,9 +42,6 @@
     <Content Include=".agents\vfs\.gitkeep">
       <LinkBase>.agents\sys.skills\</LinkBase>
     </Content>
-    <Content Include=".agents\vfs\python.exe">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
   </ItemGroup>
 
 </Project>
