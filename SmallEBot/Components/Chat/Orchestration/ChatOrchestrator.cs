@@ -2,7 +2,7 @@ using SmallEBot.Application.Contracts.Agents.Compression;
 using SmallEBot.Application.Contracts.Agents.Execution;
 using SmallEBot.Application.Agents.Streaming;
 using SmallEBot.Components.Chat.Services;
-using SmallEBot.Components.Chat.ViewModels;
+using SmallEBot.Components.Chat.ViewModels.Blocks;
 using SmallEBot.Core.Models;
 using MudBlazor;
 
@@ -21,7 +21,7 @@ public class ChatOrchestrator : IDisposable
     private readonly ILogger<ChatOrchestrator> _log;
 
     private readonly List<StreamUpdate> _streamingUpdates = [];
-    private readonly Dictionary<string, ApprovalItemView> _pendingApprovals = new();
+    private readonly Dictionary<string, ApprovalBlockModel> _pendingApprovals = new();
     private readonly Dictionary<string, TaskCompletionSource<bool>> _approvalWaitHandles = new();
     private Timer? _waitingCheckTimer;
     private CancellationTokenSource? _sendCts;
@@ -57,7 +57,7 @@ public class ChatOrchestrator : IDisposable
     public TimeSpan WaitingElapsed => ShowWaitingForToolParams && _waitingForToolParamsSince.HasValue
         ? DateTime.UtcNow - _waitingForToolParamsSince.Value
         : TimeSpan.Zero;
-    public IReadOnlyList<StreamItemView> StreamItems { get; private set; } = [];
+    public IReadOnlyList<IBubbleBlock> StreamItems { get; private set; } = [];
     public string ContextPercentText { get; private set; } = "—";
     public string? ContextUsageTooltip { get; private set; }
     public string CompressionMessage { get; private set; } = "";
@@ -206,20 +206,17 @@ public class ChatOrchestrator : IDisposable
                         break;
                     case ApprovalRequestStreamUpdate approval:
                         _streamingUpdates.Add(update);
-                        _pendingApprovals[approval.CallId] = new ApprovalItemView
-                        {
-                            CallId = approval.CallId,
-                            ToolName = approval.ToolName,
-                            Arguments = approval.Arguments,
-                            State = ApprovalState.Pending,
-                            ConversationId = approval.ConversationId,
-                            FunctionCallId = approval.FunctionCallId,
-                            RawArguments = approval.RawArguments,
-                            SortOrder = _streamingUpdates.Count
-                        };
+                        _pendingApprovals[approval.CallId] = new ApprovalBlockModel(
+                            approval.CallId,
+                            approval.ToolName,
+                            approval.Arguments,
+                            ApprovalState.Pending,
+                            approval.ConversationId,
+                            approval.FunctionCallId,
+                            approval.RawArguments);
                         break;
                 }
-                StreamItems = _presentation.ConvertToStreamItems(_streamingUpdates);
+                StreamItems = _presentation.ConvertStreamToBubbleBlocks(_streamingUpdates, _pendingApprovals);
                 OnStateChanged?.Invoke();
             }
             await runTask;
@@ -255,7 +252,7 @@ public class ChatOrchestrator : IDisposable
                 {
                     _approvalWaitHandles.Remove(pendingApproval.CallId);
                 }
-                StreamItems = _presentation.ConvertToStreamItems(_streamingUpdates);
+                StreamItems = _presentation.ConvertStreamToBubbleBlocks(_streamingUpdates, _pendingApprovals);
                 OnStateChanged?.Invoke();
             }
         }
@@ -333,20 +330,17 @@ public class ChatOrchestrator : IDisposable
                         break;
                     case ApprovalRequestStreamUpdate approval:
                         _streamingUpdates.Add(update);
-                        _pendingApprovals[approval.CallId] = new ApprovalItemView
-                        {
-                            CallId = approval.CallId,
-                            ToolName = approval.ToolName,
-                            Arguments = approval.Arguments,
-                            State = ApprovalState.Pending,
-                            ConversationId = approval.ConversationId,
-                            FunctionCallId = approval.FunctionCallId,
-                            RawArguments = approval.RawArguments,
-                            SortOrder = _streamingUpdates.Count
-                        };
+                        _pendingApprovals[approval.CallId] = new ApprovalBlockModel(
+                            approval.CallId,
+                            approval.ToolName,
+                            approval.Arguments,
+                            ApprovalState.Pending,
+                            approval.ConversationId,
+                            approval.FunctionCallId,
+                            approval.RawArguments);
                         break;
                 }
-                StreamItems = _presentation.ConvertToStreamItems(_streamingUpdates);
+                StreamItems = _presentation.ConvertStreamToBubbleBlocks(_streamingUpdates, _pendingApprovals);
                 OnStateChanged?.Invoke();
             }
             await runTask;
@@ -382,7 +376,7 @@ public class ChatOrchestrator : IDisposable
                 {
                     _approvalWaitHandles.Remove(pendingApproval.CallId);
                 }
-                StreamItems = _presentation.ConvertToStreamItems(_streamingUpdates);
+                StreamItems = _presentation.ConvertStreamToBubbleBlocks(_streamingUpdates, _pendingApprovals);
                 OnStateChanged?.Invoke();
             }
         }
@@ -414,11 +408,12 @@ public class ChatOrchestrator : IDisposable
         }
     }
 
-    public async Task ApproveAsync(ApprovalItemView approval)
+    public async Task ApproveAsync(ApprovalBlockModel approval)
     {
         if (IsWaitingForApproval || !ConversationId.HasValue) return;
 
         _pendingApprovals[approval.CallId] = approval with { State = ApprovalState.Approved };
+        StreamItems = _presentation.ConvertStreamToBubbleBlocks(_streamingUpdates, _pendingApprovals);
         IsWaitingForApproval = true;
         OnStateChanged?.Invoke();
 
@@ -442,26 +437,28 @@ public class ChatOrchestrator : IDisposable
 
                 if (update is ApprovalRequestStreamUpdate newApproval)
                 {
-                    _pendingApprovals[newApproval.CallId] = new ApprovalItemView
-                    {
-                        CallId = newApproval.CallId,
-                        ToolName = newApproval.ToolName,
-                        Arguments = newApproval.Arguments,
-                        State = ApprovalState.Pending,
-                        ConversationId = newApproval.ConversationId,
-                        FunctionCallId = newApproval.FunctionCallId,
-                        RawArguments = newApproval.RawArguments,
-                        SortOrder = _streamingUpdates.Count
-                    };
+                    _pendingApprovals[newApproval.CallId] = new ApprovalBlockModel(
+                        newApproval.CallId,
+                        newApproval.ToolName,
+                        newApproval.Arguments,
+                        ApprovalState.Pending,
+                        newApproval.ConversationId,
+                        newApproval.FunctionCallId,
+                        newApproval.RawArguments);
                 }
                 else
                 {
                     _streamingUpdates.Add(update);
                 }
+                StreamItems = _presentation.ConvertStreamToBubbleBlocks(_streamingUpdates, _pendingApprovals);
+                OnStateChanged?.Invoke();
             }
 
             if (_pendingApprovals.TryGetValue(approval.CallId, out var completed))
+            {
                 _pendingApprovals[approval.CallId] = completed with { State = ApprovalState.Completed };
+                StreamItems = _presentation.ConvertStreamToBubbleBlocks(_streamingUpdates, _pendingApprovals);
+            }
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)
@@ -479,11 +476,12 @@ public class ChatOrchestrator : IDisposable
         }
     }
 
-    public async Task RejectAsync(ApprovalItemView approval)
+    public async Task RejectAsync(ApprovalBlockModel approval)
     {
         if (IsWaitingForApproval || !ConversationId.HasValue) return;
 
         _pendingApprovals[approval.CallId] = approval with { State = ApprovalState.Rejected };
+        StreamItems = _presentation.ConvertStreamToBubbleBlocks(_streamingUpdates, _pendingApprovals);
         OnStateChanged?.Invoke();
 
         try

@@ -1,7 +1,17 @@
-using SmallEBot.Components.Chat.ViewModels;
 using SmallEBot.Core.Models;
 
 namespace SmallEBot.Components.Chat.ViewModels.Blocks;
+
+/// <summary>
+/// Approval state for tracking user interaction.
+/// </summary>
+public enum ApprovalState
+{
+    Pending,
+    Approved,
+    Rejected,
+    Completed
+}
 
 /// <summary>
 /// Marker interface for unified message block rendering (streaming + persisted).

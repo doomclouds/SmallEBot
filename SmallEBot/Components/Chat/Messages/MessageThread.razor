@@ -1,8 +1,10 @@
 @* Message thread: bubbles + pending user + streaming + compression indicator *@
 @using SmallEBot.Components.Chat.Services
-@using SmallEBot.Components.Chat.ViewModels.Bubbles
 @using SmallEBot.Components.Chat.ViewModels.Blocks
 @using SmallEBot.Components.Chat.Messages.Bubbles
+@using SmallEBot.Core.Models
+@using UserBubbleModel = SmallEBot.Core.Models.UserBubble
+@using AssistantBubbleModel = SmallEBot.Core.Models.AssistantBubble
 @inject IJSRuntime JS
 @inject ChatPresentationService Presentation
 
@@ -11,21 +13,21 @@
     {
         @switch (bubble)
         {
-            case UserBubbleView user:
-                <UserBubble View="@user"
+            case UserBubbleModel user:
+                <UserBubble Message="@user.Message"
                            ShowEditButton="@ShowEditButtons"
                            OnEdit="@OnEditMessage" />
                 break;
-            case AssistantBubbleView asst:
+            case AssistantBubbleModel asst:
                 <AssistantBubble Blocks="@GetBlocksForAssistant(asst)"
-                                 Caption="@($"SmallEBot · {asst.CreatedAt:g}")" />
+                                 Caption="@($"SmallEBot · {(asst.Items.Count > 0 ? asst.Items[0].CreatedAt : DateTime.UtcNow):g}")" />
                 break;
         }
     }
 
-    @if (PendingUserBubble != null)
+    @if (PendingUserMessage != null)
     {
-        <UserBubble View="@PendingUserBubble" ShowEditButton="false" />
+        <UserBubble Message="@PendingUserMessage" ShowEditButton="false" />
     }
 
     @if (IsCompressing)
@@ -54,8 +56,8 @@
 </div>
 
 @code {
-    [Parameter] public IReadOnlyList<BubbleViewBase> Bubbles { get; set; } = [];
-    [Parameter] public UserBubbleView? PendingUserBubble { get; set; }
+    [Parameter] public IReadOnlyList<ChatBubble> Bubbles { get; set; } = [];
+    [Parameter] public MessageInfo? PendingUserMessage { get; set; }
     [Parameter] public IReadOnlyList<IBubbleBlock> StreamingBlocks { get; set; } = [];
     [Parameter] public bool IsStreaming { get; set; }
     [Parameter] public bool IsCompressing { get; set; }
@@ -64,7 +66,7 @@
     [Parameter] public TimeSpan WaitingElapsed { get; set; }
     [Parameter] public bool ShowToolCalls { get; set; } = true;
     [Parameter] public bool ShowEditButtons { get; set; } = true;
-    [Parameter] public EventCallback<UserBubbleView> OnEditMessage { get; set; }
+    [Parameter] public EventCallback<MessageInfo> OnEditMessage { get; set; }
     [Parameter] public EventCallback<ApprovalBlockModel> OnApprove { get; set; }
     [Parameter] public EventCallback<ApprovalBlockModel> OnReject { get; set; }
     [Parameter] public EventCallback OnCancel { get; set; }
@@ -75,9 +77,9 @@
 
     public void RequestScrollToBottom() => _scrollToBottomRequested = true;
 
-    private IReadOnlyList<IBubbleBlock> GetBlocksForAssistant(AssistantBubbleView asst)
+    private IReadOnlyList<IBubbleBlock> GetBlocksForAssistant(AssistantBubbleModel asst)
     {
-        var blocks = Presentation.ConvertToBubbleBlocks(asst);
+        var blocks = Presentation.ConvertToBlocks(asst);
         if (ShowToolCalls) return blocks;
         return blocks.Where(b => b is not ToolCallBlockModel).ToList();
     }

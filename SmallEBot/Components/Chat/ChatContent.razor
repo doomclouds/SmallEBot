@@ -1,6 +1,4 @@
 @* Chat content: drop-in replacement for ChatArea. Uses ChatShell, MessageThread, ChatInput, ChatOrchestrator, InputOrchestrator. *@
-@using SmallEBot.Components.Chat.ViewModels
-@using SmallEBot.Components.Chat.ViewModels.Bubbles
 @using SmallEBot.Components.Chat.ViewModels.Blocks
 @using SmallEBot.Components.Chat.Services
 @using SmallEBot.Components.Chat.Messages
@@ -33,8 +31,8 @@
 <MudPaper Class="pa-4 pb-1 smallebot-chat-paper" Elevation="0">
     <ChatShell>
         <MessageArea>
-            <MessageThread Bubbles="@_bubbleViews"
-                           PendingUserBubble="@_pendingUserBubble"
+            <MessageThread Bubbles="@Bubbles"
+                           PendingUserMessage="@_pendingUserMessage"
                            StreamingBlocks="@_streamingBlocks"
                            IsStreaming="@Orchestrator.IsStreaming"
                            IsCompressing="@Orchestrator.IsCompressing"
@@ -74,10 +72,9 @@
 
     private InputOrchestrator _inputOrchestrator = null!;
     private MessageThread? _messageThreadRef;
-    private IReadOnlyList<BubbleViewBase> _bubbleViews = [];
     private IReadOnlyList<IBubbleBlock> _streamingBlocks = [];
-    private UserBubbleView? _pendingUserBubble;
-    private string _pendingUserMessage = "";
+    private MessageInfo? _pendingUserMessage;
+    private string _pendingUserMessageText = "";
     private DateTime _pendingUserMessageTime;
     private int _bubbleCountBeforeSend;
     private CancellationTokenSource? _sendCts;
@@ -112,7 +109,7 @@
         {
             Orchestrator.RequestStop();
         }
-        RefreshBubbleViews();
+        RefreshPendingMessage();
     }
 
     protected override async Task OnParametersSetAsync()
@@ -180,15 +177,15 @@
         await InvokeAsync(StateHasChanged);
     }
 
-    private void RefreshBubbleViews()
+    private void RefreshPendingMessage()
     {
-        _bubbleViews = Presentation.ConvertBubbles(Bubbles);
-        if (!string.IsNullOrEmpty(_pendingUserMessage) && !IsPendingMessageAlreadyInBubbles())
+        if (!string.IsNullOrEmpty(_pendingUserMessageText) && !IsPendingMessageAlreadyInBubbles())
         {
-            _pendingUserBubble = new UserBubbleView
+            _pendingUserMessage = new MessageInfo
             {
-                MessageId = Guid.Empty,
-                Content = _pendingUserMessage,
+                Id = Guid.Empty,
+                Role = "user",
+                Content = _pendingUserMessageText,
                 CreatedAt = _pendingUserMessageTime,
                 IsEdited = false,
                 AttachedPaths = [],
@@ -197,43 +194,43 @@
         }
         else
         {
-            _pendingUserBubble = null;
+            _pendingUserMessage = null;
         }
     }
 
     private bool IsPendingMessageAlreadyInBubbles()
     {
-        if (string.IsNullOrEmpty(_pendingUserMessage) || Bubbles.Count == 0) return false;
+        if (string.IsNullOrEmpty(_pendingUserMessageText) || Bubbles.Count == 0) return false;
         var lastUser = Bubbles.OfType<UserBubbleModel>().LastOrDefault();
-        return lastUser?.Message.Content.Trim() == _pendingUserMessage.Trim();
+        return lastUser?.Message.Content.Trim() == _pendingUserMessageText.Trim();
     }
 
     private async void HandleOrchestratorStateChanged()
     {
-        _streamingBlocks = Presentation.ConvertStreamToBubbleBlocks(Orchestrator.StreamItems);
+        _streamingBlocks = Orchestrator.StreamItems;
         await InvokeAsync(StateHasChanged);
         _messageThreadRef?.RequestScrollToBottom();
     }
 
     private async void HandleStreamingCompleted()
     {
-        _pendingUserMessage = "";
-        RefreshBubbleViews();
+        _pendingUserMessageText = "";
+        RefreshPendingMessage();
         await OnMessageSent.InvokeAsync();
         await InvokeAsync(StateHasChanged);
     }
 
-    private async Task HandleEditMessage(UserBubbleView userBubble)
+    private async Task HandleEditMessage(MessageInfo msg)
     {
         if (Orchestrator.IsStreaming || !ConversationId.HasValue) return;
-        var originalBubble = Bubbles.OfType<UserBubbleModel>().FirstOrDefault(b => b.Message.Id == userBubble.MessageId);
-        if (originalBubble?.Message is not { } msg) return;
+        var originalBubble = Bubbles.OfType<UserBubbleModel>().FirstOrDefault(b => b.Message.Id == msg.Id);
+        if (originalBubble?.Message is not { } message) return;
 
         var parameters = new DialogParameters
         {
-            [nameof(EditMessageDialog.InitialContent)] = msg.Content,
-            [nameof(EditMessageDialog.InitialAttachedPaths)] = msg.AttachedPaths,
-            [nameof(EditMessageDialog.InitialRequestedSkillIds)] = msg.RequestedSkillIds
+            [nameof(EditMessageDialog.InitialContent)] = message.Content,
+            [nameof(EditMessageDialog.InitialAttachedPaths)] = message.AttachedPaths,
+            [nameof(EditMessageDialog.InitialRequestedSkillIds)] = message.RequestedSkillIds
         };
         var dialog = await DialogSvc.ShowAsync<EditMessageDialog>("Edit message", parameters, new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
         var result = await dialog.Result;
@@ -247,7 +244,7 @@
         }
 
         _sendCts = new CancellationTokenSource();
-        var replaceResult = await ConversationService.ReplaceUserMessageAsync(ConversationId!.Value, _userNameForAction!, msg.Id, editResult.Content.Trim(), UseThinkingMode, editResult.AttachedPaths, editResult.RequestedSkillIds, _sendCts.Token);
+        var replaceResult = await ConversationService.ReplaceUserMessageAsync(ConversationId!.Value, _userNameForAction!, message.Id, editResult.Content.Trim(), UseThinkingMode, editResult.AttachedPaths, editResult.RequestedSkillIds, _sendCts.Token);
         if (replaceResult == null)
         {
             _sendCts.Dispose();
@@ -263,32 +260,12 @@
 
     private void HandleApprove(ApprovalBlockModel model)
     {
-        var view = new ApprovalItemView
-        {
-            CallId = model.CallId,
-            ToolName = model.ToolName,
-            Arguments = model.Arguments,
-            State = model.State,
-            ConversationId = model.ConversationId,
-            FunctionCallId = model.FunctionCallId,
-            RawArguments = model.RawArguments
-        };
-        _ = Orchestrator.ApproveAsync(view);
+        _ = Orchestrator.ApproveAsync(model);
     }
 
     private void HandleReject(ApprovalBlockModel model)
     {
-        var view = new ApprovalItemView
-        {
-            CallId = model.CallId,
-            ToolName = model.ToolName,
-            Arguments = model.Arguments,
-            State = model.State,
-            ConversationId = model.ConversationId,
-            FunctionCallId = model.FunctionCallId,
-            RawArguments = model.RawArguments
-        };
-        _ = Orchestrator.RejectAsync(view);
+        _ = Orchestrator.RejectAsync(model);
     }
 
     private void HandleCancel() => Orchestrator.RequestStop();
@@ -314,10 +291,10 @@
         if (compressed)
             await Orchestrator.RefreshContextUsageAsync();
 
-        _pendingUserMessage = text;
+        _pendingUserMessageText = text;
         _pendingUserMessageTime = DateTime.UtcNow;
         _bubbleCountBeforeSend = Bubbles.Count;
-        RefreshBubbleViews();
+        RefreshPendingMessage();
         await InvokeAsync(StateHasChanged);
 
         _sendCts = new CancellationTokenSource();
