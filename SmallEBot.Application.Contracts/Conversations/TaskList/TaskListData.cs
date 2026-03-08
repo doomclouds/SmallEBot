@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace SmallEBot.Application.Contracts.Conversations;
+namespace SmallEBot.Application.Contracts.Conversations.TaskList;
 
 /// <summary>In-memory task list data. Tasks use camelCase for JSON compatibility.</summary>
 public record TaskListData(List<TaskItem> Tasks);

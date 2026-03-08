@@ -2,7 +2,6 @@
 @implements IDisposable
 @inject ICurrentConversationService CurrentConversation
 @inject ITaskListService TaskListService
-@inject ITaskListCache TaskListCache
 
 <div class="task-list-drawer">
     <div class="task-list-drawer-header">
@@ -96,12 +95,12 @@
 
     private void SubscribeToChanges()
     {
-        TaskListCache.OnChange += HandleChange;
+        TaskListService.OnChange += HandleChange;
     }
 
     private void UnsubscribeFromChanges()
     {
-        TaskListCache.OnChange -= HandleChange;
+        TaskListService.OnChange -= HandleChange;
     }
 
     private async void HandleChange(TaskListChangeEvent e)
@@ -119,16 +118,17 @@
         });
     }
 
-    private async Task LoadTasksAsync()
+    private Task LoadTasksAsync()
     {
         if (_conversationId == null)
         {
             _tasks = [];
             StateHasChanged();
-            return;
+            return Task.CompletedTask;
         }
-        _tasks = await TaskListService.GetTasksAsync(_conversationId.Value);
+        _tasks = TaskListService.GetTasks(_conversationId.Value);
         StateHasChanged();
+        return Task.CompletedTask;
     }
 
     private async Task ClearAllTasksAsync()

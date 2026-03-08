@@ -1,24 +1,31 @@
-using SmallEBot.Application.Contracts.Conversations;
+using SmallEBot.Application.Contracts.Conversations.TaskList;
 
 namespace SmallEBot.Infrastructure.Conversations;
 
-/// <summary>Reads and clears per-conversation task data via ITaskListCache.</summary>
-public sealed class TaskListService(ITaskListCache taskCache) : ITaskListService
+/// <summary>Implements ITaskListService by delegating to TaskListCache. Merges former ITaskListService + ITaskListCache.</summary>
+public sealed class TaskListService(TaskListCache cache) : ITaskListService
 {
-    /// <inheritdoc />
-    public Task<IReadOnlyList<TaskItemViewModel>> GetTasksAsync(Guid conversationId, CancellationToken ct = default)
+    public IReadOnlyList<TaskItemViewModel> GetTasks(Guid conversationId)
     {
-        var data = taskCache.GetOrLoad(conversationId);
-        var viewModels = data.Tasks
+        var data = cache.GetOrLoad(conversationId);
+        return data.Tasks
             .Select(t => new TaskItemViewModel(t.Id, t.Title, t.Description, t.Done))
             .ToList();
-        return Task.FromResult<IReadOnlyList<TaskItemViewModel>>(viewModels);
     }
 
-    /// <inheritdoc />
+    public TaskListData GetTaskListData(Guid conversationId) => cache.GetOrLoad(conversationId);
+
     public Task ClearTasksAsync(Guid conversationId, CancellationToken ct = default)
     {
-        taskCache.Remove(conversationId);
+        cache.Remove(conversationId);
         return Task.CompletedTask;
+    }
+
+    public void UpdateTasks(Guid conversationId, TaskListData data) => cache.Update(conversationId, data);
+
+    public event Action<TaskListChangeEvent>? OnChange
+    {
+        add => cache.OnChange += value;
+        remove => cache.OnChange -= value;
     }
 }

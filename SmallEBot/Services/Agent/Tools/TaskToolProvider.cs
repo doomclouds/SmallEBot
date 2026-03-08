@@ -4,13 +4,14 @@ using System.Text.Json.Serialization;
 using Microsoft.Extensions.AI;
 using SmallEBot.Application.Contracts.Conversations;
 using SmallEBot.Application.Contracts.Conversations.Context;
+using SmallEBot.Application.Contracts.Conversations.TaskList;
 
 namespace SmallEBot.Services.Agent.Tools;
 
 /// <summary>Provides task list management tools.</summary>
 public sealed class TaskToolProvider(
     IConversationTaskContext taskContext,
-    ITaskListCache taskCache) : IToolProvider
+    ITaskListService taskService) : IToolProvider
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -36,7 +37,7 @@ public sealed class TaskToolProvider(
         var conversationId = taskContext.GetConversationId();
         if (conversationId == null)
             return "Error: Task list is not available (no conversation context).";
-        var data = taskCache.GetOrLoad(conversationId.Value);
+        var data = taskService.GetTaskListData(conversationId.Value);
         return JsonSerializer.Serialize(new { tasks = data.Tasks }, JsonOptions);
     }
 
@@ -69,7 +70,7 @@ public sealed class TaskToolProvider(
             .ToList();
         if (tasks.Count == 0)
             return "Error: No valid tasks (each must have a non-empty title).";
-        taskCache.Update(conversationId.Value, new TaskListData(tasks));
+        taskService.UpdateTasks(conversationId.Value, new TaskListData(tasks));
         return JsonSerializer.Serialize(new { tasks }, JsonOptions);
     }
 
@@ -79,12 +80,12 @@ public sealed class TaskToolProvider(
         var conversationId = taskContext.GetConversationId();
         if (conversationId == null)
             return "Error: Task list is not available (no conversation context).";
-        var data = taskCache.GetOrLoad(conversationId.Value);
+        var data = taskService.GetTaskListData(conversationId.Value);
         var task = data.Tasks.FirstOrDefault(t => string.Equals(t.Id, taskId, StringComparison.Ordinal));
         if (task == null)
             return JsonSerializer.Serialize(new { ok = false, error = "Task not found" }, JsonOptions);
         task.Done = true;
-        taskCache.Update(conversationId.Value, data);
+        taskService.UpdateTasks(conversationId.Value, data);
         var nextTask = data.Tasks.FirstOrDefault(t => !t.Done);
         var remaining = data.Tasks.Count(t => !t.Done);
         return JsonSerializer.Serialize(new { ok = true, task, nextTask, remaining }, JsonOptions);
@@ -108,7 +109,7 @@ public sealed class TaskToolProvider(
         if (ids == null || ids.Count == 0)
             return "Error: taskIdsJson must be a non-empty array of task id strings.";
 
-        var data = taskCache.GetOrLoad(conversationId.Value);
+        var data = taskService.GetTaskListData(conversationId.Value);
         var completed = new List<TaskItem>();
         var failed = new List<object>();
 
@@ -131,7 +132,7 @@ public sealed class TaskToolProvider(
         }
 
         if (completed.Count > 0)
-            taskCache.Update(conversationId.Value, data);
+            taskService.UpdateTasks(conversationId.Value, data);
 
         var nextTask = data.Tasks.FirstOrDefault(t => !t.Done);
         var remaining = data.Tasks.Count(t => !t.Done);
@@ -144,7 +145,7 @@ public sealed class TaskToolProvider(
         var conversationId = taskContext.GetConversationId();
         if (conversationId == null)
             return "Error: Task list is not available (no conversation context).";
-        taskCache.Remove(conversationId.Value);
+        taskService.ClearTasksAsync(conversationId.Value).GetAwaiter().GetResult();
         return JsonSerializer.Serialize(new { ok = true }, JsonOptions);
     }
 

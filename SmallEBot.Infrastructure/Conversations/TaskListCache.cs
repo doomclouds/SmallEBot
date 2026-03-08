@@ -1,11 +1,12 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
-using SmallEBot.Application.Contracts.Conversations;
+using SmallEBot.Application.Contracts.Conversations.TaskList;
 
 namespace SmallEBot.Infrastructure.Conversations;
 
 /// <summary>In-memory cache for task lists with write-back to file.</summary>
-public sealed class TaskListCache : ITaskListCache, IDisposable
+/// <summary>Internal cache implementation. Use ITaskListService for all consumers.</summary>
+public sealed class TaskListCache : IDisposable
 {
     private readonly string _basePath;
     private readonly ConcurrentDictionary<Guid, TaskListData> _cache = new();
