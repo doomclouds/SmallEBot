@@ -66,33 +66,4 @@
     [Parameter] public EventCallback<ApprovalItemView> OnApprove { get; set; }
     [Parameter] public EventCallback<ApprovalItemView> OnReject { get; set; }
     [Parameter] public bool IsApprovalProcessing { get; set; }
-
-    private static bool CanShowCancel(ToolCallPhase phase) =>
-        phase is ToolCallPhase.Started or ToolCallPhase.ArgsReceived or ToolCallPhase.Executing;
-
-    private static string GetToolPhaseIcon(ToolCallPhase phase) => phase switch
-    {
-        ToolCallPhase.Started => Icons.Material.Filled.HourglassTop,
-        ToolCallPhase.ArgsReceived => Icons.Material.Filled.HourglassBottom,
-        ToolCallPhase.Executing => Icons.Material.Filled.Settings,
-        ToolCallPhase.Completed => Icons.Material.Filled.CheckCircle,
-        ToolCallPhase.Failed => Icons.Material.Filled.Error,
-        ToolCallPhase.Cancelled => Icons.Material.Filled.Cancel,
-        _ => Icons.Material.Filled.Build
-    };
-
-    private static Color GetToolPhaseColor(ToolCallPhase phase) => phase switch
-    {
-        ToolCallPhase.Completed => Color.Success,
-        ToolCallPhase.Failed => Color.Error,
-        ToolCallPhase.Cancelled => Color.Warning,
-        _ => Color.Default
-    };
-
-    private static string FormatElapsed(TimeSpan e)
-    {
-        if (e.TotalMinutes >= 1) return $"{(int)e.TotalMinutes}m {e.Seconds}s";
-        if (e.TotalSeconds >= 1) return $"{e.TotalSeconds:F1}s";
-        return $"{e.TotalMilliseconds:F0}ms";
-    }
 }
