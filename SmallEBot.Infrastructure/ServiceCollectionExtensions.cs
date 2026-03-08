@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SmallEBot.Application.Contracts.Conversations;
+using SmallEBot.Application.Contracts.Conversations.Context;
 using SmallEBot.Application.Contracts.Conversations.Session;
 using SmallEBot.Application.Contracts.Workspaces;
 using SmallEBot.Domain.Agents;
@@ -63,6 +64,10 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IConversationSessionCoordinator, ConversationSessionCoordinator>();
 
         services.AddSingleton<ITaskListCache>(_ => new TaskListCache(basePath));
+        services.AddSingleton<IConversationTaskContext, ConversationTaskContext>();
+        services.AddSingleton<ICurrentConversationService, CurrentConversationService>();
+        services.AddSingleton<ITaskListService, TaskListService>();
+        services.AddSingleton<IConversationTaskRemover, ConversationTaskRemover>();
 
         // Tokenizer services
         services.AddSingleton<ITokenizer>(sp =>
