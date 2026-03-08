@@ -1,8 +1,9 @@
 @* SmallEBot/Components/Agent/ModelConfigDialog.razor *@
 @using SmallEBot.Application.Contracts.Agents
 @using SmallEBot.Core.Models
+@using SmallEBot.Infrastructure.Agents.Config
 @inject IModelConfigService ModelConfig
-@inject AgentCacheService AgentCache
+@inject IAgentInvalidationService AgentInvalidation
 @inject ISnackbar Snackbar
 
 <MudDialog>
@@ -161,7 +162,7 @@
             else
                 await ModelConfig.UpdateModelAsync(id, config);
 
-            await AgentCache.InvalidateAgentAsync();
+            await AgentInvalidation.InvalidateAgentAsync();
             Snackbar.Add("Model saved.", Severity.Success);
             _editingModel = null;
             await LoadAsync();
@@ -177,7 +178,7 @@
         try
         {
             await ModelConfig.SetDefaultAsync(modelId);
-            await AgentCache.InvalidateAgentAsync();
+            await AgentInvalidation.InvalidateAgentAsync();
             Snackbar.Add("Default model updated.", Severity.Success);
             await LoadAsync();
         }
@@ -192,7 +193,7 @@
         try
         {
             await ModelConfig.DeleteModelAsync(modelId);
-            await AgentCache.InvalidateAgentAsync();
+            await AgentInvalidation.InvalidateAgentAsync();
             Snackbar.Add("Model deleted.", Severity.Success);
             await LoadAsync();
         }

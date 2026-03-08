@@ -6,9 +6,9 @@
 
 | 领域 | 子领域 | 职责 | 纯粹性 |
 |------|--------|------|--------|
-| **Conversations** | Metadata, Session, TaskList, TurnContext | 对话 CRUD、会话存储、任务列表、Turn 上下文 | 部分混杂 Agent 依赖 |
+| **Conversations** | Metadata, Session, TaskList | 对话 CRUD、会话存储、任务列表 | ✓ 良好（Session 低层仍暴露 Agent 类型，已有 IConversationMessageStore 抽象） |
 | **UserPreferences** | — | 用户偏好、用户名显示 | ✓ 纯粹 |
-| **Workspaces** | — | 工作区文件、VFS、上传、监听 | ✓ 纯粹 |
+| **Workspaces** | — | 工作区文件、VFS、上传、监听、只读策略 | ✓ 纯粹 |
 
 ---
 
@@ -21,10 +21,10 @@ Application.Contracts/Conversations/
 ├── IConversationService.cs          # 对话 CRUD、Turn 管理
 ├── ICurrentConversationService.cs   # 当前选中对话 ID（UI 状态）
 ├── ConversationDto.cs
-├── ITurnContextFragmentBuilder.cs   # 每轮上下文提示构建
 ├── Session/
-│   ├── IAgentSessionStore.cs
+│   ├── IAgentSessionStore.cs        # 低层 Agent 会话存储
 │   ├── IAgentSessionReader.cs
+│   ├── IConversationMessageStore.cs # 消息级抽象（无 Agent 类型）
 │   └── IConversationSessionCoordinator.cs
 └── TaskList/
     ├── ITaskListService.cs
@@ -39,9 +39,7 @@ Domain/Conversations/
     └── IConversationMetadataRepository.cs
 
 Application/Conversations/
-├── ConversationService.cs
-└── TurnContext/
-    └── TurnContextFragmentBuilder.cs
+└── ConversationService.cs
 
 Infrastructure/Conversations/
 ├── CurrentConversationService.cs
@@ -52,6 +50,7 @@ Infrastructure/Conversations/
 │   ├── AgentSessionStore.cs
 │   ├── AgentSessionReader.cs
 │   ├── AgentSessionSerializer.cs
+│   ├── ConversationMessageStore.cs  # IConversationMessageStore 实现
 │   └── ConversationSessionCoordinator.cs
 └── TaskList/
     ├── TaskListService.cs
@@ -59,14 +58,15 @@ Infrastructure/Conversations/
     └── AmbientConversationId.cs
 ```
 
+**注**：`ITurnContextFragmentBuilder` 已移至 `Application.Contracts.Agents`、`Application.Agents.TurnContext`。
+
 ### 2.2 子领域划分评估
 
-| 子领域 | 职责 | 纯粹性 | 建议 |
+| 子领域 | 职责 | 纯粹性 | 说明 |
 |--------|------|--------|------|
-| **Metadata** | 对话元数据、Turn 信息、仓储 | ✓ 纯粹 | 保持 |
-| **Session** | 对话消息存储、加载、截断 | ⚠ 依赖 Agent 框架 | 接口暴露 `AIAgentSession`、`AIAgent`，泄露实现细节；可考虑抽象为「对话消息存储」 |
-| **TaskList** | 每对话任务列表、工具上下文 | ✓ 纯粹 | 保持 |
-| **TurnContext** | 构建 @ 附件、/ 技能的上下文提示 | ⚠ 依赖 Agents | `TurnContextFragmentBuilder` 依赖 `ISkillsConfigService`，属于 Agent 上下文；可考虑移至 Agents 领域 |
+| **Metadata** | 对话元数据、Turn 信息、仓储 | ✓ 纯粹 | 无 Agent 依赖 |
+| **Session** | 对话消息存储、加载、截断 | ✓ 良好 | 已引入 `IConversationMessageStore`（无 Agent 类型）；`IAgentSessionStore`/`IAgentSessionReader` 为低层实现绑定，仅 Agent 运行时使用 |
+| **TaskList** | 每对话任务列表、工具上下文 | ✓ 纯粹 | 无 Agent 依赖 |
 
 ### 2.3 根级组件
 
@@ -74,15 +74,11 @@ Infrastructure/Conversations/
 |------|------|------|
 | `IConversationService` | 对话 CRUD、Turn 创建、Replace/Prepare | ✓ Conversations |
 | `ICurrentConversationService` | 当前对话 ID、UI 选择状态 | ✓ Conversations（会话选择） |
-| `ITurnContextFragmentBuilder` | 为 Agent 构建 per-turn 上下文 | 边界：Conversations vs Agents |
 
-### 2.4 建议调整
+### 2.4 实现层依赖说明
 
-1. **Session 子领域**：`IAgentSessionStore`、`IAgentSessionReader`、`IConversationSessionCoordinator` 接口暴露 `Microsoft.Agents.AI` 类型。若要保持 Conversations 不依赖 Agent 框架，需引入领域抽象（如 `IConversationMessageStore`），由 Infrastructure 适配到 AgentSession。**当前可接受**：Session 本质是对话消息的持久化，实现绑定 Agent 框架是合理的；接口在 Application.Contracts，Infrastructure 实现。若未来要支持非 Agent 的对话存储，再抽抽象。
-
-2. **ITurnContextFragmentBuilder**：构建的是「当前 Turn 的上下文提示」，供 Agent 使用。放在 Conversations 表示「对话的 Turn 上下文」；依赖 Skills 表示与 Agent 耦合。**建议**：保留在 Conversations.TurnContext，因为输入（attachedPaths、requestedSkillIds）来自对话 Turn，输出是给 Agent 的提示。跨领域依赖（ISkillsConfigService）可接受。
-
-3. **ICurrentConversationService**：UI 状态服务，放在 Conversations 合理（当前选中的对话）。
+- **ConversationService** 实现依赖 `IAgentRunner`（GenerateTitleAsync、TruncateSessionFromTurnAsync），属编排层对 Agent 的委托，接口 `IConversationService` 本身无 Agent 类型。
+- **IConversationMessageStore** 供 ConversationService、ConversationAgentExecutor、AgentCacheService 使用，屏蔽 Session 的 Agent 类型。
 
 ---
 
@@ -135,7 +131,8 @@ Application.Contracts/Workspaces/
 └── WorkspaceChangedEventArgs.cs
 
 Domain/Workspaces/
-├── WorkspaceReadOnly.cs         # 静态只读路径规则
+├── IWorkspaceReadOnlyPolicy.cs
+├── WorkspaceReadOnlyPolicy.cs   # 只读路径策略（可注入、可测试）
 └── ValueObjects/
     ├── WorkspaceNode.cs
     └── FilePath.cs
@@ -157,7 +154,7 @@ Infrastructure/Workspaces/
 | 子领域 | 无，VFS/Watcher/Upload 均为工作区能力 |
 | IVirtualFileSystem | ✓ 在 Application.Contracts（基础设施抽象） |
 | IWorkspaceWatcher | ✓ 在 Application.Contracts |
-| WorkspaceReadOnly | 静态类，可接受；或改为 `IWorkspaceReadOnlyPolicy` |
+| IWorkspaceReadOnlyPolicy | ✓ 已实施，可注入、可测试 |
 | IWorkspaceRepository | 已删除（审计文档中建议） |
 
 **结论**：Workspaces 领域划分清晰。IVirtualFileSystem、IWorkspaceWatcher 作为基础设施抽象放在 Contracts 符合规范。
@@ -184,8 +181,7 @@ Infrastructure/Workspaces/
 | UserPreferences → Workspaces | 无 |
 | Workspaces → Conversations | 无 |
 | Workspaces → UserPreferences | 无 |
-| Conversations.TurnContext → Agents (ISkillsConfigService) | 可接受，Turn 上下文为 Agent 准备 |
-| Agents → Conversations | IConversationService（ConversationAgentExecutor） | ✓ 合理 |
+| Agents → Conversations | IConversationService、IConversationMessageStore（ConversationAgentExecutor） | ✓ 合理 |
 
 ---
 
@@ -195,7 +191,7 @@ Infrastructure/Workspaces/
 
 | 领域 | 纯粹性 | 说明 |
 |------|--------|------|
-| **Conversations** | 良好 | Session 接口暴露 Agent 类型属实现绑定，可接受；TurnContext 依赖 Skills 为跨领域协作 |
+| **Conversations** | ✓ 良好 | IConversationMessageStore 屏蔽 Agent 类型；TurnContext 已移至 Agents |
 | **UserPreferences** | ✓ 纯粹 | 无跨领域依赖 |
 | **Workspaces** | ✓ 纯粹 | 无跨领域依赖 |
 
@@ -203,7 +199,7 @@ Infrastructure/Workspaces/
 
 | 领域 | 当前子领域 | 建议 |
 |------|------------|------|
-| **Conversations** | Metadata, Session, TaskList, TurnContext | 保持；结构合理 |
+| **Conversations** | Metadata, Session, TaskList | 保持；TurnContext 已移至 Agents |
 | **UserPreferences** | 无 | 无需拆分 |
 | **Workspaces** | 无 | 无需拆分 |
 
@@ -215,4 +211,4 @@ Infrastructure/Workspaces/
 
 ### 6.4 结论
 
-三个领域划分清晰，子领域划分合理，领域单一性良好。Conversations 与 Agents 的边界通过 IConversationService / IConversationAgentExecutor 已明确分离。当前结构可保持，上述优化为可选改进。
+三个领域划分清晰，子领域划分合理，领域单一性良好。Conversations 与 Agents 的边界通过 IConversationService / IConversationAgentExecutor 已明确分离。IConversationMessageStore、IWorkspaceReadOnlyPolicy、TurnContext 迁移等优化已实施，当前结构符合 DDD 实践。

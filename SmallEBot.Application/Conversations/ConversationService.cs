@@ -1,7 +1,6 @@
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using Microsoft.Extensions.AI;
-using SmallEBot.Application.Contracts.Agents;
 using SmallEBot.Application.Contracts.Conversations;
 using SmallEBot.Application.Contracts.Conversations.Session;
 using SmallEBot.Application.Contracts.Conversations.TaskList;
@@ -11,10 +10,9 @@ using SmallEBot.Domain.Conversations.Metadata;
 
 namespace SmallEBot.Application.Conversations;
 
-/// <summary>Orchestrates conversation CRUD and turn management. Agent execution is handled by IConversationAgentExecutor.</summary>
+/// <summary>Orchestrates conversation CRUD and turn management. No Agent dependency.</summary>
 public sealed class ConversationService(
     IConversationMetadataRepository metadataRepository,
-    IAgentRunner agentRunner,
     IConversationMessageStore messageStore,
     ITaskListService taskListService) : IConversationService
 {
@@ -164,7 +162,8 @@ public sealed class ConversationService(
         bool useThinking,
         CancellationToken cancellationToken = default,
         IReadOnlyList<string>? attachedPaths = null,
-        IReadOnlyList<string>? requestedSkillIds = null)
+        IReadOnlyList<string>? requestedSkillIds = null,
+        string? suggestedTitle = null)
     {
         var metadata = await metadataRepository.GetByIdAsync(conversationId, cancellationToken);
         if (metadata == null)
@@ -172,18 +171,19 @@ public sealed class ConversationService(
 
         if (metadata.Turns.Count == 0)
         {
-            var newTitle = await agentRunner.GenerateTitleAsync(userMessage, cancellationToken);
+            var newTitle = !string.IsNullOrWhiteSpace(suggestedTitle)
+                ? suggestedTitle
+                : string.IsNullOrWhiteSpace(userMessage)
+                    ? "New conversation"
+                    : userMessage.Length > 20
+                        ? userMessage[..20] + "…"
+                        : userMessage;
             metadata.SetTitle(newTitle);
         }
 
         var turn = metadata.AddTurn(firstMessageIndex: 0, attachedPaths?.ToArray(), requestedSkillIds?.ToArray());
         await metadataRepository.SaveAsync(metadata, cancellationToken);
         return turn.Id;
-    }
-
-    public async Task PrepareSessionForEditAsync(Guid conversationId, string userName, Guid turnId, CancellationToken cancellationToken = default)
-    {
-        await agentRunner.TruncateSessionFromTurnAsync(conversationId, userName, turnId, cancellationToken);
     }
 
     public async Task<(Guid TurnId, string UserMessage, IReadOnlyList<string> AttachedPaths, IReadOnlyList<string> RequestedSkillIds)?> ReplaceUserMessageAsync(

@@ -1,8 +1,9 @@
-@using SmallEBot.Models
+@using SmallEBot.Core.Models
+@using SmallEBot.Application.Contracts.Agents.Mcp
 @inject IMcpConfigService McpConfig
 @inject IMcpToolsLoaderService McpToolsLoader
 @inject IMcpConnectionManager McpConnectionManager
-@inject AgentCacheService AgentCache
+@inject IAgentInvalidationService AgentInvalidation
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 @implements IDisposable
@@ -194,7 +195,7 @@ else
         try
         {
             await McpConfig.SaveUserMcpAsync(dict);
-            await AgentCache.InvalidateAgentAsync();
+            await AgentInvalidation.InvalidateAgentAsync();
             Snackbar.Add(isEdit ? "Saved" : "Added", Severity.Success);
             await LoadListAsync();
         }
@@ -247,7 +248,7 @@ else
         try
         {
             await McpConfig.SaveUserMcpAsync(dict);
-            await AgentCache.InvalidateAgentAsync();
+            await AgentInvalidation.InvalidateAgentAsync();
             Snackbar.Add("Deleted", Severity.Success);
             await LoadListAsync();
         }
@@ -300,7 +301,7 @@ else
                     await McpConfig.SaveUserMcpAsync(dict);
                 }
             }
-            await AgentCache.InvalidateAgentAsync();
+            await AgentInvalidation.InvalidateAgentAsync();
         }
         catch
         {

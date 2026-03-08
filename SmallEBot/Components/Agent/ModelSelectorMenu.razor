@@ -1,6 +1,6 @@
 @* SmallEBot/Components/Agent/ModelSelectorMenu.razor *@
 @inject IModelConfigService ModelConfig
-@inject AgentCacheService AgentCache
+@inject IAgentInvalidationService AgentInvalidation
 @using SmallEBot.Application.Contracts.Agents
 @implements IDisposable
 
@@ -63,7 +63,7 @@
     private async Task SwitchModel(string modelId)
     {
         await ModelConfig.SetDefaultAsync(modelId);
-        await AgentCache.InvalidateAgentAsync();
+        await AgentInvalidation.InvalidateAgentAsync();
         await LoadModelsAsync();
     }
 

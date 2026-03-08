@@ -1,7 +1,7 @@
 @using SmallEBot.Application.Contracts.Agents
 @using SmallEBot.Core.Models
 @inject ISkillsConfigService SkillsConfig
-@inject AgentCacheService AgentCache
+@inject IAgentInvalidationService AgentInvalidation
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
@@ -73,7 +73,7 @@ else
         var dialog = await DialogService.ShowAsync<ImportSkillDialog>("Import Skill", new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
         var result = await dialog.Result;
         if (result?.Canceled != false) return;
-        await AgentCache.InvalidateAgentAsync();
+        await AgentInvalidation.InvalidateAgentAsync();
         Snackbar.Add("Imported", Severity.Success);
         await LoadListAsync();
     }
@@ -83,7 +83,7 @@ else
         try
         {
             await SkillsConfig.AddUserSkillAsync(id, name, desc, body);
-            await AgentCache.InvalidateAgentAsync();
+            await AgentInvalidation.InvalidateAgentAsync();
             Snackbar.Add("Added", Severity.Success);
             await LoadListAsync();
         }
@@ -119,7 +119,7 @@ else
         try
         {
             await SkillsConfig.DeleteUserSkillAsync(id);
-            await AgentCache.InvalidateAgentAsync();
+            await AgentInvalidation.InvalidateAgentAsync();
             Snackbar.Add("Deleted", Severity.Success);
             await LoadListAsync();
         }

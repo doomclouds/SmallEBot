@@ -1,0 +1,319 @@
+using System.Diagnostics;
+using System.Runtime.CompilerServices;
+using System.Text.Encodings.Web;
+using System.Text.Json;
+using Microsoft.Agents.AI;
+using Microsoft.Extensions.AI;
+using SmallEBot.Application.Agents.Context;
+using SmallEBot.Application.Contracts.Conversations.Session;
+using SmallEBot.Application.Contracts.Agents.Execution;
+using SmallEBot.Domain.Conversations.Metadata;
+using SmallEBot.Core.Models;
+using ChatMessage = Microsoft.Extensions.AI.ChatMessage;
+
+namespace SmallEBot.Application.Agents.Execution;
+
+/// <summary>
+/// Implementation of IAgentRunner: uses IConversationSessionCoordinator to manage AgentSession,
+/// runs the agent, and maps updates to StreamUpdate.
+/// </summary>
+public sealed class AgentRunnerAdapter(
+    IAgentBuilder agentBuilder,
+    IConversationSessionCoordinator coordinator,
+    IAgentSessionReader sessionReader) : IAgentRunner
+{
+    public async IAsyncEnumerable<StreamUpdate> RunStreamingAsync(
+        Guid conversationId,
+        string userMessage,
+        bool useThinking,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default,
+        IReadOnlyList<string>? attachedPaths = null,
+        IReadOnlyList<string>? requestedSkillIds = null,
+        Guid? truncateFromTurnId = null,
+        string? userNameForTruncate = null)
+    {
+        var agent = await agentBuilder.GetOrCreateAgentAsync(useThinking, cancellationToken);
+
+        if (truncateFromTurnId.HasValue && !string.IsNullOrEmpty(userNameForTruncate))
+        {
+            await coordinator.TruncateFromTurnAsync(conversationId, userNameForTruncate, truncateFromTurnId.Value, agent, cancellationToken);
+        }
+
+        // Get or create session and metadata
+        var (session, metadata) = await coordinator.GetOrCreateSessionAsync(
+            conversationId,
+            "user", // TODO: Get from context
+            agent,
+            cancellationToken);
+
+        // Set FirstMessageIndex for new turn (placeholder 0) before agent adds user message
+        if (metadata.Turns.Count > 0 && metadata.Turns[^1].FirstMessageIndex == 0)
+        {
+            var messages = await sessionReader.GetMessagesAsync(conversationId, cancellationToken);
+            metadata.SetFirstMessageIndexForTurn(metadata.Turns[^1].Id, messages.Count);
+        }
+
+        // Set turn context for AIContextProvider
+        TurnContextProvider.SetContext(new AgentTurnContext
+        {
+            AttachedPaths = attachedPaths ?? [],
+            RequestedSkillIds = requestedSkillIds ?? []
+        });
+
+        try
+        {
+            // Build messages list (just user message, context provided via AIContextProvider)
+            var messages = new List<ChatMessage>
+            {
+                new(ChatRole.User, userMessage)
+            };
+
+            // Configure reasoning
+            var reasoningOpt = new ReasoningOptions();
+            if (useThinking)
+            {
+                reasoningOpt.Effort = ReasoningEffort.ExtraHigh;
+                reasoningOpt.Output = ReasoningOutput.Full;
+            }
+            var chatOptions = new ChatOptions { Reasoning = useThinking ? reasoningOpt : null };
+            var runOptions = new ChatClientAgentRunOptions(chatOptions);
+
+            var agentUpdates = agent.RunStreamingAsync(messages, session, runOptions, cancellationToken);
+
+            await foreach (var update in ProcessStreamingUpdates(agentUpdates, conversationId, agent, session, metadata, cancellationToken))
+            {
+                yield return update;
+            }
+        }
+        finally
+        {
+            // Clear turn context after completion
+            TurnContextProvider.ClearContext();
+        }
+    }
+
+    public async Task TruncateSessionFromTurnAsync(Guid conversationId, string userName, Guid turnId, CancellationToken cancellationToken = default)
+    {
+        var agent = await agentBuilder.GetOrCreateAgentAsync(useThinking: false, cancellationToken);
+        await coordinator.TruncateFromTurnAsync(conversationId, userName, turnId, agent, cancellationToken);
+    }
+
+    public async IAsyncEnumerable<StreamUpdate> ContinueWithApprovalAsync(
+        Guid conversationId,
+        string functionCallId,
+        string functionName,
+        string approvalRequestId,
+        bool approved,
+        string? reason,
+        IDictionary<string, object?>? rawArguments,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        // Note: Always disable thinking for approval continue to avoid DeepSeek API error
+        var agent = await agentBuilder.GetOrCreateAgentAsync(useThinking: false, cancellationToken);
+
+        var (session, metadata) = await coordinator.GetOrCreateSessionAsync(
+            conversationId,
+            "user",
+            agent,
+            cancellationToken);
+
+        TurnContextProvider.SetContext(new AgentTurnContext
+        {
+            AttachedPaths = [],
+            RequestedSkillIds = []
+        });
+
+        try
+        {
+#pragma warning disable MEAI001 // Type is for evaluation purposes only
+            var functionCall = new FunctionCallContent(
+                callId: functionCallId,
+                name: functionName,
+                arguments: rawArguments);
+            var approvalContent = new FunctionApprovalResponseContent(
+                id: approvalRequestId,
+                approved: approved,
+                functionCall: functionCall)
+            {
+                Reason = reason
+            };
+#pragma warning restore MEAI001
+            var message = new ChatMessage(ChatRole.User, [approvalContent]);
+
+            var chatOptions = new ChatOptions { Reasoning = null };
+            var runOptions = new ChatClientAgentRunOptions(chatOptions);
+
+            var agentUpdates = agent.RunStreamingAsync([message], session, runOptions, cancellationToken);
+
+            await foreach (var update in ProcessStreamingUpdates(agentUpdates, conversationId, agent, session, metadata, cancellationToken))
+            {
+                yield return update;
+            }
+        }
+        finally
+        {
+            TurnContextProvider.ClearContext();
+        }
+    }
+
+    private async IAsyncEnumerable<StreamUpdate> ProcessStreamingUpdates(
+        IAsyncEnumerable<AgentResponseUpdate> agentUpdates,
+        Guid conversationId,
+        AIAgent agent,
+        AgentSession session,
+        ConversationMetadata metadata,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        var toolTimers = new Dictionary<string, Stopwatch>();
+        var toolNames = new Dictionary<string, string>();
+
+        try
+        {
+            await foreach (var update in agentUpdates.WithCancellation(cancellationToken))
+            {
+                if (update.Contents is { Count: > 0 } contents)
+                {
+                    foreach (var content in contents)
+                    {
+                        switch (content)
+                        {
+                            case TextContent textContent when !string.IsNullOrEmpty(textContent.Text):
+                                yield return new TextStreamUpdate(textContent.Text);
+                                break;
+                            case TextReasoningContent reasoningContent when !string.IsNullOrEmpty(reasoningContent.Text):
+                                yield return new ThinkStreamUpdate(reasoningContent.Text);
+                                break;
+                            case FunctionCallContent fnCall:
+                                var callId = fnCall.CallId;
+                                toolTimers[callId] = Stopwatch.StartNew();
+                                toolNames[callId] = fnCall.Name;
+                                yield return new ToolCallStreamUpdate(
+                                    ToolName: fnCall.Name,
+                                    CallId: callId,
+                                    Phase: ToolCallPhase.Started,
+                                    Arguments: ToJsonString(fnCall.Arguments),
+                                    Elapsed: TimeSpan.Zero);
+                                break;
+                            case FunctionResultContent fnResult:
+                                var resCallId = fnResult.CallId;
+                                if (string.IsNullOrEmpty(resCallId) && toolTimers.Count == 1)
+                                    resCallId = toolTimers.Keys.First();
+                                if (!string.IsNullOrEmpty(resCallId) && toolTimers.TryGetValue(resCallId, out var timer))
+                                {
+                                    timer.Stop();
+                                    var toolName = toolNames.GetValueOrDefault(resCallId) ?? resCallId;
+                                    yield return new ToolCallStreamUpdate(
+                                        ToolName: toolName,
+                                        CallId: resCallId,
+                                        Phase: ToolCallPhase.Completed,
+                                        Result: ToJsonString(fnResult.Result),
+                                        Elapsed: timer.Elapsed);
+                                    toolTimers.Remove(resCallId);
+                                    toolNames.Remove(resCallId);
+                                }
+                                break;
+#pragma warning disable MEAI001 // Type is for evaluation purposes only
+                            case FunctionApprovalRequestContent approvalRequest:
+                                yield return new ApprovalRequestStreamUpdate(
+                                    CallId: approvalRequest.FunctionCall.CallId,
+                                    ToolName: approvalRequest.FunctionCall.Name,
+                                    Arguments: ToJsonString(approvalRequest.FunctionCall.Arguments),
+                                    ConversationId: conversationId,
+                                    FunctionCallId: approvalRequest.Id,
+                                    RawArguments: approvalRequest.FunctionCall.Arguments
+                                );
+                                break;
+#pragma warning restore MEAI001
+                        }
+                    }
+                }
+                else if (!string.IsNullOrEmpty(update.Text))
+                {
+                    yield return new TextStreamUpdate(update.Text);
+                }
+            }
+        }
+        finally
+        {
+            await coordinator.PersistSessionAsync(conversationId, session, metadata, agent, CancellationToken.None);
+        }
+    }
+
+    public async Task<string> GenerateTitleAsync(string firstMessage, CancellationToken cancellationToken = default)
+    {
+        var agent = await agentBuilder.GetOrCreateAgentAsync(useThinking: false, cancellationToken);
+        var prompt = $"Generate a very short title (under 20 chars, no quotes) for a conversation that starts with: {firstMessage}";
+        var titleOptions = new ChatClientAgentRunOptions(new ChatOptions { Reasoning = null });
+        try
+        {
+            var result = await agent.RunAsync(prompt, null, titleOptions, cancellationToken);
+            var t = result.Text.Trim();
+            return string.IsNullOrEmpty(t) ? "New conversation" : t;
+        }
+        catch
+        {
+            return firstMessage.Length > 20 ? firstMessage[..20] + "…" : firstMessage;
+        }
+    }
+
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        WriteIndented = true,
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+    };
+
+    private static string? ToJsonString(object? value)
+    {
+        if (value == null) return null;
+        if (value is string s)
+        {
+            if (string.IsNullOrWhiteSpace(s)) return s;
+            try
+            {
+                using var doc = JsonDocument.Parse(s);
+                return JsonSerializer.Serialize(doc.RootElement, JsonOptions);
+            }
+            catch { return s; }
+        }
+
+        if (value is System.Collections.IDictionary dict)
+        {
+            try
+            {
+                return JsonSerializer.Serialize(dict, JsonOptions);
+            }
+            catch
+            {
+                return SerializeDictionaryManually(dict);
+            }
+        }
+
+        try
+        {
+            return JsonSerializer.Serialize(value, JsonOptions);
+        }
+        catch
+        {
+            return value.ToString();
+        }
+    }
+
+    private static string SerializeDictionaryManually(System.Collections.IDictionary dict)
+    {
+        var entries = new List<string>();
+        foreach (System.Collections.DictionaryEntry entry in dict)
+        {
+            var key = entry.Key.ToString() ?? "null";
+            var val = entry.Value switch
+            {
+                null => "null",
+                string str => $"\"{str.Replace("\\", "\\\\").Replace("\"", "\\\"")}\"",
+                bool b => b.ToString().ToLower(),
+                int or long or double or float or decimal => entry.Value.ToString(),
+                _ => JsonSerializer.Serialize(entry.Value, JsonOptions)
+            };
+            entries.Add($"\"{key}\": {val}");
+        }
+        return "{\n  " + string.Join(",\n  ", entries) + "\n}";
+    }
+}

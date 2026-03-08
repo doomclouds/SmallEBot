@@ -1,0 +1,19 @@
+using Microsoft.Extensions.AI;
+
+namespace SmallEBot.Application.Contracts.Agents.Tools;
+
+/// <summary>Provides a set of AI tools.</summary>
+public interface IToolProvider
+{
+    /// <summary>Provider name for identification.</summary>
+    string Name { get; }
+
+    /// <summary>Whether this provider is currently enabled.</summary>
+    bool IsEnabled { get; }
+
+    /// <summary>Get all tools from this provider.</summary>
+    IEnumerable<AITool> GetTools();
+
+    /// <summary>Returns the timeout for a specific tool, or null to use the default.</summary>
+    TimeSpan? GetTimeout(string toolName) => null;
+}

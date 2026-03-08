@@ -11,12 +11,12 @@
 @using SmallEBot.Models
 @using SmallEBot.Services.Circuit
 @inject IConversationService ConversationService
-@inject IConversationAgentExecutor AgentExecutor
-@inject IAgentRunner AgentRunner
+@inject IConversationAgentDispatcher AgentDispatcher
 @inject IDialogService DialogSvc
 @inject IWorkspaceUploadService UploadService
 @inject ICurrentCircuitAccessor CircuitAccessor
-@inject AgentCacheService AgentCache
+@inject IAgentInvalidationService AgentInvalidation
+@inject IContextUsageEstimator ContextUsageEstimator
 @inject IUserPreferencesService Preferences
 @inject IUserNameDisplayService UserNameDisplay
 @inject IWorkspaceService WorkspaceService
@@ -225,7 +225,7 @@
         var result = await ConversationService.ReplaceUserMessageAsync(ConversationId!.Value, _userNameForAction!, messageId, newContent, UseThinkingMode, attachedPaths, requestedSkillIds, _sendCts!.Token);
         if (result == null) { _streaming = false;
             await InvokeAsync(StateHasChanged); return; }
-        await ConversationService.PrepareSessionForEditAsync(ConversationId!.Value, _userNameForAction!, result.Value.TurnId, _sendCts!.Token);
+        await AgentDispatcher.TruncateSessionFromTurnAsync(ConversationId!.Value, _userNameForAction!, result.Value.TurnId, _sendCts!.Token);
         var originalCreatedAt = (Bubbles.FirstOrDefault(b => b is UserBubble ub && ub.Message.Id == result.Value.TurnId) as UserBubble)?.Message.CreatedAt ?? DateTime.UtcNow;
         await OnEditSubmitted.InvokeAsync(new EditSubmittedArgs(result.Value.TurnId, result.Value.UserMessage, result.Value.AttachedPaths, result.Value.RequestedSkillIds, originalCreatedAt));
         await RunStreamingLoopForTurnAsync(result.Value.TurnId, result.Value.UserMessage, UseThinkingMode, result.Value.AttachedPaths, result.Value.RequestedSkillIds, truncateFromTurnId: null, userNameForTruncate: null);
@@ -236,7 +236,7 @@
         var persisted = false;
         var channel = System.Threading.Channels.Channel.CreateUnbounded<StreamUpdate>();
         var sink = new ChannelStreamSink(channel.Writer);
-        var runTask = AgentExecutor
+        var runTask = AgentDispatcher
             .StreamResponseAndCompleteAsync(ConversationId!.Value, turnId, userMessage, useThinking, sink, _sendCts!.Token, CircuitAccessor.CurrentCircuit?.Id, attachedPaths, requestedSkillIds, truncateFromTurnId, userNameForTruncate)
             .ContinueWith(_ => channel.Writer.Complete());
 
@@ -384,7 +384,7 @@
 
         try
         {
-            var compressed = await AgentExecutor.CheckAndCompactIfNeededAsync(ConversationId!.Value);
+            var compressed = await AgentDispatcher.CheckAndCompactIfNeededAsync(ConversationId!.Value);
             if (compressed)
             {
                 // Compression happened, refresh context display immediately
@@ -420,7 +420,12 @@
         _attachmentItems.RemoveAll(x => x is ResolvedPathAttachment);
         var requestedSkillIds = _requestedSkillIds.ToList();
         _requestedSkillIds.Clear();
-        var turnId = await ConversationService.CreateTurnAndUserMessageAsync(ConversationId!.Value, userName, msg, UseThinkingMode, _sendCts!.Token, attachedPaths, requestedSkillIds);
+        string? suggestedTitle = null;
+        if (await ConversationService.GetMessageCountAsync(ConversationId!.Value, _sendCts!.Token) == 0)
+        {
+            suggestedTitle = await AgentDispatcher.GenerateTitleAsync(msg, _sendCts!.Token);
+        }
+        var turnId = await ConversationService.CreateTurnAndUserMessageAsync(ConversationId!.Value, userName, msg, UseThinkingMode, _sendCts!.Token, attachedPaths, requestedSkillIds, suggestedTitle);
         _ = RunStreamingLoopAsync(turnId, msg, attachedPaths, requestedSkillIds);
     }
 
@@ -434,7 +439,7 @@
 
         try
         {
-            var compressed = await AgentExecutor.CompactConversationAsync(ConversationId!.Value);
+            var compressed = await AgentDispatcher.CompactConversationAsync(ConversationId!.Value);
             if (compressed)
             {
                 await RefreshContextUsageAsync();
@@ -465,7 +470,7 @@
         var channel = System.Threading.Channels.Channel.CreateUnbounded<StreamUpdate>();
         var sink = new ChannelStreamSink(channel.Writer);
         var contextId = CircuitAccessor.CurrentCircuit?.Id;
-        var runTask = AgentExecutor
+        var runTask = AgentDispatcher
             .StreamResponseAndCompleteAsync(ConversationId!.Value, turnId, msg, UseThinkingMode, sink, _sendCts!.Token, contextId, attachedPaths, requestedSkillIds)
             .ContinueWith(_ => channel.Writer.Complete());
 
@@ -667,11 +672,11 @@
             _contextRefreshRequested = false;
             try
             {
-                var d = await AgentCache.GetEstimatedContextUsageDetailAsync(ConversationId.Value);
+                var d = await ContextUsageEstimator.GetEstimatedContextUsageDetailAsync(ConversationId.Value);
                 if (d != null)
                 {
                     _contextPercentText = $"{d.Ratio:P1}";
-                    _contextUsageTooltip = $"Context: {d.Ratio:P1} · {AgentCacheService.FormatTokenCount(d.UsedTokens)}/{AgentCacheService.FormatTokenCount(d.ContextWindowTokens)}";
+                    _contextUsageTooltip = $"Context: {d.Ratio:P1} · {ContextUsageEstimator.FormatTokenCount(d.UsedTokens)}/{ContextUsageEstimator.FormatTokenCount(d.ContextWindowTokens)}";
                 }
                 else
                 {
@@ -709,9 +714,9 @@
                 _dropZoneDotNetRef?.Dispose();
                 _dropZoneDotNetRef = null;
             }
-            // Subscribe to compression events from AgentExecutor
-            AgentExecutor.CompressionStarted += OnCompressionStarted;
-            AgentExecutor.CompressionCompleted += OnCompressionCompleted;
+            // Subscribe to compression events from AgentDispatcher
+            AgentDispatcher.CompressionStarted += OnCompressionStarted;
+            AgentDispatcher.CompressionCompleted += OnCompressionCompleted;
             // Subscribe to model config changes to refresh context display
             ModelConfigService.OnChanged += OnModelConfigChanged;
         }
@@ -811,11 +816,11 @@
         if (!ConversationId.HasValue) return;
         try
         {
-            var d = await AgentCache.GetEstimatedContextUsageDetailAsync(ConversationId.Value);
+            var d = await ContextUsageEstimator.GetEstimatedContextUsageDetailAsync(ConversationId.Value);
             if (d != null)
             {
                 _contextPercentText = $"{d.Ratio:P1}";
-                _contextUsageTooltip = $"Context: {d.Ratio:P1} · {AgentCacheService.FormatTokenCount(d.UsedTokens)}/{AgentCacheService.FormatTokenCount(d.ContextWindowTokens)}";
+                _contextUsageTooltip = $"Context: {d.Ratio:P1} · {ContextUsageEstimator.FormatTokenCount(d.UsedTokens)}/{ContextUsageEstimator.FormatTokenCount(d.ContextWindowTokens)}";
             }
             else
             {
@@ -845,7 +850,7 @@
             _sendCts ??= new CancellationTokenSource();
             StartWaitingCheckTimer();
 
-            await foreach (var update in AgentRunner.ContinueWithApprovalAsync(
+            await foreach (var update in AgentDispatcher.ContinueWithApprovalAsync(
                 approval.ConversationId,
                 approval.CallId,           // Original function call ID
                 approval.ToolName,         // Original function name
@@ -923,7 +928,7 @@
             // Send rejection response
             _sendCts ??= new CancellationTokenSource();
 
-            await foreach (var _ in AgentRunner.ContinueWithApprovalAsync(
+            await foreach (var _ in AgentDispatcher.ContinueWithApprovalAsync(
                 approval.ConversationId,
                 approval.CallId,           // Original function call ID
                 approval.ToolName,         // Original function name
@@ -955,7 +960,7 @@
         // Model changed, refresh context display (different models have different context windows)
         _ = InvokeAsync(async () =>
         {
-            await AgentCache.InvalidateAgentAsync();
+            await AgentInvalidation.InvalidateAgentAsync();
             await RefreshContextUsageAsync();
         });
     }
@@ -963,8 +968,8 @@
     public void Dispose()
     {
         StopWaitingCheckTimer();
-        AgentExecutor.CompressionStarted -= OnCompressionStarted;
-        AgentExecutor.CompressionCompleted -= OnCompressionCompleted;
+        AgentDispatcher.CompressionStarted -= OnCompressionStarted;
+        AgentDispatcher.CompressionCompleted -= OnCompressionCompleted;
         ModelConfigService.OnChanged -= OnModelConfigChanged;
         try { _ = JS.InvokeVoidAsync("SmallEBot.detachDropZone", "smallebot-chat-drop-zone"); } catch { /* ignore */ }
         _dropZoneDotNetRef?.Dispose();
