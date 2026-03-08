@@ -2,10 +2,18 @@ using SmallEBot.Application.Contracts.Agents;
 using SmallEBot.Application.Contracts.Conversations;
 using SmallEBot.Core;
 
-namespace SmallEBot.Application.Conversations;
+namespace SmallEBot.Application.Conversations.TurnContext;
 
+/// <summary>Builds per-turn context instructions (attached files + requested skills) for AIContextProvider. Includes emphasis so the model knows this applies to the current message only.</summary>
 public sealed class TurnContextFragmentBuilder(ISkillsConfigService skillsConfig) : ITurnContextFragmentBuilder
 {
+    private const string PerTurnHeader = """
+        # IMPORTANT: Per-Turn Context (this message only)
+
+        The following context applies to THIS user message only. You MUST pay attention and follow it.
+
+        """;
+
     public async Task<string?> BuildContextHintAsync(
         IReadOnlyList<string> attachedPaths,
         IReadOnlyList<string> requestedSkillIds,
@@ -23,7 +31,7 @@ public sealed class TurnContextFragmentBuilder(ISkillsConfigService skillsConfig
         if (!string.IsNullOrWhiteSpace(skillsBlock))
             parts.Add(skillsBlock);
 
-        return string.Join("\n\n", parts);
+        return PerTurnHeader + string.Join("\n\n", parts);
     }
 
     private static string BuildFilesBlock(IReadOnlyList<string> attachedPaths)
@@ -81,14 +89,9 @@ public sealed class TurnContextFragmentBuilder(ISkillsConfigService skillsConfig
             if (string.IsNullOrWhiteSpace(id) || !seen.Add(id.Trim()))
                 continue;
             var trimmed = id.Trim();
-            if (knownIds.Contains(trimmed))
-            {
-                lines.Add($"The user wants you to use the skill \"{trimmed}\". Call load_skill(\"{trimmed}\") to learn and apply it.");
-            }
-            else
-            {
-                lines.Add($"The user requested skill \"{trimmed}\"; it was not found in the skills list.");
-            }
+            lines.Add(knownIds.Contains(trimmed)
+                ? $"The user wants you to use the skill \"{trimmed}\". Call load_skill(\"{trimmed}\") to learn and apply it."
+                : $"The user requested skill \"{trimmed}\"; it was not found in the skills list.");
         }
 
         return lines.Count <= 2 ? "" : string.Join("\n", lines);

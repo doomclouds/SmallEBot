@@ -76,7 +76,7 @@ public static class ServiceCollectionExtensions
 
         services.AddScoped<IAgentConversationService, AgentConversationService>();
         services.AddScoped<IAgentRunner, AgentRunnerAdapter>();
-        services.AddScoped<SmallEBot.Application.Contracts.Conversations.ITurnContextFragmentBuilder, SmallEBot.Application.Conversations.TurnContextFragmentBuilder>();
+        services.AddScoped<ITurnContextFragmentBuilder, SmallEBot.Application.Conversations.TurnContext.TurnContextFragmentBuilder>();
         services.AddScoped<AgentCacheService>();
         services.AddSingleton<IUserPreferencesService, UserPreferencesService>();
         services.AddSingleton<IUserNameDisplayService, UserNameDisplayService>();

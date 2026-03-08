@@ -102,7 +102,7 @@ public sealed class AgentConversationService(
             {
                 Id = turnMetadata?.Id ?? Guid.NewGuid(),
                 Role = "user",
-                Content = msg.Text ?? "",
+                Content = msg.Text,
                 CreatedAt = turnMetadata?.CreatedAt ?? DateTime.UtcNow,
                 IsEdited = false,
                 AttachedPaths = turnMetadata?.AttachedPaths ?? [],

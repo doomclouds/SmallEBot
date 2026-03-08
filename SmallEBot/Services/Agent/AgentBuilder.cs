@@ -24,6 +24,7 @@ public sealed class AgentBuilder : IAgentBuilder
     private readonly IToolProviderAggregator _toolAggregator;
     private readonly IMcpConnectionManager _mcpConnectionManager;
     private readonly IModelConfigService _modelConfig;
+    private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<AgentBuilder> _log;
     private readonly string _skillsPath;
     private readonly string _userSkillsPath;
@@ -38,12 +39,14 @@ public sealed class AgentBuilder : IAgentBuilder
         IMcpConnectionManager mcpConnectionManager,
         IModelConfigService modelConfig,
         IVirtualFileSystem vfs,
+        IServiceProvider serviceProvider,
         ILogger<AgentBuilder> log)
     {
         _contextFactory = contextFactory;
         _toolAggregator = toolAggregator;
         _mcpConnectionManager = mcpConnectionManager;
         _modelConfig = modelConfig;
+        _serviceProvider = serviceProvider;
         _log = log;
 
         var workspaceRoot = vfs.GetRootPath();
@@ -107,7 +110,7 @@ public sealed class AgentBuilder : IAgentBuilder
                 Instructions = instructions,
                 Tools = _allTools
             },
-            AIContextProviders = [skillsProvider, new TurnContextProvider()]
+            AIContextProviders = [skillsProvider, new TurnContextProvider(_serviceProvider)]
         });
         return _agent;
     }
