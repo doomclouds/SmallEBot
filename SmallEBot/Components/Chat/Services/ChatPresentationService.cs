@@ -322,7 +322,7 @@ public sealed class ChatPresentationService
                         var item = new ToolCallItemView
                         {
                             CallId = callId,
-                            ToolName = tc.ToolName ?? "unknown",
+                            ToolName = tc.ToolName,
                             Arguments = tc.Arguments,
                             Phase = ToolCallPhase.Started,
                             SortOrder = order++,

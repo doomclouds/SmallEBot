@@ -1,10 +1,7 @@
 @page "/"
 @layout MainLayout
-@using SmallEBot.Application.Contracts.Conversations
-@using SmallEBot.Application.Contracts.UserPreferences
 @using SmallEBot.Core.Models
 @using SmallEBot.Models
-@inject IUserPreferencesService Preferences
 @inject IUserNameDisplayService UserNameDisplay
 @inject IConversationService ConvSvc
 @inject IDialogService DialogSvc
@@ -107,7 +104,7 @@ else
     private async Task OnCreateConversation()
     {
         _searchQuery = null;
-        var c = await ConvSvc.CreateConversationAsync(_userName!, "New conversation");
+        var c = await ConvSvc.CreateConversationAsync(_userName!);
         await LoadConversations();
         _selectedId = c.Id;
         _selectedConversation = c;
