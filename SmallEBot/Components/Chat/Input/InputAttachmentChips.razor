@@ -1,0 +1,45 @@
+@using SmallEBot.Components.Chat.Orchestration
+@using SmallEBot.Core.Models
+
+@if (Orchestrator.Attachments.Count > 0 || Orchestrator.RequestedSkillIds.Count > 0)
+{
+    <div class="d-flex flex-wrap align-items-center gap-1 mb-2">
+        @foreach (var item in Orchestrator.Attachments)
+        {
+            @if (item is ResolvedPathAttachment r)
+            {
+                var captured = r;
+                <MudChip T="object" Color="Color.Primary" Variant="Variant.Filled"
+                         OnClose="@(() => Orchestrator.RemoveAttachment(captured))"
+                         CloseIcon="@Icons.Material.Filled.Cancel">
+                    @r.Path
+                </MudChip>
+            }
+            else if (item is PendingUploadAttachment p)
+            {
+                var captured = p;
+                <MudChip T="object" Color="Color.Primary" Variant="Variant.Filled"
+                         OnClose="@(() => Orchestrator.RemoveAttachment(captured))"
+                         CloseIcon="@Icons.Material.Filled.Cancel">
+                    <MudProgressCircular Size="Size.Small"
+                                         Indeterminate="@(p.Progress <= 0 || p.Progress >= 100)"
+                                         Value="@p.Progress" />
+                    @p.DisplayName
+                </MudChip>
+            }
+        }
+        @foreach (var skillId in Orchestrator.RequestedSkillIds)
+        {
+            var captured = skillId;
+            <MudChip T="object" Color="Color.Secondary" Variant="Variant.Filled"
+                     OnClose="@(() => Orchestrator.RemoveSkill(captured))"
+                     CloseIcon="@Icons.Material.Filled.Cancel">
+                /@skillId
+            </MudChip>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public InputOrchestrator Orchestrator { get; set; } = default!;
+}

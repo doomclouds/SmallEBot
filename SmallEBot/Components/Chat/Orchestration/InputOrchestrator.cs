@@ -12,15 +12,17 @@ public class InputOrchestrator
 {
     private readonly IWorkspaceService _workspaceService;
     private readonly ISkillsConfigService _skillsConfigService;
+    private readonly IWorkspaceUploadService? _uploadService;
 
     private bool _justSelectedAttachment;
     private List<string> _filePaths = [];
     private List<SkillMetadata> _skills = [];
 
-    public InputOrchestrator(IWorkspaceService workspaceService, ISkillsConfigService skillsConfigService)
+    public InputOrchestrator(IWorkspaceService workspaceService, ISkillsConfigService skillsConfigService, IWorkspaceUploadService? uploadService = null)
     {
         _workspaceService = workspaceService;
         _skillsConfigService = skillsConfigService;
+        _uploadService = uploadService;
     }
 
     public string InputText { get; set; } = "";
@@ -97,6 +99,8 @@ public class InputOrchestrator
 
     public void RemoveAttachment(AttachmentItem item)
     {
+        if (item is PendingUploadAttachment pending)
+            _uploadService?.CancelUpload(pending.UploadId);
         Attachments.Remove(item);
         OnStateChanged?.Invoke();
     }

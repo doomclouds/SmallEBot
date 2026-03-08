@@ -1,0 +1,114 @@
+@* Chat input: popover + chips + input bar, driven by InputOrchestrator *@
+@using SmallEBot.Components.Chat.Orchestration
+@using SmallEBot.Core.Models
+@inject IJSRuntime JS
+@implements IDisposable
+
+<div id="smallebot-chat-drop-zone" class="position-relative">
+    <InputAttachmentPopover Orchestrator="@Orchestrator" @ref="_popoverRef" />
+    <InputAttachmentChips Orchestrator="@Orchestrator" />
+    <InputBar Text="@Orchestrator.InputText"
+              TextChanged="@HandleTextChanged"
+              IsStreaming="@IsStreaming"
+              IsCompressing="@IsCompressing"
+              ContextPercentText="@ContextPercentText"
+              ContextUsageTooltip="@ContextUsageTooltip"
+              OnSend="@OnSend"
+              OnStop="@OnStop"
+              OnCompress="@OnCompress"
+              IsDisabled="@IsInputDisabled"
+              OnKeyDown="@HandleKeyDown" />
+</div>
+
+@code {
+    [Parameter] public InputOrchestrator Orchestrator { get; set; } = default!;
+    [Parameter] public bool IsStreaming { get; set; }
+    [Parameter] public bool IsCompressing { get; set; }
+    [Parameter] public string ContextPercentText { get; set; } = "0%";
+    [Parameter] public string? ContextUsageTooltip { get; set; }
+    [Parameter] public EventCallback OnSend { get; set; }
+    [Parameter] public EventCallback OnStop { get; set; }
+    [Parameter] public EventCallback OnCompress { get; set; }
+
+    private InputAttachmentPopover? _popoverRef;
+    private DotNetObjectReference<ChatInput>? _suggestionKeysDotNetRef;
+    private bool _suggestionKeysAttached;
+    private bool _prevPopoverOpen;
+
+    private bool IsInputDisabled => string.IsNullOrWhiteSpace(Orchestrator.InputText) ||
+                                    Orchestrator.Attachments.OfType<PendingUploadAttachment>().Any();
+
+    protected override void OnInitialized()
+    {
+        Orchestrator.OnStateChanged += StateHasChanged;
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (Orchestrator.IsPopoverOpen != _prevPopoverOpen)
+        {
+            _prevPopoverOpen = Orchestrator.IsPopoverOpen;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (Orchestrator.IsPopoverOpen != _prevPopoverOpen)
+        {
+            _prevPopoverOpen = Orchestrator.IsPopoverOpen;
+            if (Orchestrator.IsPopoverOpen && !_suggestionKeysAttached)
+            {
+                _suggestionKeysAttached = true;
+                _suggestionKeysDotNetRef = DotNetObjectReference.Create(this);
+                try
+                {
+                    await JS.InvokeVoidAsync("SmallEBot.attachChatInputSuggestionKeys", "smallebot-chat-input-wrap", _suggestionKeysDotNetRef);
+                }
+                catch
+                {
+                    _suggestionKeysAttached = false;
+                    _suggestionKeysDotNetRef?.Dispose();
+                    _suggestionKeysDotNetRef = null;
+                }
+            }
+            else if (!Orchestrator.IsPopoverOpen && _suggestionKeysAttached)
+            {
+                try
+                {
+                    await JS.InvokeVoidAsync("SmallEBot.detachChatInputSuggestionKeys", "smallebot-chat-input-wrap");
+                }
+                catch { /* ignore */ }
+                _suggestionKeysAttached = false;
+                _suggestionKeysDotNetRef?.Dispose();
+                _suggestionKeysDotNetRef = null;
+            }
+        }
+    }
+
+    private async Task HandleTextChanged(string value)
+    {
+        await Orchestrator.HandleInputChangedAsync(value);
+    }
+
+    [JSInvokable]
+    public async Task OnSuggestionKeyDown(string key)
+    {
+        if (_popoverRef != null)
+            await _popoverRef.HandleKeyFromInputAsync(key);
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (Orchestrator.IsPopoverOpen && _popoverRef != null &&
+            (e.Key == "ArrowDown" || e.Key == "ArrowUp" || e.Key == "Enter" || e.Key == "Escape"))
+        {
+            await _popoverRef.HandleKeyFromInputAsync(e.Key);
+        }
+    }
+
+    public void Dispose()
+    {
+        Orchestrator.OnStateChanged -= StateHasChanged;
+        _suggestionKeysDotNetRef?.Dispose();
+    }
+}
