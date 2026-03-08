@@ -2,7 +2,6 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Unicode;
 using SmallEBot.Domain.Conversations.Metadata;
-using SmallEBot.Infrastructure.Conversations.Metadata;
 
 namespace SmallEBot.Infrastructure.Conversations.Metadata;
 

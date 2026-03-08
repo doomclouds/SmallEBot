@@ -1,11 +1,13 @@
 @page "/"
 @layout MainLayout
+@using SmallEBot.Application.Contracts.Conversations
 @using SmallEBot.Application.Contracts.UserPreferences
 @using SmallEBot.Core.Entities
 @using SmallEBot.Core.Models
+@using SmallEBot.Models
 @inject IUserPreferencesService Preferences
 @inject IUserNameDisplayService UserNameDisplay
-@inject ConversationService ConvSvc
+@inject IAgentConversationService ConvSvc
 @inject IDialogService DialogSvc
 @inject ICurrentConversationService CurrentConversation
 
@@ -34,6 +36,7 @@ else
                                   ConversationId="_selectedConversation.Id"
                                   UserName="_userName"
                                   OnMessageSent="@RefreshSidebar"
+                                  OnEditSubmitted="@OnEditSubmitted"
                                   OnBeforeSend="@RefreshCurrentConversation" />
                     </div>
                 </div>
@@ -79,8 +82,8 @@ else
     {
         if (string.IsNullOrEmpty(_userName)) return;
         _conversations = string.IsNullOrWhiteSpace(_searchQuery)
-            ? await ConvSvc.GetListAsync(_userName)
-            : await ConvSvc.SearchAsync(_userName, _searchQuery.Trim());
+            ? await ConvSvc.GetConversationsAsync(_userName)
+            : await ConvSvc.SearchConversationsAsync(_userName, _searchQuery.Trim());
         if (_conversations.Count > 0 && !_selectedId.HasValue)
             await OnSelectConversation(_conversations[0].Id);
     }
@@ -94,7 +97,7 @@ else
     private async Task OnSelectConversation(Guid id)
     {
         _selectedId = id;
-        _selectedConversation = await ConvSvc.GetByIdAsync(id, _userName!);
+        _selectedConversation = await ConvSvc.GetConversationAsync(id, _userName!);
         _bubbles = _selectedConversation != null
             ? await ConvSvc.GetChatBubblesAsync(id)
             : [];
@@ -105,7 +108,7 @@ else
     private async Task OnCreateConversation()
     {
         _searchQuery = null;
-        var c = await ConvSvc.CreateAsync(_userName!, "New conversation");
+        var c = await ConvSvc.CreateConversationAsync(_userName!, "New conversation");
         await LoadConversations();
         _selectedId = c.Id;
         _selectedConversation = c;
@@ -126,14 +129,35 @@ else
         await LoadConversations();
     }
 
+    private void OnEditSubmitted(EditSubmittedArgs args)
+    {
+        var idx = _bubbles.FindIndex(b => b is UserBubble ub && ub.Message.Id == args.TurnId);
+        if (idx < 0) return;
+        var updated = new UserBubble(new MessageInfo
+        {
+            Id = args.TurnId,
+            Role = "user",
+            Content = args.NewContent,
+            CreatedAt = args.OriginalCreatedAt,
+            IsEdited = true,
+            AttachedPaths = args.AttachedPaths,
+            RequestedSkillIds = args.RequestedSkillIds
+        });
+        _bubbles[idx] = updated;
+        // Remove all bubbles after the edited user (truncate = remove this turn's assistant reply + all later turns)
+        if (idx + 1 < _bubbles.Count)
+            _bubbles.RemoveRange(idx + 1, _bubbles.Count - idx - 1);
+        StateHasChanged();
+    }
+
     private async Task RefreshSidebar()
     {
         _conversations = string.IsNullOrWhiteSpace(_searchQuery)
-            ? await ConvSvc.GetListAsync(_userName!)
-            : await ConvSvc.SearchAsync(_userName!, _searchQuery.Trim());
+            ? await ConvSvc.GetConversationsAsync(_userName!)
+            : await ConvSvc.SearchConversationsAsync(_userName!, _searchQuery.Trim());
         if (_selectedId.HasValue)
         {
-            _selectedConversation = await ConvSvc.GetByIdAsync(_selectedId.Value, _userName!);
+            _selectedConversation = await ConvSvc.GetConversationAsync(_selectedId.Value, _userName!);
             _bubbles = await ConvSvc.GetChatBubblesAsync(_selectedId.Value);
         }
         await InvokeAsync(StateHasChanged);
@@ -144,7 +168,7 @@ else
     {
         if (_selectedId.HasValue && !string.IsNullOrEmpty(_userName))
         {
-            _selectedConversation = await ConvSvc.GetByIdAsync(_selectedId.Value, _userName);
+            _selectedConversation = await ConvSvc.GetConversationAsync(_selectedId.Value, _userName);
             _bubbles = await ConvSvc.GetChatBubblesAsync(_selectedId.Value);
             await InvokeAsync(StateHasChanged);
         }

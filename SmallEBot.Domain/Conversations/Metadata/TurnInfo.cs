@@ -43,7 +43,7 @@ public class TurnInfo(
     /// <summary>
     /// Updates attachments and requested skill IDs for this turn.
     /// </summary>
-    public void UpdateAttachments(IReadOnlyList<string> paths, IReadOnlyList<string> skillIds)
+    public void UpdateAttachments(IReadOnlyList<string>? paths, IReadOnlyList<string>? skillIds)
     {
         AttachedPaths = (paths ?? []).ToArray();
         RequestedSkillIds = (skillIds ?? []).ToArray();

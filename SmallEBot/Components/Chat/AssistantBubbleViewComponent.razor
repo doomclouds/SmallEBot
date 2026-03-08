@@ -41,12 +41,6 @@
                     }
                 }
             </div>
-            @if (Model.TurnId != Guid.Empty && OnRegenerate.HasDelegate)
-            {
-                <MudIconButton Icon="@Icons.Material.Filled.Refresh" Size="Size.Small"
-                               OnClick="@(() => OnRegenerate.InvokeAsync(Model.TurnId))"
-                               title="Regenerate" />
-            }
         </div>
     </MudChatBubble>
 </MudChat>
@@ -54,5 +48,4 @@
 @code {
     [Parameter] public AssistantBubbleView Model { get; set; } = null!;
     [Parameter] public bool ShowToolCalls { get; set; } = true;
-    [Parameter] public EventCallback<Guid> OnRegenerate { get; set; }
 }

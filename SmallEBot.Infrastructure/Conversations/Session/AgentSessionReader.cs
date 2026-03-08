@@ -138,17 +138,6 @@ public sealed class AgentSessionReader(
             authorName = authorElement.GetString();
         }
 
-        DateTime? createdAt = null;
-        if (element.TryGetProperty("createdAt", out var createdElement) &&
-            createdElement.ValueKind == JsonValueKind.String)
-        {
-            var dateStr = createdElement.GetString();
-            if (DateTimeOffset.TryParse(dateStr, out var dto))
-            {
-                createdAt = dto.UtcDateTime;
-            }
-        }
-
         var message = new ChatMessage(role.Value, contents);
 
         // Set additional properties if available
@@ -270,8 +259,8 @@ public sealed class AgentSessionReader(
             JsonValueKind.True => true,
             JsonValueKind.False => false,
             JsonValueKind.Null => null,
-            JsonValueKind.Object => JsonSerializer.Deserialize<Dictionary<string, object?>>(element, JsonOptions),
-            JsonValueKind.Array => JsonSerializer.Deserialize<List<object?>>(element, JsonOptions),
+            JsonValueKind.Object => element.Deserialize<Dictionary<string, object?>>(JsonOptions),
+            JsonValueKind.Array => element.Deserialize<List<object?>>(JsonOptions),
             _ => element.ToString()
         };
     }

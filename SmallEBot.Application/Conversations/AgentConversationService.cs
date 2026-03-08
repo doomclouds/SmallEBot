@@ -1,8 +1,12 @@
+using System.Text.Encodings.Web;
+using System.Text.Json;
+using Microsoft.Extensions.AI;
 using SmallEBot.Application.Contracts.Conversations;
 using SmallEBot.Application.Contracts.Conversations.Compression;
 using SmallEBot.Application.Contracts.Conversations.Context;
 using SmallEBot.Application.Contracts.Conversations.Session;
 using SmallEBot.Application.Contracts.Streaming;
+using SmallEBot.Core;
 using SmallEBot.Core.Models;
 using SmallEBot.Domain.Conversations.Metadata;
 using ConversationEntity = SmallEBot.Core.Entities.Conversation;
@@ -17,16 +21,17 @@ public sealed class AgentConversationService(
     IToolResultMaxProvider toolResultMaxProvider,
     ICompressionThresholdProvider compressionThresholdProvider,
     IContextUsageEstimator contextUsageEstimator,
-    IAgentSessionReader sessionReader) : IAgentConversationService
+    IAgentSessionReader sessionReader,
+    IConversationTaskRemover taskRemover) : IAgentConversationService
 {
     public event Action<Guid>? CompressionStarted;
     public event Action<Guid, bool>? CompressionCompleted;
 
     private readonly HashSet<Guid> _compressingConversations = [];
 
-    public async Task<ConversationEntity> CreateConversationAsync(string userName, CancellationToken cancellationToken = default)
+    public async Task<ConversationEntity> CreateConversationAsync(string userName, string title = "New conversation", CancellationToken cancellationToken = default)
     {
-        var metadata = ConversationMetadata.Create(userName);
+        var metadata = ConversationMetadata.Create(userName, title);
         await metadataRepository.SaveAsync(metadata, cancellationToken);
         return ToEntity(metadata);
     }
@@ -55,6 +60,7 @@ public sealed class AgentConversationService(
         var m = await metadataRepository.GetByIdAsync(id, cancellationToken);
         if (m == null || m.UserName != userName) return false;
         await metadataRepository.DeleteAsync(id, cancellationToken);
+        taskRemover.RemoveTasks(id);
         return true;
     }
 
@@ -62,6 +68,94 @@ public sealed class AgentConversationService(
     {
         return await metadataRepository.GetTurnCountAsync(conversationId, cancellationToken);
     }
+
+    public async Task<List<ChatBubble>> GetChatBubblesAsync(Guid conversationId, CancellationToken cancellationToken = default)
+    {
+        var metadata = await metadataRepository.GetByIdAsync(conversationId, cancellationToken);
+        if (metadata == null) return [];
+
+        var messages = await sessionReader.GetMessagesAsync(conversationId, cancellationToken);
+        if (messages.Count == 0) return [];
+
+        var turns = new List<(Guid TurnId, bool IsThinkingMode, MessageInfo UserMessage, IReadOnlyList<TimelineItem> AssistantItems)>();
+
+        var functionResults = new Dictionary<string, FunctionResultContent>();
+        foreach (var msg in messages)
+        {
+            foreach (var content in msg.Contents.OfType<FunctionResultContent>())
+            {
+                if (!string.IsNullOrEmpty(content.CallId))
+                    functionResults[content.CallId] = content;
+            }
+        }
+
+        int turnIndex = 0;
+        for (int i = 0; i < messages.Count; i++)
+        {
+            var msg = messages[i];
+            if (msg.Role != ChatRole.User) continue;
+
+            var turnMetadata = turnIndex < metadata.Turns.Count ? metadata.Turns[turnIndex] : null;
+            turnIndex++;
+
+            var userMessageInfo = new MessageInfo
+            {
+                Id = turnMetadata?.Id ?? Guid.NewGuid(),
+                Role = "user",
+                Content = msg.Text ?? "",
+                CreatedAt = turnMetadata?.CreatedAt ?? DateTime.UtcNow,
+                IsEdited = false,
+                AttachedPaths = turnMetadata?.AttachedPaths ?? [],
+                RequestedSkillIds = turnMetadata?.RequestedSkillIds ?? []
+            };
+
+            var assistantItems = new List<TimelineItem>();
+            var isThinkingMode = false;
+
+            for (int j = i + 1; j < messages.Count; j++)
+            {
+                var nextMsg = messages[j];
+                if (nextMsg.Role == ChatRole.User) break;
+                if (nextMsg.Role == ChatRole.System) continue;
+
+                if (nextMsg.Role == ChatRole.Assistant)
+                {
+                    foreach (var content in nextMsg.Contents)
+                    {
+                        if (content is TextReasoningContent reasoning)
+                        {
+                            isThinkingMode = true;
+                            assistantItems.Add(new TimelineItem { ThinkBlock = new ThinkBlockInfo { Content = reasoning.Text, CreatedAt = DateTime.UtcNow } });
+                        }
+                        else if (content is TextContent text && !string.IsNullOrEmpty(text.Text))
+                        {
+                            assistantItems.Add(new TimelineItem { Message = new MessageInfo { Id = Guid.NewGuid(), Role = "assistant", Content = text.Text, CreatedAt = DateTime.UtcNow } });
+                        }
+                        else if (content is FunctionCallContent fnCall)
+                        {
+                            var resultText = functionResults.TryGetValue(fnCall.CallId ?? "", out var fnResult)
+                                ? fnResult.Result?.ToString()
+                                : null;
+                            var argsJson = fnCall.Arguments != null
+                                ? JsonSerializer.Serialize(fnCall.Arguments, JsonOptions)
+                                : null;
+                            assistantItems.Add(new TimelineItem { ToolCall = new ToolCallInfo { ToolName = fnCall.Name ?? "", Arguments = argsJson, Result = resultText, CreatedAt = DateTime.UtcNow } });
+                        }
+                    }
+                }
+            }
+
+            turns.Add((turnMetadata?.Id ?? Guid.NewGuid(), isThinkingMode, userMessageInfo, assistantItems));
+        }
+
+        return ConversationBubbleHelper.BuildBubblesFromTimeline(turns);
+    }
+
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        WriteIndented = true,
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+    };
 
     private static ConversationEntity ToEntity(ConversationMetadata m) => new()
     {
@@ -107,12 +201,14 @@ public sealed class AgentConversationService(
         CancellationToken cancellationToken = default,
         string? commandConfirmationContextId = null,
         IReadOnlyList<string>? attachedPaths = null,
-        IReadOnlyList<string>? requestedSkillIds = null)
+        IReadOnlyList<string>? requestedSkillIds = null,
+        Guid? truncateFromTurnId = null,
+        string? userNameForTruncate = null)
     {
         conversationTaskContext.SetConversationId(conversationId);
         try
         {
-            await foreach (var update in agentRunner.RunStreamingAsync(conversationId, userMessage, useThinking, cancellationToken, attachedPaths, requestedSkillIds))
+            await foreach (var update in agentRunner.RunStreamingAsync(conversationId, userMessage, useThinking, cancellationToken, attachedPaths, requestedSkillIds, truncateFromTurnId, userNameForTruncate))
             {
                 await sink.OnNextAsync(update, cancellationToken);
             }
@@ -160,6 +256,11 @@ public sealed class AgentConversationService(
         return Task.CompletedTask;
     }
 
+    public async Task PrepareSessionForEditAsync(Guid conversationId, string userName, Guid turnId, CancellationToken cancellationToken = default)
+    {
+        await agentRunner.TruncateSessionFromTurnAsync(conversationId, userName, turnId, cancellationToken);
+    }
+
     public async Task<(Guid TurnId, string UserMessage, IReadOnlyList<string> AttachedPaths, IReadOnlyList<string> RequestedSkillIds)?> ReplaceUserMessageAsync(
         Guid conversationId,
         string userName,
@@ -177,30 +278,10 @@ public sealed class AgentConversationService(
         if (turn == null) return null;
 
         turn.UpdateAttachments(attachedPaths ?? [], requestedSkillIds ?? []);
+        metadata.RemoveTurnsAfter(turn.Id);
         await metadataRepository.SaveAsync(metadata, cancellationToken);
 
         return (turn.Id, newContent, turn.AttachedPaths, turn.RequestedSkillIds);
-    }
-
-    public async Task<(Guid TurnId, string UserMessage, bool UseThinking, IReadOnlyList<string> AttachedPaths, IReadOnlyList<string> RequestedSkillIds)?> PrepareTurnForRegenerateAsync(
-        Guid conversationId,
-        string userName,
-        Guid turnId,
-        CancellationToken cancellationToken = default)
-    {
-        var metadata = await metadataRepository.GetByIdAsync(conversationId, cancellationToken);
-        if (metadata == null || metadata.UserName != userName) return null;
-
-        var turn = metadata.GetTurn(turnId);
-        if (turn == null) return null;
-
-        var firstMessageIndex = metadata.GetFirstMessageIndex(turnId);
-        if (firstMessageIndex == null) return null;
-
-        var userMessage = await sessionReader.GetUserMessageContentAsync(conversationId, firstMessageIndex.Value, cancellationToken);
-        if (string.IsNullOrEmpty(userMessage)) return null;
-
-        return (turn.Id, userMessage, false, turn.AttachedPaths, turn.RequestedSkillIds);
     }
 
     public async Task ReplaceMessageAndRegenerateAsync(
@@ -224,36 +305,6 @@ public sealed class AgentConversationService(
         try
         {
             await foreach (var update in agentRunner.RunStreamingAsync(conversationId, result.Value.UserMessage, useThinking, cancellationToken, effectivePaths, effectiveSkills))
-            {
-                await sink.OnNextAsync(update, cancellationToken);
-            }
-            // Assistant response is persisted by AgentRunnerAdapter via SessionManager.PersistSessionAsync
-        }
-        finally
-        {
-            conversationTaskContext.SetConversationId(null);
-        }
-    }
-
-    public async Task RegenerateAsync(
-        Guid conversationId,
-        string userName,
-        Guid turnId,
-        IStreamSink sink,
-        CancellationToken cancellationToken = default,
-        IReadOnlyList<string>? attachedPaths = null,
-        IReadOnlyList<string>? requestedSkillIds = null)
-    {
-        var result = await PrepareTurnForRegenerateAsync(conversationId, userName, turnId, cancellationToken);
-        if (result == null) return;
-
-        var effectivePaths = attachedPaths ?? result.Value.AttachedPaths;
-        var effectiveSkills = requestedSkillIds ?? result.Value.RequestedSkillIds;
-
-        conversationTaskContext.SetConversationId(conversationId);
-        try
-        {
-            await foreach (var update in agentRunner.RunStreamingAsync(conversationId, result.Value.UserMessage, result.Value.UseThinking, cancellationToken, effectivePaths, effectiveSkills))
             {
                 await sink.OnNextAsync(update, cancellationToken);
             }

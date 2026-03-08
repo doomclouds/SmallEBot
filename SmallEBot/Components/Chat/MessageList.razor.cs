@@ -12,7 +12,6 @@ public partial class MessageList
     [Parameter] public bool ShowToolCalls { get; set; } = true;
     [Parameter] public bool ShowEditButtons { get; set; } = true;
     [Parameter] public EventCallback<UserBubbleView> OnEditMessage { get; set; }
-    [Parameter] public EventCallback<Guid> OnRegenerateReply { get; set; }
 
     private ElementReference _scrollRef;
     private bool _scrollToBottomRequested;

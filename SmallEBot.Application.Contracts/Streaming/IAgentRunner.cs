@@ -5,13 +5,20 @@ namespace SmallEBot.Application.Contracts.Streaming;
 /// <summary>Runs the agent and yields stream updates. Implemented by the host (uses IAgentBuilder, MCP, etc.).</summary>
 public interface IAgentRunner
 {
+    /// <param name="truncateFromTurnId">When set (edit flow), truncates session from this turn before running.</param>
+    /// <param name="userNameForTruncate">Required when truncateFromTurnId is set.</param>
     IAsyncEnumerable<StreamUpdate> RunStreamingAsync(
         Guid conversationId,
         string userMessage,
         bool useThinking,
         CancellationToken cancellationToken = default,
         IReadOnlyList<string>? attachedPaths = null,
-        IReadOnlyList<string>? requestedSkillIds = null);
+        IReadOnlyList<string>? requestedSkillIds = null,
+        Guid? truncateFromTurnId = null,
+        string? userNameForTruncate = null);
+
+    /// <summary>Truncates session from turn (for edit flow). Call before streaming so JSON is updated before UI refresh.</summary>
+    Task TruncateSessionFromTurnAsync(Guid conversationId, string userName, Guid turnId, CancellationToken cancellationToken = default);
 
     /// <summary>Generate a short title for a conversation from its first message. Used when message count is 0.</summary>
     Task<string> GenerateTitleAsync(string firstMessage, CancellationToken cancellationToken = default);

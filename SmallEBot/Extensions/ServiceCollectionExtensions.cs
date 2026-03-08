@@ -56,6 +56,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IToolProvider, SkillGenerationToolProvider>();
         services.AddScoped<IToolProviderAggregator, ToolProviderAggregator>();
         services.AddSingleton<ITaskListCache, TaskListCache>();
+        services.AddSingleton<IConversationTaskRemover, ConversationTaskRemover>();
         services.AddSingleton<IModelConfigService, ModelConfigService>();
         services.AddSingleton<AgentConfigService>();
         services.AddSingleton<IAgentConfigService>(sp => sp.GetRequiredService<AgentConfigService>());
@@ -81,7 +82,6 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAgentConversationService, AgentConversationService>();
         services.AddScoped<IAgentRunner, AgentRunnerAdapter>();
         services.AddScoped<ITurnContextFragmentBuilder, TurnContextFragmentBuilder>();
-        services.AddScoped<ConversationService>();
         services.AddScoped<AgentCacheService>();
         services.AddSingleton<IUserPreferencesService, UserPreferencesService>();
         services.AddSingleton<IUserNameDisplayService, UserNameDisplayService>();

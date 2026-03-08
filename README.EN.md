@@ -8,7 +8,7 @@ A local AI assistant built with ASP.NET Core Blazor Server. **Runs locally on yo
 
 - **Multi-conversation**: Create, switch, and delete conversations; history stored per user. Sidebar supports search by conversation title.
 - **Streaming chat**: Real-time streaming of assistant replies with collapsible reasoning/tool-call panel.
-- **Edit & regenerate**: Edit a user message and resend (discards later turns); or regenerate an AI reply (discards that reply and all later content).
+- **Edit & regenerate**: Edit a user message and resend (discards that turn's assistant reply and all later turns; session and metadata stay in sync).
 - **Thinking mode**: Toggle extended reasoning (e.g. DeepSeek Reasoner) via Anthropic thinking support. Reasoning is displayed in a collapsible panel, followed by the final text response.
 - **Model switching**: Switch between multiple configured models via the app bar dropdown.
 - **MCP tools**: Connect to Model Context Protocol servers for extended capabilities (filesystem, web search, databases, etc.).
@@ -166,7 +166,7 @@ All runtime data is stored in the application directory:
 1. Enter a username on first visit
 2. Type a question in the chat box and press Enter (or Ctrl+Enter)
 3. The assistant will stream the reply in real-time
-4. Use the edit button on a user message to change and resend; use the regenerate button on an AI message to discard that reply and everything after, then regenerate
+4. Use the edit button on a user message to change and resend (discards that turn's assistant reply and all later turns)
 
 ### Context Attachments
 

@@ -1,7 +1,8 @@
+@using SmallEBot.Application.Contracts.Conversations
 @using SmallEBot.Application.Contracts.UserPreferences
 @using SmallEBot.Core.Entities
 @implements IDisposable
-@inject ConversationService ConvSvc
+@inject IAgentConversationService ConvSvc
 @inject IUserPreferencesService Preferences
 @inject IUserNameDisplayService UserNameDisplay
 @inject IDialogService DialogSvc
@@ -106,7 +107,7 @@
             Snackbar.Add("Username missing, cannot delete.", Severity.Warning);
             return;
         }
-        var ok = await ConvSvc.DeleteAsync(id, userName);
+        var ok = await ConvSvc.DeleteConversationAsync(id, userName);
         if (ok)
             await OnDelete.InvokeAsync(id);
         else

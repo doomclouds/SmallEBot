@@ -28,13 +28,9 @@ public sealed class ConversationSessionCoordinator(
             await metadataRepository.SaveAsync(metadata, ct).ConfigureAwait(false);
         }
 
-        var session = await sessionStore.LoadAsync(conversationId, agent, ct).ConfigureAwait(false);
-        if (session == null)
-        {
-            session = await agent.CreateSessionAsync(ct).ConfigureAwait(false);
-        }
+        var session = await sessionStore.LoadAsync(conversationId, agent, ct).ConfigureAwait(false) ?? await agent.CreateSessionAsync(ct).ConfigureAwait(false);
 
-        return (session!, metadata);
+        return (session, metadata);
     }
 
     /// <inheritdoc />
@@ -56,5 +52,24 @@ public sealed class ConversationSessionCoordinator(
             logger.LogError(ex, "Failed to persist session for conversation {ConversationId}", conversationId);
             throw;
         }
+    }
+
+    /// <inheritdoc />
+    public async Task TruncateFromTurnAsync(
+        Guid conversationId,
+        string userName,
+        Guid turnId,
+        AIAgent agent,
+        CancellationToken ct = default)
+    {
+        var metadata = await metadataRepository.GetByIdAsync(conversationId, ct).ConfigureAwait(false);
+        if (metadata == null || metadata.UserName != userName)
+            return;
+
+        var firstMessageIndex = metadata.GetFirstMessageIndex(turnId);
+        if (firstMessageIndex == null)
+            return;
+
+        await sessionStore.TruncateFromTurnAsync(conversationId, firstMessageIndex.Value, agent, ct).ConfigureAwait(false);
     }
 }

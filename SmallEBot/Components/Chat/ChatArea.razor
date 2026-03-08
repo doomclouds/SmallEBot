@@ -34,8 +34,7 @@
                  Bubbles="@_bubbleViews"
                  PendingUserMessage="@_pendingUserBubble"
                  ShowToolCalls="@ShowToolCalls"
-                 OnEditMessage="@HandleEditMessage"
-                 OnRegenerateReply="@HandleRegenerateReply" />
+                 OnEditMessage="@HandleEditMessage" />
     @* Only show streaming block while actively streaming; after persist parent refresh shows reply from Bubbles (avoids duplicate AI bubble). *@
     <StreamingIndicator IsStreaming="@_streaming"
                         StreamingItems="@_streamingViews"
@@ -79,6 +78,7 @@
     [Parameter] public Guid? ConversationId { get; set; }
     [Parameter] public string UserName { get; set; } = "";
     [Parameter] public EventCallback OnMessageSent { get; set; }
+    [Parameter] public EventCallback<EditSubmittedArgs> OnEditSubmitted { get; set; }
     [Parameter] public EventCallback OnBeforeSend { get; set; }
     [CascadingParameter(Name = "ShowToolCalls")] public bool ShowToolCalls { get; set; } = true;
     [CascadingParameter(Name = "UseThinkingMode")] public bool UseThinkingMode { get; set; }
@@ -220,50 +220,24 @@
         _ = RunReplaceStreamingLoopAsync(msg.Id, editResult.Content.Trim(), editResult.AttachedPaths, editResult.RequestedSkillIds);
     }
 
-    private async Task RegenerateReply(Guid turnId)
-    {
-        if (_streaming || !ConversationId.HasValue) return;
-        _userNameForAction = await UserNameDisplay.GetUserNameAsync() ?? UserName;
-        if (string.IsNullOrWhiteSpace(_userNameForAction)) { Snackbar.Add("Username is missing.", Severity.Warning); return; }
-        _streaming = true;
-        _streamingUpdates.Clear();
-        _streamingViews = [];
-        _lastStreamActivityAt = null;
-        _showWaitingForToolParams = false;
-        _sendCts = new CancellationTokenSource();
-        _scrollToBottomRequested = true;
-        _bubbleCountBeforeSend = Bubbles.Count;
-        StartWaitingCheckTimer();
-        StateHasChanged();
-        await OnBeforeSend.InvokeAsync();
-        _ = RunRegenerateStreamingLoopAsync(turnId);
-    }
-
     private async Task RunReplaceStreamingLoopAsync(Guid messageId, string newContent, IReadOnlyList<string>? attachedPaths, IReadOnlyList<string>? requestedSkillIds)
     {
         var result = await ConversationPipeline.ReplaceUserMessageAsync(ConversationId!.Value, _userNameForAction!, messageId, newContent, UseThinkingMode, attachedPaths, requestedSkillIds, _sendCts!.Token);
         if (result == null) { _streaming = false;
             await InvokeAsync(StateHasChanged); return; }
-        await OnMessageSent.InvokeAsync();
-        await RunStreamingLoopForTurnAsync(result.Value.TurnId, result.Value.UserMessage, UseThinkingMode, result.Value.AttachedPaths, result.Value.RequestedSkillIds);
+        await ConversationPipeline.PrepareSessionForEditAsync(ConversationId!.Value, _userNameForAction!, result.Value.TurnId, _sendCts!.Token);
+        var originalCreatedAt = (Bubbles.FirstOrDefault(b => b is UserBubble ub && ub.Message.Id == result.Value.TurnId) as UserBubble)?.Message.CreatedAt ?? DateTime.UtcNow;
+        await OnEditSubmitted.InvokeAsync(new EditSubmittedArgs(result.Value.TurnId, result.Value.UserMessage, result.Value.AttachedPaths, result.Value.RequestedSkillIds, originalCreatedAt));
+        await RunStreamingLoopForTurnAsync(result.Value.TurnId, result.Value.UserMessage, UseThinkingMode, result.Value.AttachedPaths, result.Value.RequestedSkillIds, truncateFromTurnId: null, userNameForTruncate: null);
     }
 
-    private async Task RunRegenerateStreamingLoopAsync(Guid turnId)
-    {
-        var result = await ConversationPipeline.PrepareTurnForRegenerateAsync(ConversationId!.Value, _userNameForAction!, turnId, _sendCts!.Token);
-        if (result == null) { _streaming = false;
-            await InvokeAsync(StateHasChanged); return; }
-        await OnMessageSent.InvokeAsync();
-        await RunStreamingLoopForTurnAsync(result.Value.TurnId, result.Value.UserMessage, result.Value.UseThinking, result.Value.AttachedPaths, result.Value.RequestedSkillIds);
-    }
-
-    private async Task RunStreamingLoopForTurnAsync(Guid turnId, string userMessage, bool useThinking, IReadOnlyList<string> attachedPaths, IReadOnlyList<string> requestedSkillIds)
+    private async Task RunStreamingLoopForTurnAsync(Guid turnId, string userMessage, bool useThinking, IReadOnlyList<string> attachedPaths, IReadOnlyList<string> requestedSkillIds, Guid? truncateFromTurnId = null, string? userNameForTruncate = null)
     {
         var persisted = false;
         var channel = System.Threading.Channels.Channel.CreateUnbounded<StreamUpdate>();
         var sink = new ChannelStreamSink(channel.Writer);
         var runTask = ConversationPipeline
-            .StreamResponseAndCompleteAsync(ConversationId!.Value, turnId, userMessage, useThinking, sink, _sendCts!.Token, CircuitAccessor.CurrentCircuit?.Id, attachedPaths, requestedSkillIds)
+            .StreamResponseAndCompleteAsync(ConversationId!.Value, turnId, userMessage, useThinking, sink, _sendCts!.Token, CircuitAccessor.CurrentCircuit?.Id, attachedPaths, requestedSkillIds, truncateFromTurnId, userNameForTruncate)
             .ContinueWith(_ => channel.Writer.Complete());
 
         try
@@ -702,11 +676,6 @@
         {
             await EditUserMessage(msg);
         }
-    }
-
-    private async Task HandleRegenerateReply(Guid turnId)
-    {
-        await RegenerateReply(turnId);
     }
 
     private bool _contextRefreshRequested;

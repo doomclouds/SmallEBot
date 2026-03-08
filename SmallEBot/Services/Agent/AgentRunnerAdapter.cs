@@ -28,9 +28,16 @@ public sealed class AgentRunnerAdapter(
         bool useThinking,
         [EnumeratorCancellation] CancellationToken cancellationToken = default,
         IReadOnlyList<string>? attachedPaths = null,
-        IReadOnlyList<string>? requestedSkillIds = null)
+        IReadOnlyList<string>? requestedSkillIds = null,
+        Guid? truncateFromTurnId = null,
+        string? userNameForTruncate = null)
     {
         var agent = await agentBuilder.GetOrCreateAgentAsync(useThinking, cancellationToken);
+
+        if (truncateFromTurnId.HasValue && !string.IsNullOrEmpty(userNameForTruncate))
+        {
+            await coordinator.TruncateFromTurnAsync(conversationId, userNameForTruncate, truncateFromTurnId.Value, agent, cancellationToken);
+        }
 
         // Get or create session and metadata
         var (session, metadata) = await coordinator.GetOrCreateSessionAsync(
@@ -83,6 +90,12 @@ public sealed class AgentRunnerAdapter(
             // Clear turn context after completion
             TurnContextProvider.ClearContext();
         }
+    }
+
+    public async Task TruncateSessionFromTurnAsync(Guid conversationId, string userName, Guid turnId, CancellationToken cancellationToken = default)
+    {
+        var agent = await agentBuilder.GetOrCreateAgentAsync(useThinking: false, cancellationToken);
+        await coordinator.TruncateFromTurnAsync(conversationId, userName, turnId, agent, cancellationToken);
     }
 
     public async IAsyncEnumerable<StreamUpdate> ContinueWithApprovalAsync(

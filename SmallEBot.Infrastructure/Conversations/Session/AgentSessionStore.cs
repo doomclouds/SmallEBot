@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.Agents.AI;
 using AIAgentSession = Microsoft.Agents.AI.AgentSession;
 using SmallEBot.Application.Contracts.Conversations.Session;
@@ -129,16 +131,36 @@ public sealed class AgentSessionStore : IAgentSessionStore
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(agent);
 
-        var session = await LoadAsync(conversationId, agent, ct).ConfigureAwait(false);
-        if (session == null)
-        {
-            return;
-        }
+        var filePath = GetSessionFilePath(conversationId);
+        if (!File.Exists(filePath)) return;
 
-        // Note: Truncation requires understanding AgentSession's internal structure
-        // For now, we save the session as-is (truncation is complex)
-        // TODO: Use proper truncation API from Microsoft.Agents.AI when available
-        await SaveAsync(conversationId, session, agent, ct).ConfigureAwait(false);
+        await _semaphore.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            var json = await File.ReadAllTextAsync(filePath, ct).ConfigureAwait(false);
+            var root = JsonNode.Parse(json);
+            if (root == null) return;
+
+            var messages = root["stateBag"]?["InMemoryChatHistoryProvider"]?["messages"] as JsonArray;
+            if (messages == null || firstMessageIndex < 0 || firstMessageIndex >= messages.Count)
+                return;
+
+            var truncated = new JsonArray();
+            for (var i = 0; i < firstMessageIndex; i++)
+            {
+                var node = messages[i];
+                if (node != null)
+                    truncated.Add(node.DeepClone());
+            }
+            root["stateBag"]!["InMemoryChatHistoryProvider"]!["messages"] = truncated;
+
+            var options = new JsonSerializerOptions { WriteIndented = true };
+            await File.WriteAllTextAsync(filePath, root.ToJsonString(options), ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
     }
 
     private string GetConversationDirectory(Guid conversationId)

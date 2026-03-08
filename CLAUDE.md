@@ -55,7 +55,7 @@ SmallEBot (Host)        → Core, Domain, Application, Infrastructure — Blazor
 ### Request Flow
 
 ```
-Blazor UI → SignalR → ConversationService → IAgentConversationService
+Blazor UI → SignalR → IAgentConversationService (ChatPage, ConversationSidebar use it directly)
                                               ↓
                                     CreateTurn + StreamResponse
                                               ↓

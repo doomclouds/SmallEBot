@@ -91,6 +91,23 @@ public class ConversationMetadata(
     }
 
     /// <summary>
+    /// Removes turns that come after the specified turn (keeps the turn itself).
+    /// </summary>
+    public int RemoveTurnsAfter(Guid turnId)
+    {
+        var index = _turns.FindIndex(t => t.Id == turnId);
+        if (index < 0) return 0;
+
+        var nextIndex = index + 1;
+        if (nextIndex >= _turns.Count) return 0;
+
+        var removedCount = _turns.Count - nextIndex;
+        _turns.RemoveRange(nextIndex, removedCount);
+        UpdatedAt = DateTime.UtcNow;
+        return removedCount;
+    }
+
+    /// <summary>
     /// Removes a turn and all subsequent turns.
     /// </summary>
     public int RemoveTurnAndSubsequent(Guid turnId)
