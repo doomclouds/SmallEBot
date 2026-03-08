@@ -1,4 +1,5 @@
 using SmallEBot.Application.Contracts.Agents.Compression;
+using SmallEBot.Application.Contracts.Agents.Config;
 using SmallEBot.Application.Contracts.Agents.Execution;
 using SmallEBot.Application.Agents.Streaming;
 using SmallEBot.Components.Chat.Services;
@@ -17,6 +18,7 @@ public class ChatOrchestrator : IDisposable
     private readonly IConversationAgentDispatcher _agentDispatcher;
     private readonly IContextUsageEstimator _contextUsageEstimator;
     private readonly IAgentInvalidationService _agentInvalidation;
+    private readonly ITerminalConfigService _terminalConfig;
     private readonly ChatPresentationService _presentation;
     private readonly ILogger<ChatOrchestrator> _log;
 
@@ -33,12 +35,14 @@ public class ChatOrchestrator : IDisposable
         IConversationAgentDispatcher agentDispatcher,
         IContextUsageEstimator contextUsageEstimator,
         IAgentInvalidationService agentInvalidation,
+        ITerminalConfigService terminalConfig,
         ChatPresentationService presentation,
         ILogger<ChatOrchestrator> log)
     {
         _agentDispatcher = agentDispatcher;
         _contextUsageEstimator = contextUsageEstimator;
         _agentInvalidation = agentInvalidation;
+        _terminalConfig = terminalConfig;
         _presentation = presentation;
         _log = log;
     }
@@ -91,6 +95,8 @@ public class ChatOrchestrator : IDisposable
 
     public void RequestStop()
     {
+        foreach (var tcs in _approvalWaitHandles.Values)
+            tcs.TrySetResult(false);
         _sendCts?.Cancel();
     }
 
@@ -253,10 +259,20 @@ public class ChatOrchestrator : IDisposable
 
             while (_pendingApprovals.Count > 0)
             {
+                if (sendCts.Token.IsCancellationRequested) break;
+
                 var pendingApproval = _pendingApprovals.Values.FirstOrDefault(a => a.State == ApprovalState.Pending);
                 if (pendingApproval == null) break;
 
                 OnStateChanged?.Invoke();
+
+                if (pendingApproval.ToolName == "ExecuteCommand" && await IsCommandWhitelistedAsync(pendingApproval))
+                {
+                    await ApproveAsync(pendingApproval);
+                    StreamItems = _presentation.ConvertStreamToBubbleBlocks(_streamingUpdates, _pendingApprovals);
+                    OnStateChanged?.Invoke();
+                    continue;
+                }
 
                 var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
                 _approvalWaitHandles[pendingApproval.CallId] = tcs;
@@ -319,6 +335,85 @@ public class ChatOrchestrator : IDisposable
             StreamItems = [];
             OnStateChanged?.Invoke();
         }
+    }
+
+    /// <summary>Approves and adds the command's executable (first token) to the whitelist. Only applies to ExecuteCommand.</summary>
+    public async Task ApproveAndWhitelistAsync(ApprovalBlockModel approval)
+    {
+        if (IsWaitingForApproval || !ConversationId.HasValue) return;
+        if (approval.ToolName != "ExecuteCommand") return;
+
+        var executable = ExtractExecutableFromApproval(approval);
+        if (!string.IsNullOrWhiteSpace(executable))
+        {
+            try
+            {
+                await _terminalConfig.AddToWhitelistAndSaveAsync(executable.Trim());
+                await ShowMessageAsync($"已加入白名单: {executable.Trim()}", Severity.Success);
+            }
+            catch (Exception ex)
+            {
+                _log.LogWarning(ex, "Failed to add {Executable} to whitelist", executable);
+                await ShowMessageAsync($"加入白名单失败: {ex.Message}", Severity.Warning);
+            }
+        }
+
+        await ApproveAsync(approval);
+    }
+
+    private static string? ExtractExecutableFromApproval(ApprovalBlockModel approval)
+    {
+        var command = GetCommandFromApproval(approval);
+        if (string.IsNullOrWhiteSpace(command)) return null;
+        var parts = command.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length > 0 ? parts[0] : null;
+    }
+
+    private async Task<bool> IsCommandWhitelistedAsync(ApprovalBlockModel approval)
+    {
+        var command = GetCommandFromApproval(approval);
+        if (string.IsNullOrWhiteSpace(command)) return false;
+        var normalized = System.Text.RegularExpressions.Regex.Replace(command.Trim(), @"\s+", " ");
+        var whitelist = await _terminalConfig.GetCommandWhitelistAsync();
+        return whitelist.Any(w =>
+        {
+            var entry = w.Trim();
+            if (string.IsNullOrEmpty(entry)) return false;
+            return normalized.Equals(entry, StringComparison.OrdinalIgnoreCase)
+                || (normalized.StartsWith(entry, StringComparison.OrdinalIgnoreCase)
+                    && (normalized.Length == entry.Length || char.IsWhiteSpace(normalized[entry.Length])));
+        });
+    }
+
+    private static string? GetCommandFromApproval(ApprovalBlockModel approval)
+    {
+        // 1. Try RawArguments (case-insensitive key)
+        if (approval.RawArguments != null)
+        {
+            var cmdObj = approval.RawArguments
+                .FirstOrDefault(kv => string.Equals(kv.Key, "command", StringComparison.OrdinalIgnoreCase))
+                .Value;
+            if (cmdObj != null)
+            {
+                var s = cmdObj is System.Text.Json.JsonElement je ? je.GetString() : cmdObj.ToString();
+                if (!string.IsNullOrWhiteSpace(s)) return s;
+            }
+        }
+        // 2. Fallback: parse Approval.Arguments JSON
+        if (!string.IsNullOrWhiteSpace(approval.Arguments))
+        {
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(approval.Arguments);
+                if (doc.RootElement.TryGetProperty("command", out var cmdProp))
+                {
+                    var s = cmdProp.GetString();
+                    if (!string.IsNullOrWhiteSpace(s)) return s;
+                }
+            }
+            catch { /* ignore parse errors */ }
+        }
+        return null;
     }
 
     public async Task ApproveAsync(ApprovalBlockModel approval)

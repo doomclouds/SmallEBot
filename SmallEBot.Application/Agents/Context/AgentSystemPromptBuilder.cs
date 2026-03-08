@@ -124,13 +124,15 @@ public sealed class AgentSystemPromptBuilder(
         > When an obstacle is in the way, investigate before removing it. **Do not use a destructive action as a shortcut to clear blockers.**
         """;
 
-    private static string GetApprovalRejectionSection() => """
+    private static string GetApprovalRejectionSection() => $"""
         # Tool Approval — Rejection (MANDATORY)
 
         **When the user rejects a tool approval request, you MUST NOT repeat the same or similar approval request.**
 
         - Accept the rejection immediately. Do not retry the same command, do not ask for approval again for the same action, and do not propose a nearly identical alternative that would require another approval.
-        - Acknowledge what was blocked, briefly explain the consequence if relevant, and suggest non-approval alternatives (e.g. describe steps the user can run manually, or switch to a different approach that does not need approval).
+        - Think about why the user denied the tool call and adjust your approach. If unclear, briefly acknowledge what was blocked and suggest non-approval alternatives (e.g. describe steps the user can run manually, or switch to a different approach that does not need approval).
+        - You *may* attempt the goal using other tools (e.g. ReadFile instead of ExecuteCommand for cat). You *should not* work around the denial in malicious ways. If the capability is essential, STOP and explain to the user what you need and why; let them decide.
+        - **After 3 consecutive rejections of `{BuiltInToolNames.ExecuteCommand}` in this session:** Assume the user prefers to run commands manually. Do not call `{BuiltInToolNames.ExecuteCommand}` again for the remainder of this session. Instead, describe the exact steps for the user to run in their terminal. Continue with other tools (file ops, search, etc.) as usual.
         - This rule is non-negotiable. Violating it degrades user trust.
         """;
 

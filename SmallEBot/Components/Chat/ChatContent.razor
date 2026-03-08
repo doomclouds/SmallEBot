@@ -25,6 +25,7 @@
 <MudPaper Class="pa-4 pb-1 smallebot-chat-paper" Elevation="0">
     <ApprovalPopover Approval="@Orchestrator.PendingApprovalForPopover"
                      OnApprove="@HandleApprove"
+                     OnApproveAndWhitelist="@HandleApproveAndWhitelist"
                      OnReject="@HandleReject"
                      IsProcessing="@(Orchestrator.ApprovalProcessingCallId != null)" />
     <ChatShell>
@@ -276,6 +277,11 @@
     private void HandleApprove(ApprovalBlockModel model)
     {
         _ = Orchestrator.ApproveAsync(model);
+    }
+
+    private void HandleApproveAndWhitelist(ApprovalBlockModel model)
+    {
+        _ = Orchestrator.ApproveAndWhitelistAsync(model);
     }
 
     private void HandleReject(ApprovalBlockModel model)

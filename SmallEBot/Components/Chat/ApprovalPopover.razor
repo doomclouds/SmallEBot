@@ -23,6 +23,12 @@
                     <MudButton Variant="Variant.Outlined" Color="Color.Error"
                                Disabled="@IsProcessing"
                                OnClick="@(() => OnReject.InvokeAsync(Approval))">Reject</MudButton>
+                    @if (IsExecuteCommand)
+                    {
+                        <MudButton Variant="Variant.Outlined" Color="Color.Success"
+                                   Disabled="@IsProcessing"
+                                   OnClick="@(() => OnApproveAndWhitelist.InvokeAsync(Approval))">审批并加入白名单</MudButton>
+                    }
                     <MudButton Variant="Variant.Filled" Color="Color.Success"
                                Disabled="@IsProcessing"
                                OnClick="@(() => OnApprove.InvokeAsync(Approval))">Approve</MudButton>
@@ -35,6 +41,9 @@
 @code {
     [Parameter] public ApprovalBlockModel? Approval { get; set; }
     [Parameter] public EventCallback<ApprovalBlockModel> OnApprove { get; set; }
+    [Parameter] public EventCallback<ApprovalBlockModel> OnApproveAndWhitelist { get; set; }
     [Parameter] public EventCallback<ApprovalBlockModel> OnReject { get; set; }
     [Parameter] public bool IsProcessing { get; set; }
+
+    private bool IsExecuteCommand => Approval?.ToolName == "ExecuteCommand";
 }
