@@ -1,0 +1,120 @@
+@using SmallEBot.Components.Chat.ViewModels.Blocks
+@using SmallEBot.Core.Models
+
+<div class="mt-3 tool-call-view">
+    <MudPaper Class="@EffectivePaperClass" Elevation="0">
+        <div class="tool-call-header-row">
+            <div class="tool-call-header-left">
+                <MudIcon Icon="@PhaseIcon" Size="Size.Small" Color="@PhaseColor" />
+                <span class="mud-typography-body2 font-weight-medium">@Model.Name</span>
+            </div>
+            <div class="tool-call-header-center">
+                <span class="tool-call-status-text mud-typography-caption mud-secondary-text">@StatusText</span>
+            </div>
+            <div class="tool-call-header-right">
+                @if (Model.Elapsed.HasValue)
+                {
+                    <span class="mud-typography-caption mud-secondary-text">@FormatElapsed(Model.Elapsed.Value)</span>
+                }
+                @if (CanCancel && OnCancel.HasDelegate)
+                {
+                    <MudIconButton Icon="@Icons.Material.Filled.Cancel"
+                                   Size="Size.Small"
+                                   Color="Color.Warning"
+                                   OnClick="@OnCancel"
+                                   title="Cancel" />
+                }
+                else if (HasDetails)
+                {
+                    <MudIconButton Icon="@(_expanded ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)"
+                                   Size="Size.Small"
+                                   OnClick="@(() => _expanded = !_expanded)" />
+                }
+            </div>
+        </div>
+        @if (_expanded && HasDetails)
+        {
+            <MudDivider />
+            <div class="pa-3 tool-call-details">
+                @if (!string.IsNullOrEmpty(Model.Arguments))
+                {
+                    <div class="mb-2">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-1">Arguments:</MudText>
+                        <pre class="tool-call-pre">@Model.Arguments</pre>
+                    </div>
+                }
+                @if (!string.IsNullOrEmpty(Model.Result))
+                {
+                    <div class="mb-2">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-1">Result:</MudText>
+                        <pre class="tool-call-pre">@Model.Result</pre>
+                    </div>
+                }
+                @if (!string.IsNullOrEmpty(Model.Error))
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Error" Class="mt-2">Error: @Model.Error</MudText>
+                }
+            </div>
+        }
+    </MudPaper>
+</div>
+
+@code {
+    [Parameter] public ToolCallBlockModel Model { get; set; } = default!;
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private bool _expanded;
+
+    private bool HasDetails => !string.IsNullOrEmpty(Model.Arguments)
+                            || !string.IsNullOrEmpty(Model.Result)
+                            || !string.IsNullOrEmpty(Model.Error);
+
+    private bool CanCancel => Model.Phase is ToolCallPhase.Started
+                           or ToolCallPhase.ArgsReceived
+                           or ToolCallPhase.Executing;
+
+    private string EffectivePaperClass => Model.Phase switch
+    {
+        ToolCallPhase.Failed => "tool-call-paper tool-call-paper-error",
+        ToolCallPhase.Cancelled => "tool-call-paper tool-call-paper-cancelled",
+        ToolCallPhase.Completed => "tool-call-paper tool-call-paper-done",
+        _ => "tool-call-paper tool-call-paper-active"
+    };
+
+    private string PhaseIcon => Model.Phase switch
+    {
+        ToolCallPhase.Started => Icons.Material.Filled.HourglassTop,
+        ToolCallPhase.ArgsReceived => Icons.Material.Filled.HourglassBottom,
+        ToolCallPhase.Executing => Icons.Material.Filled.Settings,
+        ToolCallPhase.Completed => Icons.Material.Filled.CheckCircle,
+        ToolCallPhase.Failed => Icons.Material.Filled.Error,
+        ToolCallPhase.Cancelled => Icons.Material.Filled.Cancel,
+        _ => Icons.Material.Filled.Build
+    };
+
+    private Color PhaseColor => Model.Phase switch
+    {
+        ToolCallPhase.Completed => Color.Success,
+        ToolCallPhase.Failed => Color.Error,
+        ToolCallPhase.Cancelled => Color.Warning,
+        _ => Color.Default
+    };
+
+    private string StatusText => Model.Phase switch
+    {
+        ToolCallPhase.Started => "Receiving args...",
+        ToolCallPhase.ArgsReceived => "Args received",
+        ToolCallPhase.Executing => "Executing...",
+        ToolCallPhase.Completed => "Completed",
+        ToolCallPhase.Failed => "Failed",
+        ToolCallPhase.Cancelled => "Cancelled",
+        _ => ""
+    };
+
+    private static string FormatElapsed(TimeSpan e)
+    {
+        if (e.TotalMinutes >= 1) return $"{(int)e.TotalMinutes}m {e.Seconds}s";
+        if (e.TotalSeconds >= 1) return $"{e.TotalSeconds:F1}s";
+        return $"{e.TotalMilliseconds:F0}ms";
+    }
+}
