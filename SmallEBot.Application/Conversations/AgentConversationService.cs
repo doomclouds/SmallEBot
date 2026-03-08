@@ -9,7 +9,6 @@ using SmallEBot.Application.Contracts.Streaming;
 using SmallEBot.Core;
 using SmallEBot.Core.Models;
 using SmallEBot.Domain.Conversations.Metadata;
-using ConversationEntity = SmallEBot.Core.Entities.Conversation;
 
 namespace SmallEBot.Application.Conversations;
 
@@ -29,30 +28,30 @@ public sealed class AgentConversationService(
 
     private readonly HashSet<Guid> _compressingConversations = [];
 
-    public async Task<ConversationEntity> CreateConversationAsync(string userName, string title = "New conversation", CancellationToken cancellationToken = default)
+    public async Task<ConversationDto> CreateConversationAsync(string userName, string title = "New conversation", CancellationToken cancellationToken = default)
     {
         var metadata = ConversationMetadata.Create(userName, title);
         await metadataRepository.SaveAsync(metadata, cancellationToken);
-        return ToEntity(metadata);
+        return ToDto(metadata);
     }
 
-    public async Task<List<ConversationEntity>> GetConversationsAsync(string userName, CancellationToken cancellationToken = default)
+    public async Task<List<ConversationDto>> GetConversationsAsync(string userName, CancellationToken cancellationToken = default)
     {
         var list = await metadataRepository.GetByUserNameAsync(userName, cancellationToken);
-        return list.Select(ToEntity).ToList();
+        return list.Select(ToDto).ToList();
     }
 
-    public async Task<List<ConversationEntity>> SearchConversationsAsync(string userName, string query, CancellationToken cancellationToken = default)
+    public async Task<List<ConversationDto>> SearchConversationsAsync(string userName, string query, CancellationToken cancellationToken = default)
     {
         var list = await metadataRepository.SearchAsync(userName, query, cancellationToken);
-        return list.Select(ToEntity).ToList();
+        return list.Select(ToDto).ToList();
     }
 
-    public async Task<ConversationEntity?> GetConversationAsync(Guid id, string userName, CancellationToken cancellationToken = default)
+    public async Task<ConversationDto?> GetConversationAsync(Guid id, string userName, CancellationToken cancellationToken = default)
     {
         var m = await metadataRepository.GetByIdAsync(id, cancellationToken);
         if (m == null || m.UserName != userName) return null;
-        return ToEntity(m);
+        return ToDto(m);
     }
 
     public async Task<bool> DeleteConversationAsync(Guid id, string userName, CancellationToken cancellationToken = default)
@@ -157,7 +156,7 @@ public sealed class AgentConversationService(
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
     };
 
-    private static ConversationEntity ToEntity(ConversationMetadata m) => new()
+    private static ConversationDto ToDto(ConversationMetadata m) => new()
     {
         Id = m.Id,
         Title = m.Title,
@@ -283,10 +282,9 @@ public sealed class AgentConversationService(
 
     public async Task<bool> CompactConversationAsync(Guid conversationId, CancellationToken ct = default)
     {
-        if (_compressingConversations.Contains(conversationId))
+        if (!_compressingConversations.Add(conversationId))
             return false;
 
-        _compressingConversations.Add(conversationId);
         CompressionStarted?.Invoke(conversationId);
 
         try

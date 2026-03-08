@@ -1,6 +1,5 @@
 using SmallEBot.Application.Contracts.Streaming;
 using SmallEBot.Core.Models;
-using ConversationEntity = SmallEBot.Core.Entities.Conversation;
 using ChatBubble = SmallEBot.Core.Models.ChatBubble;
 
 namespace SmallEBot.Application.Contracts.Conversations;
@@ -8,11 +7,11 @@ namespace SmallEBot.Application.Contracts.Conversations;
 /// <summary>Orchestrates conversation CRUD and the send-message-and-stream pipeline. Implemented in Application; consumed by Host.</summary>
 public interface IAgentConversationService
 {
-    Task<ConversationEntity> CreateConversationAsync(string userName, string title = "New conversation", CancellationToken cancellationToken = default);
-    Task<List<ConversationEntity>> GetConversationsAsync(string userName, CancellationToken cancellationToken = default);
+    Task<ConversationDto> CreateConversationAsync(string userName, string title = "New conversation", CancellationToken cancellationToken = default);
+    Task<List<ConversationDto>> GetConversationsAsync(string userName, CancellationToken cancellationToken = default);
     /// <summary>Search conversations by title. Returns GetConversationsAsync when query is empty.</summary>
-    Task<List<ConversationEntity>> SearchConversationsAsync(string userName, string query, CancellationToken cancellationToken = default);
-    Task<ConversationEntity?> GetConversationAsync(Guid id, string userName, CancellationToken cancellationToken = default);
+    Task<List<ConversationDto>> SearchConversationsAsync(string userName, string query, CancellationToken cancellationToken = default);
+    Task<ConversationDto?> GetConversationAsync(Guid id, string userName, CancellationToken cancellationToken = default);
     Task<bool> DeleteConversationAsync(Guid id, string userName, CancellationToken cancellationToken = default);
     Task<int> GetMessageCountAsync(Guid conversationId, CancellationToken cancellationToken = default);
 

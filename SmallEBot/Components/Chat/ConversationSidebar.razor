@@ -1,6 +1,5 @@
 @using SmallEBot.Application.Contracts.Conversations
 @using SmallEBot.Application.Contracts.UserPreferences
-@using SmallEBot.Core.Entities
 @implements IDisposable
 @inject IAgentConversationService ConvSvc
 @inject IUserPreferencesService Preferences
@@ -27,12 +26,12 @@
     </div>
     <MudNavMenu>
         <MudMenuItem Icon="@Icons.Material.Filled.Add" OnClick="@CreateNew">New</MudMenuItem>
-        <MudList T="Conversation" Dense="true"
+        <MudList T="ConversationDto" Dense="true"
                  SelectedValue="@SelectedConversation"
                  SelectedValueChanged="@HandleSelectionChanged">
             @foreach (var conversation in Conversations)
             {
-                <MudListItem T="Conversation" Value="@conversation">
+                <MudListItem T="ConversationDto" Value="@conversation">
                     <div class="d-flex justify-space-between align-center" style="width:100%">
                         <div>
                             <MudText Typo="Typo.body1">@(string.IsNullOrEmpty(conversation.Title) ? "New conversation" : conversation.Title)</MudText>
@@ -51,7 +50,7 @@
 </MudDrawer>
 
 @code {
-    [Parameter] public List<Conversation> Conversations { get; set; } = [];
+    [Parameter] public List<ConversationDto> Conversations { get; set; } = [];
     [Parameter] public Guid? SelectedId { get; set; }
     [Parameter] public EventCallback<Guid> OnSelect { get; set; }
     [Parameter] public EventCallback<Guid> OnDelete { get; set; }
@@ -77,9 +76,9 @@
             InvokeAsync(async () => await OnSearchQueryChanged.InvokeAsync(value));
         }, null, DebounceMs, Timeout.Infinite);
     }
-    private Conversation? SelectedConversation => Conversations.FirstOrDefault(c => c.Id == SelectedId);
+    private ConversationDto? SelectedConversation => Conversations.FirstOrDefault(c => c.Id == SelectedId);
 
-    private async Task HandleSelectionChanged(Conversation? c)
+    private async Task HandleSelectionChanged(ConversationDto? c)
     {
         if (c != null) await OnSelect.InvokeAsync(c.Id);
     }

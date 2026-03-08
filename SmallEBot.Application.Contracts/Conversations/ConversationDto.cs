@@ -1,13 +1,12 @@
-using System.ComponentModel.DataAnnotations;
+namespace SmallEBot.Application.Contracts.Conversations;
 
-namespace SmallEBot.Core.Entities;
-
-public class Conversation
+/// <summary>
+/// DTO for conversation list/detail display. Returned by <see cref="IAgentConversationService"/>.
+/// </summary>
+public class ConversationDto
 {
     public Guid Id { get; set; }
-    [MaxLength(20)]
     public string UserName { get; set; } = string.Empty;
-    [MaxLength(20)]
     public string Title { get; set; } = "New conversation";
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
@@ -23,7 +22,4 @@ public class Conversation
     /// Messages created before this timestamp are summarized in <see cref="CompressedContext"/>.
     /// </summary>
     public DateTime? CompressedAt { get; set; }
-
-    // Navigation properties removed - message data now stored in AgentSession
-    // Turn metadata stored in Domain.Conversations.ConversationMetadata.Turns
 }

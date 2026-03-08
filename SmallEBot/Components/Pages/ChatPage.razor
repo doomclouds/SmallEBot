@@ -2,7 +2,6 @@
 @layout MainLayout
 @using SmallEBot.Application.Contracts.Conversations
 @using SmallEBot.Application.Contracts.UserPreferences
-@using SmallEBot.Core.Entities
 @using SmallEBot.Core.Models
 @using SmallEBot.Models
 @inject IUserPreferencesService Preferences
@@ -54,8 +53,8 @@ else
 @code {
     private string? _userName;
     private Guid? _selectedId;
-    private Conversation? _selectedConversation;
-    private List<Conversation> _conversations = [];
+    private ConversationDto? _selectedConversation;
+    private List<ConversationDto> _conversations = [];
     private List<ChatBubble> _bubbles = [];
     private string? _searchQuery;
 

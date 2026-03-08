@@ -42,7 +42,7 @@ public class ConversationMetadata(
     }
 
     /// <summary>
-    /// Creates a new conversation metadata with a specific ID (e.g. when creating from Core.Entities.Conversation).
+    /// Creates a new conversation metadata with a specific ID (e.g. when migrating or restoring).
     /// </summary>
     public static ConversationMetadata CreateWithId(Guid id, string userName, string title = "New conversation")
     {

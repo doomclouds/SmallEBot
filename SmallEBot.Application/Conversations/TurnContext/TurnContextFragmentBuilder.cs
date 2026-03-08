@@ -63,9 +63,7 @@ public sealed class TurnContextFragmentBuilder(ISkillsConfigService skillsConfig
             "",
             "The following files are attached to this message. Use ReadFile to read their contents when needed:"
         };
-
-        foreach (var p in validPaths)
-            lines.Add($"- {p}");
+        lines.AddRange(validPaths.Select(p => $"- {p}"));
 
         return string.Join("\n", lines);
     }
