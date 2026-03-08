@@ -1,0 +1,600 @@
+using SmallEBot.Application.Contracts.Agents.Compression;
+using SmallEBot.Application.Contracts.Agents.Execution;
+using SmallEBot.Application.Agents.Streaming;
+using SmallEBot.Components.Chat.Services;
+using SmallEBot.Components.Chat.ViewModels;
+using SmallEBot.Core.Models;
+using MudBlazor;
+
+namespace SmallEBot.Components.Chat.Orchestration;
+
+/// <summary>
+/// Orchestrates streaming, approval, and compression for chat. Pure logic; UI concerns (scroll, snackbar) are delegated via callbacks.
+/// Register as Scoped. Component must set InvokeOnUI and ShowMessage before use.
+/// </summary>
+public class ChatOrchestrator : IDisposable
+{
+    private readonly IConversationAgentDispatcher _agentDispatcher;
+    private readonly IContextUsageEstimator _contextUsageEstimator;
+    private readonly IAgentInvalidationService _agentInvalidation;
+    private readonly ChatPresentationService _presentation;
+    private readonly ILogger<ChatOrchestrator> _log;
+
+    private readonly List<StreamUpdate> _streamingUpdates = [];
+    private readonly Dictionary<string, ApprovalItemView> _pendingApprovals = new();
+    private readonly Dictionary<string, TaskCompletionSource<bool>> _approvalWaitHandles = new();
+    private Timer? _waitingCheckTimer;
+    private CancellationTokenSource? _sendCts;
+    private bool _contextRefreshRequested;
+
+    private static readonly TimeSpan ApprovalTimeout = TimeSpan.FromMinutes(5);
+
+    public ChatOrchestrator(
+        IConversationAgentDispatcher agentDispatcher,
+        IContextUsageEstimator contextUsageEstimator,
+        IAgentInvalidationService agentInvalidation,
+        ChatPresentationService presentation,
+        ILogger<ChatOrchestrator> log)
+    {
+        _agentDispatcher = agentDispatcher;
+        _contextUsageEstimator = contextUsageEstimator;
+        _agentInvalidation = agentInvalidation;
+        _presentation = presentation;
+        _log = log;
+    }
+
+    /// <summary>Required: component's InvokeAsync for marshalling to UI thread.</summary>
+    public Func<Func<Task>, Task>? InvokeOnUI { get; set; }
+
+    /// <summary>Optional: show message to user (e.g. Snackbar).</summary>
+    public Func<string, Severity, Task>? ShowMessage { get; set; }
+
+    public Guid? ConversationId { get; private set; }
+    public bool IsStreaming { get; private set; }
+    public bool IsCompressing { get; private set; }
+    public bool IsWaitingForApproval { get; private set; }
+    public bool ShowWaitingForToolParams { get; private set; }
+    public TimeSpan WaitingElapsed => ShowWaitingForToolParams && _waitingForToolParamsSince.HasValue
+        ? DateTime.UtcNow - _waitingForToolParamsSince.Value
+        : TimeSpan.Zero;
+    public IReadOnlyList<StreamItemView> StreamItems { get; private set; } = [];
+    public string ContextPercentText { get; private set; } = "—";
+    public string? ContextUsageTooltip { get; private set; }
+    public string CompressionMessage { get; private set; } = "";
+
+    private DateTime? _lastStreamActivityAt;
+    private DateTime? _waitingForToolParamsSince;
+
+    public event Action? OnStateChanged;
+
+    /// <summary>Fired when streaming completes successfully (persisted). Component should call OnMessageSent.</summary>
+    public event Action? OnStreamingCompleted;
+
+    public void SetConversation(Guid? id)
+    {
+        ConversationId = id;
+        if (!id.HasValue)
+        {
+            ContextPercentText = "—";
+            ContextUsageTooltip = null;
+        }
+        else
+        {
+            _contextRefreshRequested = true;
+        }
+    }
+
+    public void RequestStop()
+    {
+        _sendCts?.Cancel();
+    }
+
+    public async Task RefreshContextUsageAsync()
+    {
+        if (!ConversationId.HasValue) return;
+        try
+        {
+            var d = await _contextUsageEstimator.GetEstimatedContextUsageDetailAsync(ConversationId.Value);
+            if (d != null)
+            {
+                ContextPercentText = $"{d.Ratio:P1}";
+                ContextUsageTooltip = $"Context: {d.Ratio:P1} · {_contextUsageEstimator.FormatTokenCount(d.UsedTokens)}/{_contextUsageEstimator.FormatTokenCount(d.ContextWindowTokens)}";
+            }
+            else
+            {
+                ContextPercentText = "—";
+                ContextUsageTooltip = null;
+            }
+            OnStateChanged?.Invoke();
+        }
+        catch
+        {
+            ContextPercentText = "—";
+            ContextUsageTooltip = null;
+        }
+    }
+
+    public async Task CompressAsync()
+    {
+        if (!ConversationId.HasValue || IsCompressing) return;
+
+        IsCompressing = true;
+        CompressionMessage = "Compressing context...";
+        OnStateChanged?.Invoke();
+
+        try
+        {
+            var compressed = await _agentDispatcher.CompactConversationAsync(ConversationId.Value);
+            if (compressed)
+            {
+                await RefreshContextUsageAsync();
+                await ShowMessageAsync("Context compressed successfully.", Severity.Success);
+            }
+            else
+            {
+                await ShowMessageAsync("No messages to compress or compression failed.", Severity.Info);
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Failed to compress context");
+            await ShowMessageAsync($"Compression failed: {ex.Message}", Severity.Warning);
+        }
+        finally
+        {
+            IsCompressing = false;
+            CompressionMessage = "";
+            OnStateChanged?.Invoke();
+        }
+    }
+
+    public async Task<bool> CheckAndCompactIfNeededAsync()
+    {
+        if (!ConversationId.HasValue) return false;
+        try
+        {
+            return await _agentDispatcher.CheckAndCompactIfNeededAsync(ConversationId.Value);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Failed to check/compress context");
+            return false;
+        }
+    }
+
+    public async Task RunStreamingLoopAsync(
+        Guid turnId,
+        string userMessage,
+        bool useThinking,
+        IReadOnlyList<string> attachedPaths,
+        IReadOnlyList<string> requestedSkillIds,
+        string? circuitContextId,
+        CancellationTokenSource sendCts)
+    {
+        var didPersist = false;
+        _sendCts = sendCts;
+        IsStreaming = true;
+        _streamingUpdates.Clear();
+        StreamItems = [];
+        _lastStreamActivityAt = null;
+        ShowWaitingForToolParams = false;
+        _pendingApprovals.Clear();
+        _approvalWaitHandles.Clear();
+        StartWaitingCheckTimer();
+        OnStateChanged?.Invoke();
+
+        var channel = System.Threading.Channels.Channel.CreateUnbounded<StreamUpdate>();
+        var sink = new ChannelStreamSink(channel.Writer);
+        var runTask = _agentDispatcher
+            .StreamResponseAndCompleteAsync(ConversationId!.Value, turnId, userMessage, useThinking, sink, sendCts.Token, circuitContextId, attachedPaths, requestedSkillIds)
+            .ContinueWith(_ => channel.Writer.Complete());
+
+        try
+        {
+            await foreach (var update in channel.Reader.ReadAllAsync(sendCts.Token))
+            {
+                sendCts.Token.ThrowIfCancellationRequested();
+                _lastStreamActivityAt = DateTime.UtcNow;
+                ShowWaitingForToolParams = false;
+
+                switch (update)
+                {
+                    case TextStreamUpdate:
+                    case ThinkStreamUpdate:
+                    case ToolCallStreamUpdate:
+                        _streamingUpdates.Add(update);
+                        break;
+                    case ApprovalRequestStreamUpdate approval:
+                        _streamingUpdates.Add(update);
+                        _pendingApprovals[approval.CallId] = new ApprovalItemView
+                        {
+                            CallId = approval.CallId,
+                            ToolName = approval.ToolName,
+                            Arguments = approval.Arguments,
+                            State = ApprovalState.Pending,
+                            ConversationId = approval.ConversationId,
+                            FunctionCallId = approval.FunctionCallId,
+                            RawArguments = approval.RawArguments,
+                            SortOrder = _streamingUpdates.Count
+                        };
+                        break;
+                }
+                StreamItems = _presentation.ConvertToStreamItems(_streamingUpdates);
+                OnStateChanged?.Invoke();
+            }
+            await runTask;
+            didPersist = true;
+
+            while (_pendingApprovals.Count > 0)
+            {
+                var pendingApproval = _pendingApprovals.Values.FirstOrDefault(a => a.State == ApprovalState.Pending);
+                if (pendingApproval == null) break;
+
+                var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                _approvalWaitHandles[pendingApproval.CallId] = tcs;
+
+                using var cts = new CancellationTokenSource(ApprovalTimeout);
+                try
+                {
+                    var completedTask = await Task.WhenAny(tcs.Task, Task.Delay(Timeout.Infinite, cts.Token));
+                    if (completedTask == tcs.Task) { /* user responded */ }
+                    else
+                    {
+                        _pendingApprovals[pendingApproval.CallId] = pendingApproval with { State = ApprovalState.Rejected };
+                        await ShowMessageAsync("Approval request timed out after 5 minutes.", Severity.Warning);
+                        break;
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    _pendingApprovals[pendingApproval.CallId] = pendingApproval with { State = ApprovalState.Rejected };
+                    await ShowMessageAsync("Approval request timed out after 5 minutes.", Severity.Warning);
+                    break;
+                }
+                finally
+                {
+                    _approvalWaitHandles.Remove(pendingApproval.CallId);
+                }
+                StreamItems = _presentation.ConvertToStreamItems(_streamingUpdates);
+                OnStateChanged?.Invoke();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            channel.Writer.Complete();
+        }
+        catch (Exception ex)
+        {
+            await InvokeOnUIAsync(async () =>
+            {
+                await ShowMessageAsync($"Error: {ex.Message}", Severity.Error);
+            });
+            channel.Writer.Complete();
+        }
+        finally
+        {
+            StopWaitingCheckTimer();
+            _sendCts = null;
+            _pendingApprovals.Clear();
+            _approvalWaitHandles.Clear();
+            if (didPersist)
+                OnStreamingCompleted?.Invoke();
+            IsStreaming = false;
+            ShowWaitingForToolParams = false;
+            _streamingUpdates.Clear();
+            StreamItems = [];
+            OnStateChanged?.Invoke();
+        }
+    }
+
+    public async Task RunStreamingLoopForTurnAsync(
+        Guid turnId,
+        string userMessage,
+        bool useThinking,
+        IReadOnlyList<string> attachedPaths,
+        IReadOnlyList<string> requestedSkillIds,
+        string? circuitContextId,
+        CancellationTokenSource sendCts,
+        Guid? truncateFromTurnId = null,
+        string? userNameForTruncate = null)
+    {
+        var didPersist = false;
+        _sendCts = sendCts;
+        IsStreaming = true;
+        _streamingUpdates.Clear();
+        StreamItems = [];
+        _lastStreamActivityAt = null;
+        ShowWaitingForToolParams = false;
+        _pendingApprovals.Clear();
+        _approvalWaitHandles.Clear();
+        StartWaitingCheckTimer();
+        OnStateChanged?.Invoke();
+
+        var channel = System.Threading.Channels.Channel.CreateUnbounded<StreamUpdate>();
+        var sink = new ChannelStreamSink(channel.Writer);
+        var runTask = _agentDispatcher
+            .StreamResponseAndCompleteAsync(ConversationId!.Value, turnId, userMessage, useThinking, sink, sendCts.Token, circuitContextId, attachedPaths, requestedSkillIds, truncateFromTurnId, userNameForTruncate)
+            .ContinueWith(_ => channel.Writer.Complete());
+
+        try
+        {
+            await foreach (var update in channel.Reader.ReadAllAsync(sendCts.Token))
+            {
+                sendCts.Token.ThrowIfCancellationRequested();
+                _lastStreamActivityAt = DateTime.UtcNow;
+                ShowWaitingForToolParams = false;
+
+                switch (update)
+                {
+                    case TextStreamUpdate:
+                    case ThinkStreamUpdate:
+                    case ToolCallStreamUpdate:
+                        _streamingUpdates.Add(update);
+                        break;
+                    case ApprovalRequestStreamUpdate approval:
+                        _streamingUpdates.Add(update);
+                        _pendingApprovals[approval.CallId] = new ApprovalItemView
+                        {
+                            CallId = approval.CallId,
+                            ToolName = approval.ToolName,
+                            Arguments = approval.Arguments,
+                            State = ApprovalState.Pending,
+                            ConversationId = approval.ConversationId,
+                            FunctionCallId = approval.FunctionCallId,
+                            RawArguments = approval.RawArguments,
+                            SortOrder = _streamingUpdates.Count
+                        };
+                        break;
+                }
+                StreamItems = _presentation.ConvertToStreamItems(_streamingUpdates);
+                OnStateChanged?.Invoke();
+            }
+            await runTask;
+            didPersist = true;
+
+            while (_pendingApprovals.Count > 0)
+            {
+                var pendingApproval = _pendingApprovals.Values.FirstOrDefault(a => a.State == ApprovalState.Pending);
+                if (pendingApproval == null) break;
+
+                var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                _approvalWaitHandles[pendingApproval.CallId] = tcs;
+
+                using var cts = new CancellationTokenSource(ApprovalTimeout);
+                try
+                {
+                    var completedTask = await Task.WhenAny(tcs.Task, Task.Delay(Timeout.Infinite, cts.Token));
+                    if (completedTask == tcs.Task) { /* user responded */ }
+                    else
+                    {
+                        _pendingApprovals[pendingApproval.CallId] = pendingApproval with { State = ApprovalState.Rejected };
+                        await ShowMessageAsync("Approval request timed out after 5 minutes.", Severity.Warning);
+                        break;
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    _pendingApprovals[pendingApproval.CallId] = pendingApproval with { State = ApprovalState.Rejected };
+                    await ShowMessageAsync("Approval request timed out after 5 minutes.", Severity.Warning);
+                    break;
+                }
+                finally
+                {
+                    _approvalWaitHandles.Remove(pendingApproval.CallId);
+                }
+                StreamItems = _presentation.ConvertToStreamItems(_streamingUpdates);
+                OnStateChanged?.Invoke();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            channel.Writer.Complete();
+        }
+        catch (Exception ex)
+        {
+            await InvokeOnUIAsync(async () =>
+            {
+                await ShowMessageAsync($"Error: {ex.Message}", Severity.Error);
+            });
+            channel.Writer.Complete();
+        }
+        finally
+        {
+            StopWaitingCheckTimer();
+            _sendCts = null;
+            _pendingApprovals.Clear();
+            _approvalWaitHandles.Clear();
+            if (didPersist)
+                OnStreamingCompleted?.Invoke();
+            IsStreaming = false;
+            ShowWaitingForToolParams = false;
+            _streamingUpdates.Clear();
+            StreamItems = [];
+            OnStateChanged?.Invoke();
+        }
+    }
+
+    public async Task ApproveAsync(ApprovalItemView approval)
+    {
+        if (IsWaitingForApproval || !ConversationId.HasValue) return;
+
+        _pendingApprovals[approval.CallId] = approval with { State = ApprovalState.Approved };
+        IsWaitingForApproval = true;
+        OnStateChanged?.Invoke();
+
+        try
+        {
+            _sendCts ??= new CancellationTokenSource();
+            StartWaitingCheckTimer();
+
+            await foreach (var update in _agentDispatcher.ContinueWithApprovalAsync(
+                approval.ConversationId,
+                approval.CallId,
+                approval.ToolName,
+                approval.FunctionCallId,
+                approved: true,
+                reason: null,
+                approval.RawArguments,
+                _sendCts.Token))
+            {
+                _lastStreamActivityAt = DateTime.UtcNow;
+                ShowWaitingForToolParams = false;
+
+                if (update is ApprovalRequestStreamUpdate newApproval)
+                {
+                    _pendingApprovals[newApproval.CallId] = new ApprovalItemView
+                    {
+                        CallId = newApproval.CallId,
+                        ToolName = newApproval.ToolName,
+                        Arguments = newApproval.Arguments,
+                        State = ApprovalState.Pending,
+                        ConversationId = newApproval.ConversationId,
+                        FunctionCallId = newApproval.FunctionCallId,
+                        RawArguments = newApproval.RawArguments,
+                        SortOrder = _streamingUpdates.Count
+                    };
+                }
+                else
+                {
+                    _streamingUpdates.Add(update);
+                }
+            }
+
+            if (_pendingApprovals.TryGetValue(approval.CallId, out var completed))
+                _pendingApprovals[approval.CallId] = completed with { State = ApprovalState.Completed };
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error during approval continue flow");
+            await ShowMessageAsync($"Error: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            StopWaitingCheckTimer();
+            IsWaitingForApproval = false;
+            if (_approvalWaitHandles.TryGetValue(approval.CallId, out var tcs))
+                tcs.TrySetResult(true);
+            OnStateChanged?.Invoke();
+        }
+    }
+
+    public async Task RejectAsync(ApprovalItemView approval)
+    {
+        if (IsWaitingForApproval || !ConversationId.HasValue) return;
+
+        _pendingApprovals[approval.CallId] = approval with { State = ApprovalState.Rejected };
+        OnStateChanged?.Invoke();
+
+        try
+        {
+            _sendCts ??= new CancellationTokenSource();
+            await foreach (var _ in _agentDispatcher.ContinueWithApprovalAsync(
+                approval.ConversationId,
+                approval.CallId,
+                approval.ToolName,
+                approval.FunctionCallId,
+                approved: false,
+                reason: "User rejected",
+                rawArguments: null,
+                _sendCts.Token))
+            { }
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Error sending rejection response");
+        }
+        finally
+        {
+            if (_approvalWaitHandles.TryGetValue(approval.CallId, out var tcs))
+                tcs.TrySetResult(false);
+        }
+    }
+
+    public void OnCompressionStarted(Guid conversationId)
+    {
+        if (conversationId != ConversationId) return;
+        IsCompressing = true;
+        CompressionMessage = "Compressing context...";
+        OnStateChanged?.Invoke();
+    }
+
+    public void OnCompressionCompleted(Guid conversationId, bool success)
+    {
+        if (conversationId != ConversationId) return;
+        IsCompressing = false;
+        CompressionMessage = success ? "Context compressed" : "Compression failed";
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(2000);
+            CompressionMessage = "";
+            OnStateChanged?.Invoke();
+        });
+        _contextRefreshRequested = true;
+    }
+
+    public void OnModelConfigChanged()
+    {
+        _ = InvokeOnUIAsync(async () =>
+        {
+            await _agentInvalidation.InvalidateAgentAsync();
+            await RefreshContextUsageAsync();
+        });
+    }
+
+    public void RequestContextRefresh()
+    {
+        _contextRefreshRequested = true;
+    }
+
+    public bool ConsumeContextRefreshRequest()
+    {
+        var v = _contextRefreshRequested;
+        _contextRefreshRequested = false;
+        return v;
+    }
+
+    private void StartWaitingCheckTimer()
+    {
+        _waitingCheckTimer?.Dispose();
+        _waitingCheckTimer = new Timer(_ => _ = InvokeOnUIAsync(RefreshWaitingStateAsync), null, 500, 500);
+    }
+
+    private void StopWaitingCheckTimer()
+    {
+        _waitingCheckTimer?.Dispose();
+        _waitingCheckTimer = null;
+    }
+
+    private Task RefreshWaitingStateAsync()
+    {
+        if (!IsStreaming || _lastStreamActivityAt is null) return Task.CompletedTask;
+        var elapsed = (DateTime.UtcNow - _lastStreamActivityAt.Value).TotalSeconds;
+        if (!ShowWaitingForToolParams && elapsed >= 2)
+        {
+            ShowWaitingForToolParams = true;
+            _waitingForToolParamsSince = _lastStreamActivityAt;
+        }
+        OnStateChanged?.Invoke();
+        return Task.CompletedTask;
+    }
+
+    private async Task InvokeOnUIAsync(Func<Task> work)
+    {
+        if (InvokeOnUI != null)
+            await InvokeOnUI(work);
+        else
+            await work();
+    }
+
+    private async Task ShowMessageAsync(string message, Severity severity)
+    {
+        if (ShowMessage != null)
+            await ShowMessage(message, severity);
+    }
+
+    public void Dispose()
+    {
+        StopWaitingCheckTimer();
+    }
+}

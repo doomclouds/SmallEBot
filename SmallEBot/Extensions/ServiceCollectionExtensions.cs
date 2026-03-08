@@ -12,6 +12,7 @@ using SmallEBot.Infrastructure.Agents.Config;
 using SmallEBot.Infrastructure.Agents.Mcp;
 using SmallEBot.Infrastructure.Agents.Skills;
 using SmallEBot.Infrastructure.Agents.Tools;
+using SmallEBot.Components.Chat.Orchestration;
 using SmallEBot.Components.Chat.Services;
 using SmallEBot.Infrastructure;
 using Microsoft.Agents.AI;
@@ -89,6 +90,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<MarkdownService>();
         services.AddScoped<KeyboardShortcutService>();
         services.AddScoped<ChatPresentationService>();
+        services.AddScoped<ChatOrchestrator>();
         services.AddSingleton<ITerminalConfigService, TerminalConfigService>();
         services.AddScoped<ISkillsConfigService, SkillsConfigService>();
         services.AddSingleton<IMcpConfigService, McpConfigService>();
