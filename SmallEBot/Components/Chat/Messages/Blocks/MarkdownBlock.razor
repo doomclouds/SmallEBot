@@ -1,0 +1,9 @@
+@inject MarkdownService Markdown
+@if (!string.IsNullOrEmpty(Content))
+{
+    <div class="markdown-body">@((MarkupString)Markdown.ToHtml(Content))</div>
+}
+
+@code {
+    [Parameter] public string Content { get; set; } = "";
+}
