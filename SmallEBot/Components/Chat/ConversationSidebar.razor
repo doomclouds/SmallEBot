@@ -92,7 +92,7 @@
 
     private async Task DeleteConversation(Guid id)
     {
-        var dialog = await DialogSvc.ShowAsync<DeleteConversationDialog>("Delete conversation");
+        var dialog = await DialogSvc.ShowAsync<DeleteDialog>("Delete conversation");
         var result = await dialog.Result;
         if (result == null || result.Canceled || result.Data is not true)
             return;
