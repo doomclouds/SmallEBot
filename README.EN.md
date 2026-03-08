@@ -65,13 +65,17 @@ SmallEBot/
 │   └── Migrations/               # EF Core migrations
 │
 ├── .agents/                      # Runtime data directory (auto-created)
+│   ├── conversations/            # Per-conversation storage
+│   │   └── {id}/                 # Conversation folder (id = GUID without dashes)
+│   │       ├── metadata.json     # Conversation metadata
+│   │       ├── session.json      # Agent session
+│   │       └── tasks.json        # Task list
 │   ├── vfs/                      # Workspace (Agent file operations scope)
 │   │   ├── sys.skills/           # System skills (read-only in workspace)
 │   │   └── skills/               # User custom skills (read-only in workspace)
 │   ├── .mcp.json                 # MCP configuration
 │   ├── .sys.mcp.json             # System MCP configuration
-│   ├── terminal.json             # Terminal configuration
-│   └── tasks/                    # Per-conversation task list JSON files
+│   └── terminal.json             # Terminal configuration
 │
 └── docs/plans/                   # Design documents
 ```
@@ -157,7 +161,7 @@ All runtime data is stored in the application directory:
 | `.agents/.mcp.json` | MCP server configuration |
 | `.agents/terminal.json` | Terminal security configuration |
 | `.agents/models.json` | Model configurations (switch via Settings or AppBar) |
-| `.agents/tasks/` | Per-conversation task lists (JSON) |
+| `.agents/conversations/{id}/tasks.json` | Per-conversation task list |
 
 ## Usage Guide
 

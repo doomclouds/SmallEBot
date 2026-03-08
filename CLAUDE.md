@@ -151,13 +151,12 @@ The ChatArea uses a State Container + Events pattern for clean separation of con
 |------|---------|
 | `smallebot.db` | SQLite database |
 | `smallebot-settings.json` | User preferences |
-| `.agents/conversations/{id:N}/` | Conversation storage: `metadata.json` (Domain.ConversationMetadata) + `session.json` (AgentSession) |
+| `.agents/conversations/{id:N}/` | Conversation storage: `metadata.json` (Domain.ConversationMetadata) + `session.json` (AgentSession) + `tasks.json` (per-conversation task list) |
 | `.agents/vfs/` | Workspace (agent file tools, ExecuteCommand cwd) |
 | `.agents/.mcp.json` | User MCP config |
 | `.agents/.sys.mcp.json` | System MCP config |
 | `.agents/terminal.json` | Terminal security config |
 | `.agents/models.json` | Model configurations |
-| `.agents/tasks/` | Per-conversation task lists |
 
 ## Cache Invalidation
 
