@@ -8,7 +8,7 @@
 
 - **多会话管理**：创建、切换、删除对话，历史记录按用户存储；侧边栏支持按标题搜索对话
 - **流式对话**：实时显示助手回复，可折叠的思考过程和工具调用面板
-- **消息编辑与重新生成**：可编辑用户消息后重新发送（会丢弃该轮之后的对话）；可对某条 AI 回复点「重新生成」（同样丢弃后续内容）
+- **消息编辑与重新生成**：可编辑用户消息后重新发送（会丢弃该轮之后的对话）
 - **思考模式**：支持 DeepSeek Reasoner 等推理模型的扩展思考功能。思考过程显示在可折叠面板中，随后显示最终文本回复
 - **模型切换**：通过应用栏下拉菜单在多个配置的模型之间切换
 - **MCP 工具**：连接 Model Context Protocol 服务器，扩展文件系统、网络搜索、数据库等能力
@@ -40,49 +40,67 @@ SmallEBot/
 │   ├── Components/               # Razor 组件
 │   │   ├── Layout/               # 布局组件
 │   │   ├── Chat/                 # 聊天区、编辑/重新生成、EditMessageDialog
-│   │   ├── Workspace/            # 工作区抽屉组件
+│   │   ├── Workspace/             # 工作区抽屉组件
 │   │   ├── TaskList/             # 任务列表抽屉
-│   │   └── Terminal/             # 终端相关组件
-│   ├── Services/                 # 服务层
-│   │   ├── Agent/                # Agent 相关服务
-│   │   ├── Workspace/            # 工作区服务
-│   │   ├── Mcp/                  # MCP 服务
-│   │   ├── Skills/               # 技能服务
-│   │   └── Terminal/             # 终端服务
+│   │   ├── Terminal/             # 终端相关组件
+│   │   ├── Agent/                # 模型选择等
+│   │   ├── Skills/               # 技能配置
+│   │   └── Mcp/                  # MCP 配置
+│   ├── Services/                 # Host 专属服务
+│   │   ├── Circuit/              # Blazor Circuit 上下文
+│   │   └── Presentation/        # 键盘快捷键、Markdown 等
 │   └── Extensions/               # 扩展方法 (DI 注册)
 │
 ├── SmallEBot.Core/               # 核心层 (无外部依赖)
-│   ├── Entities/                 # 领域实体
-│   ├── Repositories/             # 仓储接口
 │   └── Models/                   # 共享模型
 │
+├── SmallEBot.Domain/             # 领域层 (无外部依赖)
+│   ├── Agents/Config/             # Agent 配置聚合、仓储接口
+│   ├── Conversations/Metadata/    # 对话元数据、仓储接口
+│   ├── UserPreferences/          # 用户偏好
+│   └── Workspaces/               # 工作区只读策略
+│
+├── SmallEBot.Application.Contracts/  # 应用契约 (接口)
+│   ├── Agents/                   # Config, Compression, Execution, Tools, Mcp, Skills
+│   ├── Conversations/            # 对话、Session、TaskList
+│   ├── Workspaces/               # VFS、Workspace 服务
+│   └── UserPreferences/         # 用户偏好服务
+│
 ├── SmallEBot.Application/        # 应用层
-│   └── Conversation/             # 对话管道服务
+│   ├── Conversations/            # ConversationService
+│   ├── Agents/                   # AgentBuilder, AgentRunner, Compression, Context
+│   ├── Workspaces/               # WorkspaceService
+│   └── UserPreferences/         # UserPreferencesService
 │
 ├── SmallEBot.Infrastructure/     # 基础设施层
-│   ├── Data/                     # DbContext
-│   ├── Repositories/             # 仓储实现
+│   ├── Agents/                   # Config, Mcp, Skills, Tools, Tokenizers
+│   ├── Conversations/            # Metadata, Session, TaskList
+│   ├── Workspaces/               # VirtualFileSystem, WorkspaceWatcher
+│   ├── UserPreferences/          # UserPreferenceRepository
 │   └── Migrations/               # EF Core 迁移
 │
 ├── .agents/                      # 运行时数据目录 (自动创建)
 │   ├── vfs/                      # 工作区 (Agent 文件操作范围)
 │   │   ├── sys.skills/           # 系统技能 (工作区内只读)
 │   │   └── skills/               # 用户自定义技能 (工作区内只读)
+│   ├── conversations/{id}/       # 各对话 metadata.json, session.json, tasks.json
 │   ├── .mcp.json                 # MCP 配置
 │   ├── .sys.mcp.json             # 系统 MCP 配置
 │   ├── terminal.json             # 终端配置
-│   └── tasks/                    # 各对话任务列表 JSON
+│   └── models.json               # 模型配置
 │
-└── docs/plans/                   # 设计文档
+└── docs/plans/                   # 设计文档 (archives/ 为历史归档)
 ```
 
 ### 架构依赖
 
 ```
-SmallEBot.Core          → (无依赖) — 实体、仓储接口、模型
-SmallEBot.Application   → Core     — 对话服务、Agent 接口
-SmallEBot.Infrastructure→ Core     — 数据库、仓储实现
-SmallEBot (Host)        → Core, Application, Infrastructure
+SmallEBot.Core              → (无依赖) — 模型
+SmallEBot.Domain            → (无依赖) — 实体、值对象、仓储接口
+SmallEBot.Application.Contracts → Core, Domain — 服务接口
+SmallEBot.Application       → Core, Domain, Application.Contracts — 编排服务
+SmallEBot.Infrastructure    → Core, Domain, Application.Contracts — 持久化、VFS、工具
+SmallEBot (Host)            → Core, Domain, Application, Application.Contracts, Infrastructure — Blazor UI, DI
 ```
 
 ## 快速开始
@@ -157,7 +175,7 @@ dotnet user-secrets set "Anthropic:ApiKey" "your-api-key"
 | `.agents/.mcp.json` | MCP 服务器配置 |
 | `.agents/terminal.json` | 终端安全配置 |
 | `.agents/models.json` | 模型配置（可在设置或 AppBar 中切换） |
-| `.agents/tasks/` | 各对话任务列表（JSON） |
+| `.agents/conversations/{id}/tasks.json` | 各对话任务列表 |
 
 ## 使用指南
 
@@ -166,7 +184,7 @@ dotnet user-secrets set "Anthropic:ApiKey" "your-api-key"
 1. 首次访问时输入用户名
 2. 在聊天框输入问题，按回车发送（或使用 Ctrl+Enter）
 3. 助手会实时流式返回回复
-4. 点击用户消息旁的编辑按钮可修改后重发；点击 AI 消息旁的重新生成按钮可丢弃该条及之后内容并重新生成
+4. 点击用户消息旁的编辑按钮可修改后重发
 
 ### 上下文附加
 
@@ -263,6 +281,7 @@ dotnet ef migrations add <MigrationName> --project SmallEBot.Infrastructure --st
 **PowerShell 用户**：多条命令请用 `;` 连接，勿用 `&&`。
 
 开发与架构细节见 [CLAUDE.md](CLAUDE.md)。
+Cursor 使用 [AGENTS.md](AGENTS.md) 作为仓库指引。
 
 ## 许可证
 

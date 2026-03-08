@@ -8,7 +8,7 @@ A local AI assistant built with ASP.NET Core Blazor Server. **Runs locally on yo
 
 - **Multi-conversation**: Create, switch, and delete conversations; history stored per user. Sidebar supports search by conversation title.
 - **Streaming chat**: Real-time streaming of assistant replies with collapsible reasoning/tool-call panel.
-- **Edit & regenerate**: Edit a user message and resend (discards that turn's assistant reply and all later turns; session and metadata stay in sync).
+- **Message edit**: Edit a user message and resend (discards that turn's assistant reply and all later turns).
 - **Thinking mode**: Toggle extended reasoning (e.g. DeepSeek Reasoner) via Anthropic thinking support. Reasoning is displayed in a collapsible panel, followed by the final text response.
 - **Model switching**: Switch between multiple configured models via the app bar dropdown.
 - **MCP tools**: Connect to Model Context Protocol servers for extended capabilities (filesystem, web search, databases, etc.).
@@ -42,51 +42,65 @@ SmallEBot/
 │   │   ├── Chat/                 # Chat area, edit/regenerate, EditMessageDialog
 │   │   ├── Workspace/            # Workspace drawer components
 │   │   ├── TaskList/             # Task list drawer
-│   │   └── Terminal/             # Terminal-related components
-│   ├── Services/                 # Service layer
-│   │   ├── Agent/                # Agent services
-│   │   ├── Workspace/            # Workspace services
-│   │   ├── Mcp/                  # MCP services
-│   │   ├── Skills/               # Skills services
-│   │   └── Terminal/             # Terminal services
+│   │   ├── Terminal/             # Terminal-related components
+│   │   ├── Agent/                # Model selector, etc.
+│   │   ├── Skills/               # Skills configuration
+│   │   └── Mcp/                  # MCP configuration
+│   ├── Services/                 # Host-specific services
+│   │   ├── Circuit/              # Blazor Circuit context
+│   │   └── Presentation/        # Keyboard shortcuts, Markdown, etc.
 │   └── Extensions/               # Extension methods (DI registration)
 │
 ├── SmallEBot.Core/               # Core layer (no external dependencies)
-│   ├── Entities/                 # Domain entities
-│   ├── Repositories/             # Repository interfaces
 │   └── Models/                   # Shared models
 │
+├── SmallEBot.Domain/             # Domain layer (no external dependencies)
+│   ├── Agents/Config/            # Agent config aggregate, repository interface
+│   ├── Conversations/Metadata/   # Conversation metadata, repository interface
+│   ├── UserPreferences/         # User preferences
+│   └── Workspaces/               # Workspace read-only policy
+│
+├── SmallEBot.Application.Contracts/  # Application contracts (interfaces)
+│   ├── Agents/                   # Config, Compression, Execution, Tools, Mcp, Skills
+│   ├── Conversations/            # Conversation, Session, TaskList
+│   ├── Workspaces/               # VFS, Workspace services
+│   └── UserPreferences/         # UserPreferences services
+│
 ├── SmallEBot.Application/        # Application layer
-│   └── Conversation/             # Conversation pipeline services
+│   ├── Conversations/            # ConversationService
+│   ├── Agents/                   # AgentBuilder, AgentRunner, Compression, Context
+│   ├── Workspaces/               # WorkspaceService
+│   └── UserPreferences/         # UserPreferencesService
 │
 ├── SmallEBot.Infrastructure/     # Infrastructure layer
-│   ├── Data/                     # DbContext
-│   ├── Repositories/             # Repository implementations
+│   ├── Agents/                   # Config, Mcp, Skills, Tools, Tokenizers
+│   ├── Conversations/            # Metadata, Session, TaskList
+│   ├── Workspaces/               # VirtualFileSystem, WorkspaceWatcher
+│   ├── UserPreferences/          # UserPreferenceRepository
 │   └── Migrations/               # EF Core migrations
 │
 ├── .agents/                      # Runtime data directory (auto-created)
-│   ├── conversations/            # Per-conversation storage
-│   │   └── {id}/                 # Conversation folder (id = GUID without dashes)
-│   │       ├── metadata.json     # Conversation metadata
-│   │       ├── session.json      # Agent session
-│   │       └── tasks.json        # Task list
 │   ├── vfs/                      # Workspace (Agent file operations scope)
 │   │   ├── sys.skills/           # System skills (read-only in workspace)
 │   │   └── skills/               # User custom skills (read-only in workspace)
+│   ├── conversations/{id}/      # Per-conversation metadata.json, session.json, tasks.json
 │   ├── .mcp.json                 # MCP configuration
 │   ├── .sys.mcp.json             # System MCP configuration
-│   └── terminal.json             # Terminal configuration
+│   ├── terminal.json             # Terminal configuration
+│   └── models.json               # Model configurations
 │
-└── docs/plans/                   # Design documents
+└── docs/plans/                   # Design documents (archives/ = historical)
 ```
 
 ### Architecture Dependencies
 
 ```
-SmallEBot.Core          → (no deps) — entities, repository interfaces, models
-SmallEBot.Application   → Core     — conversation services, Agent interfaces
-SmallEBot.Infrastructure→ Core     — database, repository implementations
-SmallEBot (Host)        → Core, Application, Infrastructure
+SmallEBot.Core              → (no deps) — models
+SmallEBot.Domain            → (no deps) — entities, value objects, repository interfaces
+SmallEBot.Application.Contracts → Core, Domain — service interfaces
+SmallEBot.Application       → Core, Domain, Application.Contracts — orchestration
+SmallEBot.Infrastructure    → Core, Domain, Application.Contracts — persistence, VFS, tools
+SmallEBot (Host)            → Core, Domain, Application, Application.Contracts, Infrastructure — Blazor UI, DI
 ```
 
 ## Quick Start
@@ -170,7 +184,7 @@ All runtime data is stored in the application directory:
 1. Enter a username on first visit
 2. Type a question in the chat box and press Enter (or Ctrl+Enter)
 3. The assistant will stream the reply in real-time
-4. Use the edit button on a user message to change and resend (discards that turn's assistant reply and all later turns)
+4. Use the edit button on a user message to change and resend
 
 ### Context Attachments
 
@@ -267,6 +281,7 @@ dotnet ef migrations add <MigrationName> --project SmallEBot.Infrastructure --st
 **PowerShell**: Use `;` to chain commands, not `&&`.
 
 For architecture and Claude Code guidance, see [CLAUDE.md](CLAUDE.md).
+For Cursor, see [AGENTS.md](AGENTS.md).
 
 ## License
 
