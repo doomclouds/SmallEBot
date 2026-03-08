@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Language Rules
 
-- **UI and logs: English only** â€” labels, buttons, messages, exception text shown to users
+- **UI and logs: English only** â€?labels, buttons, messages, exception text shown to users
 - **Code comments and git commits: English**
 - Do not leave Chinese or other non-English text in production code
 
@@ -31,11 +31,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Project Dependencies
 
 ```
-SmallEBot.Core          â†’ (no deps) â€” entities, models
-SmallEBot.Domain        â†’ (no deps) â€” Conversations.Metadata (aggregate, repository interface)
-SmallEBot.Application   â†’ Core, Domain â€” IAgentConversationService, IAgentRunner, IStreamSink
-SmallEBot.Infrastructureâ†’ Core, Domain â€” DbContext, ConversationMetadataRepository, AgentSessionStore
-SmallEBot (Host)        â†’ Core, Domain, Application, Infrastructure â€” Blazor UI, DI
+SmallEBot.Core          â†?(no deps) â€?entities, models
+SmallEBot.Domain        â†?(no deps) â€?Conversations.Metadata (aggregate, repository interface)
+SmallEBot.Application   â†?Core, Domain â€?IAgentConversationService, IAgentRunner, IStreamSink
+SmallEBot.Infrastructureâ†?Core, Domain â€?DbContext, ConversationMetadataRepository, AgentSessionStore
+SmallEBot (Host)        â†?Core, Domain, Application, Infrastructure â€?Blazor UI, DI
 ```
 
 ### Key Files
@@ -55,16 +55,16 @@ SmallEBot (Host)        â†’ Core, Domain, Application, Infrastructure â€” Blazor
 ### Request Flow
 
 ```
-Blazor UI â†’ SignalR â†’ IAgentConversationService (ChatPage, ConversationSidebar use it directly)
-                                              â†“
+Blazor UI â†?SignalR â†?IAgentConversationService (ChatPage, ConversationSidebar use it directly)
+                                              â†?
                                     CreateTurn + StreamResponse
-                                              â†“
-                           IAgentRunner (AgentRunnerAdapter) â†’ AIAgent
-                                              â†“
-                           IStreamSink (ChannelStreamSink) â†’ UI updates
+                                              â†?
+                           IAgentRunner (AgentRunnerAdapter) â†?AIAgent
+                                              â†?
+                           IStreamSink (ChannelStreamSink) â†?UI updates
 ```
 
-**AgentBuilder** composes: `IAgentContextFactory` (system prompt + skills) + `IToolProviderAggregator` + `IMcpConnectionManager` â†’ caches `AIAgent`.
+**AgentBuilder** composes: `IAgentContextFactory` (system prompt + skills) + `IToolProviderAggregator` + `IMcpConnectionManager` â†?caches `AIAgent`.
 
 ### Conversations Domain (DDD subdomains)
 
@@ -72,7 +72,7 @@ Blazor UI â†’ SignalR â†’ IAgentConversationService (ChatPage, ConversationSideb
 |-----------|----------|----------|
 | **Metadata** | `Domain/Conversations/Metadata/` | `ConversationMetadata`, `TurnInfo`, `IConversationMetadataRepository` |
 | **Compression** | `Application.Contracts/Conversations/Compression/` | `ICompressionService`, `ICompressionThresholdProvider`, `IContextUsageEstimator`, `IToolResultMaxProvider` |
-| **Context** | `Application.Contracts/Conversations/Context/` | `ICommandConfirmationContext`, `IConversationTaskContext` |
+| **Context** | `Application.Contracts/Conversations/Context/` | `IConversationTaskContext` |
 | **Session** | `Application.Contracts/Conversations/Session/` | `IConversationSessionCoordinator`, `IAgentSessionStore`, `IAgentSessionReader` |
 | **Orchestration** | `Application.Contracts/Conversations/` | `IAgentConversationService` |
 | **Metadata (impl)** | `Infrastructure/Conversations/Metadata/` | `ConversationMetadataRepository`, `ConversationMetadataPersistence` |
@@ -80,8 +80,8 @@ Blazor UI â†’ SignalR â†’ IAgentConversationService (ChatPage, ConversationSideb
 
 ### Workspace and Skills
 
-- Workspace root: `.agents/vfs/` â€” all file operations and `ExecuteCommand` cwd are scoped here
-- Skills: `.agents/vfs/sys.skills/` and `.agents/vfs/skills/` â€” **read-only in workspace UI** (view/list only)
+- Workspace root: `.agents/vfs/` â€?all file operations and `ExecuteCommand` cwd are scoped here
+- Skills: `.agents/vfs/sys.skills/` and `.agents/vfs/skills/` â€?**read-only in workspace UI** (view/list only)
 - Use `GetWorkspaceRoot()` tool when MCP or scripts need an absolute path
 
 ### Built-in Tools
@@ -101,9 +101,9 @@ Blazor UI â†’ SignalR â†’ IAgentConversationService (ChatPage, ConversationSideb
 
 ### Context Attachments
 
-- `@path` â€” Injects file contents into turn context (per-turn synthetic user message)
-- `/skillId` â€” Injects directive to call `ReadSkill(skillId)`; model fetches skill via tools
-- Drag-and-drop â€” Uploads to `temp/`, deduplicated by hash
+- `@path` â€?Injects file contents into turn context (per-turn synthetic user message)
+- `/skillId` â€?Injects directive to call `ReadSkill(skillId)`; model fetches skill via tools
+- Drag-and-drop â€?Uploads to `temp/`, deduplicated by hash
 
 ### Circuit Context
 
@@ -167,16 +167,16 @@ After modifying MCP config, skills, or model configuration, call `AgentCacheServ
 Context compression reduces token usage by summarizing old conversation messages into a compact summary.
 
 **Trigger Methods:**
-1. **Automatic**: Before each message send, if context usage â‰¥ threshold (default 80%), compression runs automatically
+1. **Automatic**: Before each message send, if context usage â‰?threshold (default 80%), compression runs automatically
 2. **Manual**: User clicks the compress button (left side of input bar)
 
 **Implementation:**
 | Component | Location |
 |-----------|----------|
 | Compression service | `Services/Agent/CompressionService.cs` |
-| Compression logic | `Application/Conversations/AgentConversationService.cs` â†’ `CompactConversationAsync()` |
+| Compression logic | `Application/Conversations/AgentConversationService.cs` â†?`CompactConversationAsync()` |
 | UI trigger | `Components/Chat/ChatInputBar.razor` (compress button) |
-| UI handler | `Components/Chat/ChatArea.razor` â†’ `CompressContext()` |
+| UI handler | `Components/Chat/ChatArea.razor` â†?`CompressContext()` |
 
 **Data Flow:**
 1. Get messages created after `CompressedAt` timestamp (new messages only)
@@ -186,11 +186,11 @@ Context compression reduces token usage by summarizing old conversation messages
 5. Token estimator excludes compressed messages from token count
 
 **Key Files:**
-- `Domain/Conversations/ConversationMetadata.cs` â€” `CompressedContext`, `CompressedAt` fields
-- `Core/Entities/Conversation.cs` â€” DTO for UI (maps from Domain)
-- `Application.Contracts/Conversations/ICompressionService.cs` â€” interface
-- `Services/Agent/CompressionService.cs` â€” LLM-based summary generation
-- `Services/Agent/AgentContextFactory.cs` â€” injects summary into system prompt
+- `Domain/Conversations/ConversationMetadata.cs` â€?`CompressedContext`, `CompressedAt` fields
+- `Core/Entities/Conversation.cs` â€?DTO for UI (maps from Domain)
+- `Application.Contracts/Conversations/ICompressionService.cs` â€?interface
+- `Services/Agent/CompressionService.cs` â€?LLM-based summary generation
+- `Services/Agent/AgentContextFactory.cs` â€?injects summary into system prompt
 
 ## Technology Stack
 
