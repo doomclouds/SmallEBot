@@ -1,0 +1,97 @@
+# AGENTS
+
+This file provides guidance to Cursor when working with code in this repository.
+
+## Commands
+
+| Task | Command |
+|------|---------|
+| Build | `dotnet build` |
+| Run | `dotnet run --project SmallEBot` |
+| EF migration | `dotnet ef migrations add <Name> --project SmallEBot.Infrastructure --startup-project SmallEBot` |
+
+- Solution: `SmallEBot.slnx`
+- Migrations auto-apply on startup
+- No test project; no lint script
+
+**PowerShell:** Use `;` to chain commands, not `&&`. Quote paths with spaces.
+
+## Architecture Overview
+
+### Project Dependencies
+
+```
+SmallEBot.Core              → (no deps) — entities, models
+SmallEBot.Domain            → (no deps) — entities, value objects, repository interfaces
+SmallEBot.Application.Contracts → Core, Domain — service interfaces
+SmallEBot.Application       → Core, Domain, Application.Contracts — orchestration
+SmallEBot.Infrastructure    → Core, Domain, Application.Contracts — persistence, VFS, tools
+SmallEBot (Host)            → Core, Domain, Application, Application.Contracts, Infrastructure — Blazor UI, DI
+```
+
+### Request Flow
+
+```
+Blazor UI → SignalR → IConversationService (ConversationService) — CRUD, turn creation
+                    → IConversationAgentDispatcher (ConversationAgentDispatcher) — dispatch to agent
+                         ↓
+                    IAgentRunner (AgentRunner) → AIAgent
+                         ↓
+                    IStreamSink (ChannelStreamSink) → UI updates
+```
+
+**AgentBuilder** composes: `IAgentSystemPromptBuilder` + `IToolProviderAggregator` + `IMcpConnectionManager` → caches `AIAgent`.
+
+### Key Paths (post-DDD migration)
+
+| Component | Location |
+|-----------|----------|
+| Entry point | `SmallEBot/Program.cs` |
+| DI registration | `SmallEBot/Extensions/ServiceCollectionExtensions.cs` |
+| Conversation CRUD | `SmallEBot.Application/Conversations/ConversationService.cs` |
+| Agent dispatch | `SmallEBot.Application/Agents/Execution/ConversationAgentDispatcher.cs` |
+| Agent runner | `SmallEBot.Application/Agents/Execution/AgentRunner.cs` |
+| Agent builder | `SmallEBot.Application/Agents/Execution/AgentBuilder.cs` |
+| System prompt | `SmallEBot.Application/Agents/Context/AgentSystemPromptBuilder.cs` |
+| Built-in tools | `SmallEBot.Infrastructure/Agents/Tools/` (IToolProvider implementations) |
+| Workspace VFS | `SmallEBot.Infrastructure/Workspaces/` |
+
+### Agents Subdomains
+
+| Subdomain | Contracts | Application | Infrastructure |
+|-----------|-----------|-------------|----------------|
+| Config | IAgentConfigService, IModelConfigService, ITerminalConfigService | — | AgentConfigRepository, AgentConfigService, ModelConfigService |
+| Compression | ICompressionService, IContextUsageEstimator, ITokenizer | CompressionService, ContextUsageEstimator | — |
+| Execution | IAgentBuilder, IAgentRunner, IConversationAgentDispatcher | AgentBuilder, AgentRunner, ConversationAgentDispatcher | — |
+| Tools | IToolProvider, IToolProviderAggregator, ICommandRunner | — | FileToolProvider, ShellToolProvider, CommandRunner |
+
+### Conversations Subdomains
+
+| Subdomain | Location | Contents |
+|-----------|----------|----------|
+| Metadata | Domain/Conversations/Metadata/ | ConversationMetadata, IConversationMetadataRepository |
+| Session | Application.Contracts/Conversations/Session/ | IAgentSessionStore, IAgentSessionReader, IConversationSessionCoordinator |
+| TaskList | Application.Contracts/Conversations/TaskList/ | ITaskListService |
+
+### Workspace and Skills
+
+- Workspace root: `.agents/vfs/` — all file operations and `ExecuteCommand` cwd
+- Skills: `.agents/vfs/sys.skills/` and `.agents/vfs/skills/` — read-only in workspace UI
+- Use `GetWorkspaceRoot()` tool when MCP or scripts need an absolute path
+
+### Context Compression
+
+- Trigger: automatic (≥80% context usage) or manual (compress button)
+- Logic: `ConversationAgentDispatcher.CompactConversationAsync()` → `CompressionService`
+
+### Cache Invalidation
+
+After modifying MCP config, skills, or model configuration, call `IAgentInvalidationService.InvalidateAgentAsync()` to rebuild the agent on next request.
+
+### DDD Practices
+
+Use `.cursor/skills/smallebot-ddd-practices/SKILL.md` when designing new domains, refactoring, or auditing layer compliance.
+
+## Design Docs
+
+`docs/plans/` contains design notes. Do not rely on `docs/plans/archives/` for current architecture.
