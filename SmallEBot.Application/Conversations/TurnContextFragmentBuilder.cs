@@ -1,7 +1,8 @@
 using SmallEBot.Application.Contracts.Agents;
+using SmallEBot.Application.Contracts.Conversations;
 using SmallEBot.Core;
 
-namespace SmallEBot.Services.Conversation;
+namespace SmallEBot.Application.Conversations;
 
 public sealed class TurnContextFragmentBuilder(ISkillsConfigService skillsConfig) : ITurnContextFragmentBuilder
 {

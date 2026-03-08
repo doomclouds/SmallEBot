@@ -1,6 +1,5 @@
 using SmallEBot.Application.Conversations;
 using SmallEBot.Services.Agent;
-using SmallEBot.Services.Conversation;
 using SmallEBot.Services.Mcp;
 using SmallEBot.Services.Presentation;
 using SmallEBot.Services.Skills;
@@ -35,12 +34,10 @@ public static class ServiceCollectionExtensions
         var baseDir = AppDomain.CurrentDomain.BaseDirectory;
         var dbPath = Path.Combine(baseDir, "smallebot.db");
 
-        // IConversationSessionCoordinator and IAgentSessionReader are registered in Infrastructure.AddInfrastructure
+        // IConversationSessionCoordinator, IAgentSessionReader, IConversationTaskContext, ICurrentConversationService,
+        // ITaskListService, ITaskListCache, IConversationTaskRemover are registered in Infrastructure.AddInfrastructure
         // IConversationMetadataRepository is registered in Infrastructure.AddInfrastructure
 
-        services.AddSingleton<IConversationTaskContext, ConversationTaskContext>();
-        services.AddSingleton<ICurrentConversationService, CurrentConversationService>();
-        services.AddSingleton<ITaskListService, TaskListService>();
         services.AddSingleton<ICommandRunner, CommandRunner>();
         // IVirtualFileSystem and IWorkspaceWatcher are registered in Infrastructure layer with factory delegates
         // These registrations are removed here to avoid duplicate registrations
@@ -55,8 +52,6 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IToolProvider, TaskToolProvider>();
         services.AddScoped<IToolProvider, SkillGenerationToolProvider>();
         services.AddScoped<IToolProviderAggregator, ToolProviderAggregator>();
-        services.AddSingleton<ITaskListCache, TaskListCache>();
-        services.AddSingleton<IConversationTaskRemover, ConversationTaskRemover>();
         services.AddSingleton<IModelConfigService, ModelConfigService>();
         services.AddSingleton<AgentConfigService>();
         services.AddSingleton<IAgentConfigService>(sp => sp.GetRequiredService<AgentConfigService>());
@@ -81,7 +76,7 @@ public static class ServiceCollectionExtensions
 
         services.AddScoped<IAgentConversationService, AgentConversationService>();
         services.AddScoped<IAgentRunner, AgentRunnerAdapter>();
-        services.AddScoped<ITurnContextFragmentBuilder, TurnContextFragmentBuilder>();
+        services.AddScoped<SmallEBot.Application.Contracts.Conversations.ITurnContextFragmentBuilder, SmallEBot.Application.Conversations.TurnContextFragmentBuilder>();
         services.AddScoped<AgentCacheService>();
         services.AddSingleton<IUserPreferencesService, UserPreferencesService>();
         services.AddSingleton<IUserNameDisplayService, UserNameDisplayService>();

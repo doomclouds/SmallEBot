@@ -9,7 +9,7 @@
 @inject IUserNameDisplayService UserNameDisplay
 @inject IAgentConversationService ConvSvc
 @inject IDialogService DialogSvc
-@inject ICurrentConversationService CurrentConversation
+@inject SmallEBot.Application.Contracts.Conversations.ICurrentConversationService CurrentConversation
 
 @if (string.IsNullOrEmpty(_userName))
 {
