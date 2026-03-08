@@ -1,10 +1,16 @@
 @if (Node.IsDirectory)
 {
     <div class="workspace-tree-folder">
-        <div class="workspace-tree-row" @onclick="@ToggleExpand">
+        <div class="workspace-tree-row d-flex align-center" @onclick="@ToggleExpand">
             <MudIcon Icon="@(Expanded ? Icons.Material.Filled.ExpandMore : Icons.Material.Filled.ChevronRight)" Size="Size.Small" />
             <MudIcon Icon="@Icons.Material.Filled.Folder" Size="Size.Small" />
-            <MudText Typo="Typo.body2">@Node.Name</MudText>
+            <MudText Typo="Typo.body2" Class="flex-grow-1">@Node.Name</MudText>
+            @if (IsDeletable)
+            {
+                <div class="workspace-tree-file-actions" @onclick:stopPropagation="true">
+                    <MudTooltip Text="Delete"><MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => OnDeleteRequested.InvokeAsync(Node))" Color="Color.Default" /></MudTooltip>
+                </div>
+            }
         </div>
         @if (Expanded && Node.Children != null && Node.Children.Count > 0)
         {
@@ -29,7 +35,7 @@ else
             }
             @if (IsDeletable)
             {
-                <MudTooltip Text="Delete"><MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => OnDeleteRequested.InvokeAsync(Node.RelativePath))" Color="Color.Default" /></MudTooltip>
+                <MudTooltip Text="Delete"><MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => OnDeleteRequested.InvokeAsync(Node))" Color="Color.Default" /></MudTooltip>
             }
         </div>
     </div>
@@ -38,7 +44,7 @@ else
 @code {
     [Parameter] public WorkspaceNodeDto Node { get; set; } = null!;
     [Parameter] public EventCallback<string> OnFileSelected { get; set; }
-    [Parameter] public EventCallback<string> OnDeleteRequested { get; set; }
+    [Parameter] public EventCallback<WorkspaceNodeDto> OnDeleteRequested { get; set; }
 
     [Inject] private IWorkspaceService WorkspaceService { get; set; } = null!;
     [Inject] private IDialogService DialogService { get; set; } = null!;

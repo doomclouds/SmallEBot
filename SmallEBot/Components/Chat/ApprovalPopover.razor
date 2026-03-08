@@ -1,4 +1,4 @@
-@* 右下角审批确认弹窗，不再在 AI 气泡内渲染 *@
+@* Approval popover at bottom-right, rendered outside AI bubble *@
 @using SmallEBot.Components.Chat.ViewModels.Blocks
 
 @if (Approval != null)
@@ -8,7 +8,7 @@
             <MudStack Spacing="2">
                 <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
                     <MudIcon Icon="@Icons.Material.Filled.Warning" Color="Color.Warning" />
-                    <MudText Typo="Typo.subtitle2">需要审批</MudText>
+                    <MudText Typo="Typo.subtitle2">Approval required</MudText>
                 </MudStack>
                 <MudText Typo="Typo.body2" Color="Color.Primary">@Approval.ToolName</MudText>
                 @if (!string.IsNullOrEmpty(Approval.Arguments))
@@ -22,10 +22,10 @@
                 <MudStack Row="true" Justify="Justify.FlexEnd" Spacing="2">
                     <MudButton Variant="Variant.Outlined" Color="Color.Error"
                                Disabled="@IsProcessing"
-                               OnClick="@(() => OnReject.InvokeAsync(Approval))">拒绝</MudButton>
+                               OnClick="@(() => OnReject.InvokeAsync(Approval))">Reject</MudButton>
                     <MudButton Variant="Variant.Filled" Color="Color.Success"
                                Disabled="@IsProcessing"
-                               OnClick="@(() => OnApprove.InvokeAsync(Approval))">允许</MudButton>
+                               OnClick="@(() => OnApprove.InvokeAsync(Approval))">Approve</MudButton>
                 </MudStack>
             </MudStack>
         </MudPaper>

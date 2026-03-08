@@ -23,7 +23,7 @@
             <div class="workspace-tree-root">
                 @foreach (var node in _tree.Children)
                 {
-                    <WorkspaceTreeItem Node="@node" OnFileSelected="@(path => SelectFile(path))" OnDeleteRequested="@ShowDeleteConfirmAsync" />
+                    <WorkspaceTreeItem Node="@node" OnFileSelected="@(path => SelectFile(path))" OnDeleteRequested="@(n => ShowDeleteConfirmAsync(n))" />
                 }
             </div>
         }
@@ -114,14 +114,13 @@
         StateHasChanged();
     }
 
-    private async Task ShowDeleteConfirmAsync(string relativePath)
+    private async Task ShowDeleteConfirmAsync(WorkspaceNodeDto node)
     {
-        var name = Path.GetFileName(relativePath);
         var parameters = new DialogParameters
         {
-            [nameof(DeleteWorkspaceConfirmDialog.RelativePath)] = relativePath,
-            [nameof(DeleteWorkspaceConfirmDialog.Name)] = name,
-            [nameof(DeleteWorkspaceConfirmDialog.IsDirectory)] = false
+            [nameof(DeleteWorkspaceConfirmDialog.RelativePath)] = node.RelativePath,
+            [nameof(DeleteWorkspaceConfirmDialog.Name)] = node.Name,
+            [nameof(DeleteWorkspaceConfirmDialog.IsDirectory)] = node.IsDirectory
         };
         var dialog = await DialogService.ShowAsync<DeleteWorkspaceConfirmDialog>("Delete", parameters);
         var result = await dialog.Result;
