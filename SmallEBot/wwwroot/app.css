@@ -703,3 +703,28 @@ h1:focus {
     padding: 8px 12px;
     border-top: 1px solid var(--seb-border);
 }
+
+/* CLI-style message thread */
+.smallebot-cli-user,
+.smallebot-cli-assistant {
+    padding: 12px 0;
+    border-bottom: 1px solid var(--seb-border, rgba(255,255,255,0.08));
+}
+.smallebot-cli-user:last-child,
+.smallebot-cli-assistant:last-child {
+    border-bottom: none;
+}
+.smallebot-cli-role-user {
+    color: var(--mud-palette-primary, #7c4dff);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+.smallebot-cli-role-assistant {
+    color: var(--mud-palette-tertiary, #4fc3f7);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+.smallebot-cli-content {
+    margin-top: 4px;
+    padding-left: 4px;
+}

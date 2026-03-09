@@ -36,8 +36,8 @@ public static class ServiceCollectionExtensions
     {
         var baseDir = AppDomain.CurrentDomain.BaseDirectory;
 
-        // IConversationSessionCoordinator, IAgentSessionReader, IAmbientConversationId, ICurrentConversationService,
-        // ITaskListService, IAmbientConversationId, ICurrentConversationService are registered in Infrastructure.AddInfrastructure
+        // IAgentSessionReader, IAmbientConversationId, ICurrentConversationService,
+        // ITaskListService are registered in Infrastructure.AddInfrastructure
         // IConversationMetadataRepository is registered in Infrastructure.AddInfrastructure
 
         services.AddSingleton<ICommandRunner, CommandRunner>();
