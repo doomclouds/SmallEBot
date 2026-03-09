@@ -1,10 +1,11 @@
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.AI;
 using SmallEBot.Application.Contracts.Agents.Context;
 
 namespace SmallEBot.Application.Agents.Context;
 
-/// <summary>AIContextProvider that injects turn-specific context via ITurnContextFragmentBuilder. Uses AsyncLocal to pass context across async boundaries.</summary>
+/// <summary>AIContextProvider that injects turn-specific context as a user message via AIContext.Messages so the model attends to it.</summary>
 public sealed class TurnContextProvider(IServiceProvider serviceProvider) : AIContextProvider
 {
     private static readonly AsyncLocal<AgentTurnContext?> CurrentContext = new();
@@ -20,14 +21,14 @@ public sealed class TurnContextProvider(IServiceProvider serviceProvider) : AICo
 
         using var scope = serviceProvider.CreateScope();
         var fragmentBuilder = scope.ServiceProvider.GetRequiredService<ITurnContextFragmentBuilder>();
-        var instructions = await fragmentBuilder.BuildContextHintAsync(
+        var content = await fragmentBuilder.BuildContextHintAsync(
             turnContext.AttachedPaths,
             turnContext.RequestedSkillIds,
             cancellationToken);
 
-        return string.IsNullOrWhiteSpace(instructions)
+        return string.IsNullOrWhiteSpace(content)
             ? new AIContext()
-            : new AIContext { Instructions = instructions };
+            : new AIContext { Messages = [new ChatMessage(ChatRole.User, content)] };
     }
 }
 

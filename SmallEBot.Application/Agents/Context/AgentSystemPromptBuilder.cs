@@ -22,13 +22,13 @@ public sealed class AgentSystemPromptBuilder(
         var skills = await skillsConfig.GetMetadataForAgentAsync(ct);
         var blacklist = await terminalConfig.GetCommandBlacklistAsync(ct);
 
-        var sections = new List<string> { BuildBaseInstructions() };
+        var sections = new List<string> { "# SmallEBot Agent Instructions", BuildBaseInstructions() };
 
         // Add compressed context if available
         var compressedContext = await GetCompressedContextAsync(ct);
         if (!string.IsNullOrEmpty(compressedContext))
         {
-            sections.Add($"# Conversation Summary\n\n{compressedContext}");
+            sections.Add($"## Conversation Summary\n\n{compressedContext}");
         }
 
         var skillsBlock = BuildSkillsBlock(skills);
@@ -77,7 +77,7 @@ public sealed class AgentSystemPromptBuilder(
         "You are SmallEBot, a helpful personal assistant. Be concise and direct.";
 
     private static string GetPrinciplesSection() => $"""
-        # Principles
+        ## Principles
 
         - For multi-step tasks (3+ distinct steps): plan first with `{BuiltInToolNames.ClearTasks}` → `{BuiltInToolNames.SetTaskList}`, then execute step by step. Mark each task done immediately with `{BuiltInToolNames.CompleteTask}` or batch with `{BuiltInToolNames.CompleteTasks}`. Skip the task list for simple single-step work.
         - When the user says "continue" / "继续" / "接着" / "go on" / "next": call `{BuiltInToolNames.ListTasks}` first — if undone tasks exist, proceed immediately without asking.
@@ -88,7 +88,7 @@ public sealed class AgentSystemPromptBuilder(
         """;
 
     private static string GetAgenticExecutionSection() => $"""
-        # Agentic Execution
+        ## Agentic Execution
 
         **Batching:** When you need multiple independent pieces of information, issue **all** tool calls in the same step — never wait for one result before requesting the next unless there is a dependency.
 
@@ -104,7 +104,7 @@ public sealed class AgentSystemPromptBuilder(
         """;
 
     private static string GetToneSection() => """
-        # Tone and Style
+        ## Tone and Style
 
         - Use emojis only if the user explicitly requests them.
         - Do not put a colon immediately before a tool call; write "Let me read the file." not "Let me read the file:".
@@ -113,7 +113,7 @@ public sealed class AgentSystemPromptBuilder(
         """;
 
     private static string GetExecutingWithCareSection() => """
-        # Executing with Care
+        ## Executing with Care
 
         Freely take local, reversible actions (file reads, searches, safe commands). For the categories below, **confirm with the user before proceeding**:
 
@@ -125,7 +125,7 @@ public sealed class AgentSystemPromptBuilder(
         """;
 
     private static string GetApprovalRejectionSection() => $"""
-        # Tool Approval — Rejection (MANDATORY)
+        ## Tool Approval — Rejection (MANDATORY)
 
         **When the user rejects a tool approval request, you MUST NOT repeat the same or similar approval request.**
 
@@ -137,19 +137,19 @@ public sealed class AgentSystemPromptBuilder(
         """;
 
     private static string GetTimeSection() => $"""
-        # Time
+        ## Time
 
         Use `{BuiltInToolNames.GetCurrentTime}` when the user asks for the current date or time.
         """;
 
     private static string GetMcpSection() => """
-        # MCP
+        ## MCP
 
         Use available MCP tools when they help answer the user.
         """;
 
     private static string GetFileToolsSection() => $"""
-        # File Tools
+        ## File Tools
 
         > Follow this decision tree. Always choose the most targeted tool for the job.
 
@@ -189,7 +189,7 @@ public sealed class AgentSystemPromptBuilder(
         """;
 
     private static string GetShellSection() => $"""
-        # Shell
+        ## Shell
 
         `{BuiltInToolNames.ExecuteCommand}(command, workingDirectory?)` — cmd.exe (Windows) / sh (Unix).
         - `workingDirectory` defaults to workspace root; pass a relative path for subdirectories
@@ -199,7 +199,7 @@ public sealed class AgentSystemPromptBuilder(
         """;
 
     private static string GetTaskListSection() => $$"""
-        # Task List
+        ## Task List
 
         Tools: `{{BuiltInToolNames.ClearTasks}}`, `{{BuiltInToolNames.SetTaskList}}([{title, description?}, …])`, `{{BuiltInToolNames.ListTasks}}`, `{{BuiltInToolNames.CompleteTask}}(id)`, `{{BuiltInToolNames.CompleteTasks}}([id, …])`.
 
@@ -213,7 +213,7 @@ public sealed class AgentSystemPromptBuilder(
         """;
 
     private static string GetNativeSkillsSection() => """
-        # Skills
+        ## Skills
 
         Skills are available through native agent tools:
         - `load_skill(skillName)` - Load a skill's instructions
@@ -223,7 +223,7 @@ public sealed class AgentSystemPromptBuilder(
         """;
 
     private static string GetSkillGenerationSection() => $$"""
-        # Skill Generation
+        ## Skill Generation
 
         Tools: `{{BuiltInToolNames.GenerateSkill}}`.
 
@@ -243,7 +243,7 @@ public sealed class AgentSystemPromptBuilder(
         """;
 
     private static string GetTempFilesSection() => $"""
-        # Workspace Directories
+        ## Workspace Directories
 
         **Intermediate / temporary files:** Use the workspace `docs/` directory for working scripts, intermediate results, and downloaded data. Do not write to system-level paths like `/tmp` unless the user explicitly requests it.
 
@@ -271,7 +271,7 @@ public sealed class AgentSystemPromptBuilder(
     {
         if (blacklist.Count == 0) return "";
         var sb = new System.Text.StringBuilder();
-        sb.AppendLine("# Terminal Blacklist");
+        sb.AppendLine("## Terminal Blacklist");
         sb.AppendLine();
         sb.AppendLine($"`{BuiltInToolNames.ExecuteCommand}` rejects any command that contains the following substrings (case-insensitive). Do not run or suggest such commands:");
         foreach (var entry in blacklist)

@@ -1,20 +1,12 @@
 using SmallEBot.Application.Contracts.Agents.Context;
 using SmallEBot.Application.Contracts.Agents.Skills;
-using SmallEBot.Application.Contracts.Agents.Tools;
 using SmallEBot.Core;
 
 namespace SmallEBot.Application.Agents.Context;
 
-/// <summary>Builds per-turn context instructions (attached files + requested skills) for AIContextProvider. Includes emphasis so the model knows this applies to the current message only.</summary>
+/// <summary>Builds per-turn context as a concise user message (attached files + requested skills) for AIContext.Messages.</summary>
 public sealed class TurnContextFragmentBuilder(ISkillsConfigService skillsConfig) : ITurnContextFragmentBuilder
 {
-    private const string PerTurnHeader = """
-        # Key context for this message
-
-        The following applies to this user message only. Pay attention and follow it.
-
-        """;
-
     public async Task<string?> BuildContextHintAsync(
         IReadOnlyList<string> attachedPaths,
         IReadOnlyList<string> requestedSkillIds,
@@ -32,7 +24,7 @@ public sealed class TurnContextFragmentBuilder(ISkillsConfigService skillsConfig
         if (!string.IsNullOrWhiteSpace(skillsBlock))
             parts.Add(skillsBlock);
 
-        return PerTurnHeader + string.Join("\n\n", parts);
+        return string.Join("\n\n", parts);
     }
 
     private static string BuildFilesBlock(IReadOnlyList<string> attachedPaths)
@@ -58,18 +50,9 @@ public sealed class TurnContextFragmentBuilder(ISkillsConfigService skillsConfig
         if (validPaths.Count == 0)
             return "";
 
-        var lines = new List<string>
-        {
-            "## Attached files",
-            "",
-            "**Important:** The user explicitly attached these files. If the user's request involves analyzing, reviewing, or modifying files, prioritize these first.",
-            "",
-            $"**How to read:** Use `{BuiltInToolNames.ReadFile}(path, startLine?, endLine?, lineNumbers?)` with the path exactly as listed below. Paths are relative to the workspace root.",
-            "",
-            "Paths:"
-        };
+        var lines = new List<string> { "Files referenced (paths relative to workspace):" };
         lines.AddRange(validPaths.Select(p => $"- {p}"));
-
+        
         return string.Join("\n", lines);
     }
 
@@ -81,13 +64,7 @@ public sealed class TurnContextFragmentBuilder(ISkillsConfigService skillsConfig
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var metadata = await skillsConfig.GetMetadataForAgentAsync(ct);
         var knownIds = new HashSet<string>(metadata.Select(m => m.Id), StringComparer.OrdinalIgnoreCase);
-        var lines = new List<string>
-        {
-            "## Requested skills",
-            "",
-            "**How to use:** Call `load_skill(skillId)` with the skill id exactly as listed. This loads the skill's instructions. Use `read_skill_resource(skillId, resourcePath)` to read other files in the skill folder.",
-            ""
-        };
+        var lines = new List<string> { "Skills focused on:" };
 
         foreach (var id in requestedSkillIds)
         {
@@ -95,10 +72,10 @@ public sealed class TurnContextFragmentBuilder(ISkillsConfigService skillsConfig
                 continue;
             var trimmed = id.Trim();
             lines.Add(knownIds.Contains(trimmed)
-                ? $"- \"{trimmed}\" — call `load_skill(\"{trimmed}\")` to load and apply."
-                : $"- \"{trimmed}\" — not found in the skills list.");
+                ? $"- \"{trimmed}\""
+                : $"- \"{trimmed}\" (not found)");
         }
 
-        return lines.Count <= 4 ? "" : string.Join("\n", lines);
+        return lines.Count <= 1 ? "" : string.Join("\n", lines);
     }
 }
