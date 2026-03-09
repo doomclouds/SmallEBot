@@ -36,6 +36,8 @@ public sealed class WorkspaceService(
     public async Task WriteFileAsync(string relativePath, string content, CancellationToken ct = default)
     {
         ValidatePath(relativePath);
+        if (IsReadOnly(relativePath))
+            throw new UnauthorizedAccessException("Path is restricted (sys.skills, skills, temp). Write not allowed.");
         await _vfs.WriteFileAsync(relativePath, content, ct);
     }
 
@@ -48,6 +50,11 @@ public sealed class WorkspaceService(
             ? fileName
             : $"{parentPath}/{fileName}";
 
+        if (IsReadOnly(fullPath))
+        {
+            _logger.LogWarning("Cannot create file in read-only path: {Path}", fullPath);
+            return false;
+        }
         if (await _vfs.ExistsAsync(fullPath, ct))
         {
             _logger.LogWarning("File already exists: {Path}", fullPath);
@@ -66,6 +73,12 @@ public sealed class WorkspaceService(
         var fullPath = string.IsNullOrEmpty(parentPath)
             ? folderName
             : $"{parentPath}/{folderName}";
+
+        if (IsReadOnly(fullPath))
+        {
+            _logger.LogWarning("Cannot create folder in read-only path: {Path}", fullPath);
+            return false;
+        }
 
         await _vfs.CreateDirectoryAsync(fullPath, ct);
         return true;

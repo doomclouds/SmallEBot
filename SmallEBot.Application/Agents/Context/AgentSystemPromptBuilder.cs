@@ -249,7 +249,7 @@ public sealed class AgentSystemPromptBuilder(
 
         **Do not use file tools on these paths:**
         - `temp/` — reserved for **file uploads**. ReadFile and GrepContent are allowed. WriteFile, AppendFile, CopyFile, CopyDirectory, ListFiles on temp/ are not allowed.
-        - `sys.skills/` and `skills/` — use native skill tools (`load_skill`, `read_skill_resource`) to access skill content.
+        - `sys.skills/` and `skills/` — ReadFile allowed; write/copy blocked.
         """;
 
     // ── Dynamic blocks ────────────────────────────────────────────────────────

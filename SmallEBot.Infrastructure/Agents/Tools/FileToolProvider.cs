@@ -50,7 +50,7 @@ public sealed class FileToolProvider(IVirtualFileSystem vfs, IWorkspaceReadOnlyP
         }
     }
 
-    [Description("Read a text file from the workspace. path: relative to workspace root (e.g. notes.txt or src/script.py). startLine/endLine: optional 1-based line numbers to read only part of a large file (e.g. startLine=10, endLine=50). lineNumbers: if true, prefix each output line with its 1-based number — useful when cross-referencing GrepContent results. When the response header says [Total: N lines] and N is large, use startLine/endLine on the next call. Allowed extensions: .md, .cs, .py, .txt, .json, .yml, .yaml. temp/ (uploads) is readable. sys.skills/ and skills/ require load_skill/read_skill_resource.")]
+    [Description("Read a text file from the workspace. path: relative to workspace root (e.g. notes.txt or src/script.py). startLine/endLine: optional 1-based line numbers to read only part of a large file (e.g. startLine=10, endLine=50). lineNumbers: if true, prefix each output line with its 1-based number — useful when cross-referencing GrepContent results. When the response header says [Total: N lines] and N is large, use startLine/endLine on the next call. Allowed extensions: .md, .cs, .py, .txt, .json, .yml, .yaml. All paths under workspace are readable (temp/, sys.skills/, skills/ included).")]
     private string ReadFile(string path, int? startLine = null, int? endLine = null, bool lineNumbers = false)
     {
         if (string.IsNullOrWhiteSpace(path)) return "Error: path is required.";

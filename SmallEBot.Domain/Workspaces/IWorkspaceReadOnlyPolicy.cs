@@ -2,8 +2,7 @@ namespace SmallEBot.Domain.Workspaces;
 
 /// <summary>
 /// Policy for determining restricted paths in the workspace.
-/// - sys.skills/, skills/: use load_skill/read_skill_resource; ReadFile blocked.
-/// - temp/: uploads; ReadFile allowed, write/copy blocked.
+/// - sys.skills/, skills/, temp/: ReadFile allowed; write/copy blocked.
 /// </summary>
 public interface IWorkspaceReadOnlyPolicy
 {
@@ -13,13 +12,13 @@ public interface IWorkspaceReadOnlyPolicy
     /// <summary>Checks if a relative path is under a restricted directory.</summary>
     bool IsUnder(string? relativePath);
 
-    /// <summary>Checks if ReadFile is blocked for this path. Only sys.skills and skills; temp/ allows read.</summary>
+    /// <summary>Checks if ReadFile is blocked for this path. Currently always false (ReadFile allowed everywhere).</summary>
     bool IsBlockedForReadFile(string? relativePath);
 
     /// <summary>Message shown when a restricted path is accessed for modification.</summary>
     string RestrictedPathMessage { get; }
 
-    /// <summary>Message shown when ReadFile is used on sys.skills or skills.</summary>
+    /// <summary>Message shown when ReadFile is blocked (unused when IsBlockedForReadFile is always false).</summary>
     string RestrictedReadFileMessage { get; }
 
     /// <summary>Message shown when searching in a restricted path.</summary>
