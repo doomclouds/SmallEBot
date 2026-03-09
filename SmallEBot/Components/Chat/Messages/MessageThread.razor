@@ -19,7 +19,7 @@
             var decoded = UserMessageCodec.Decode(GetTextContent(msg));
             <div class="smallebot-cli-user">
                 <div class="d-flex align-center justify-space-between">
-                    <MudText Typo="Typo.caption" Class="smallebot-cli-role-user">❯ User</MudText>
+                    <MudText Typo="Typo.caption" Class="smallebot-cli-role-user">● User</MudText>
                     @if (ShowRestartButtons)
                     {
                         <div class="d-flex">
@@ -89,7 +89,7 @@
     {
         var pendingDecoded = UserMessageCodec.Decode(PendingUserText);
         <div class="smallebot-cli-user">
-            <MudText Typo="Typo.caption" Class="smallebot-cli-role-user">❯ User</MudText>
+            <MudText Typo="Typo.caption" Class="smallebot-cli-role-user">● User</MudText>
             @if (pendingDecoded.HasAttachments)
             {
                 <div class="d-flex flex-wrap gap-1 mt-1 mb-1">
