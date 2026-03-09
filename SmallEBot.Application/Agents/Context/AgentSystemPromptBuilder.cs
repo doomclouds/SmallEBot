@@ -159,20 +159,20 @@ public sealed class AgentSystemPromptBuilder(
         **1. Explore a directory → `{BuiltInToolNames.ListFiles}(path?)`**
         Lists direct children only. Use for "what is in folder X?".
 
-        **2. Find files by name/extension → `{BuiltInToolNames.GrepFiles}(pattern, mode?, path?, maxDepth?)`**
+        **2. Find files by name/extension → `{BuiltInToolNames.FindBlobs}(pattern, mode?, path?, maxDepth?)`**
         - `mode "glob"` (default): `*.md`, `**/*.json`, `*config*`
         - `mode "regex"`: regex matched against relative file paths
         - `maxDepth`: recursion limit (default 10; 0 = unlimited)
 
-        **3. Find text inside files → `{BuiltInToolNames.GrepContent}(pattern, ...)`**
+        **3. Find text inside files → `{BuiltInToolNames.Grep}(pattern, ...)`**
         Parameters: `path?`, `filePattern?`, `ignoreCase?`, `filesOnly?`, `contextLines?`, `maxResults?`, `maxDepth?`
         - `filesOnly=true` → cheapest way to locate where something is defined
         - `contextLines=N` → N surrounding lines per match
-        - **Best pattern:** `{BuiltInToolNames.GrepContent}(pattern, filesOnly=true)` → pick the file → `{BuiltInToolNames.ReadFile}(path, startLine, endLine)`
+        - **Best pattern:** `{BuiltInToolNames.Grep}(pattern, filesOnly=true)` → pick the file → `{BuiltInToolNames.ReadFile}(path, startLine, endLine)`
 
         **4. Read a file → `{BuiltInToolNames.ReadFile}(path, startLine?, endLine?, lineNumbers?)`**
         - `lineNumbers=true` → prefix every line with its 1-based number (useful when cross-referencing search results)
-        - **Large file strategy:** use `{BuiltInToolNames.GrepContent}` first to find the target line, then `{BuiltInToolNames.ReadFile}` with `startLine`/`endLine`
+        - **Large file strategy:** use `{BuiltInToolNames.Grep}` first to find the target line, then `{BuiltInToolNames.ReadFile}` with `startLine`/`endLine`
         - When the header shows `[Total: N lines]` and N is large, **always** specify a range on the next call
 
         **5. Write a file → `{BuiltInToolNames.WriteFile}(path, content)`**
@@ -248,7 +248,7 @@ public sealed class AgentSystemPromptBuilder(
         **Intermediate / temporary files:** Use the workspace `docs/` directory for working scripts, intermediate results, and downloaded data. Do not write to system-level paths like `/tmp` unless the user explicitly requests it.
 
         **Do not use file tools on these paths:**
-        - `temp/` — reserved for **file uploads**. ReadFile and GrepContent are allowed. WriteFile, AppendFile, CopyFile, CopyDirectory, ListFiles on temp/ are not allowed.
+        - `temp/` — reserved for **file uploads**. ReadFile and Grep are allowed. WriteFile, AppendFile, CopyFile, CopyDirectory, ListFiles on temp/ are not allowed.
         - `sys.skills/` and `skills/` — ReadFile allowed; write/copy blocked.
         """;
 

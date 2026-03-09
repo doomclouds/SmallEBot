@@ -210,7 +210,7 @@
         {
             _streamingBlocks = Orchestrator.StreamItems;
             await InvokeAsync(StateHasChanged);
-            _messageThreadRef?.RequestScrollToBottom();
+            // Do not scroll during streaming; scroll only when streaming completes (HandleStreamingCompleted)
         }
         catch (Exception ex)
         {

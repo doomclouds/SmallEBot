@@ -252,8 +252,8 @@ The assistant can use the following tools:
 | `AppendFile(path, content)` | Append content to a file (creates if missing) |
 | `ListFiles(path?)` | List workspace directory contents |
 | `CopyDirectory(sourcePath, destPath)` | Copy a directory and its contents recursively to another path |
-| `GrepFiles(pattern, ...)` | Search file names by pattern (glob/regex) |
-| `GrepContent(pattern, ...)` | Search file content (supports regex) |
+| `FindBlobs(pattern, ...)` | Search file names by pattern (glob/regex) |
+| `Grep(pattern, ...)` | Search file content (supports regex) |
 | `ReadSkill(skillName)` | Load skill file |
 | `ReadSkillFile(skillId, relativePath)` | Read file inside a skill |
 | `ListSkillFiles(skillId, path?)` | List files inside a skill |

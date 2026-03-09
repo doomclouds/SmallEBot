@@ -252,8 +252,8 @@ dotnet user-secrets set "Anthropic:ApiKey" "your-api-key"
 | `AppendFile(path, content)` | 向文件追加内容（不存在则创建） |
 | `ListFiles(path?)` | 列出工作区目录内容 |
 | `CopyDirectory(sourcePath, destPath)` | 将某目录及其内容递归复制到另一目录 |
-| `GrepFiles(pattern, ...)` | 按模式搜索文件名（glob/regex） |
-| `GrepContent(pattern, ...)` | 搜索文件内容（支持正则表达式） |
+| `FindBlobs(pattern, ...)` | 按模式搜索文件名（glob/regex） |
+| `Grep(pattern, ...)` | 搜索文件内容（支持正则表达式） |
 | `ReadSkill(skillName)` | 加载技能文件 |
 | `ReadSkillFile(skillId, relativePath)` | 读取技能内的文件 |
 | `ListSkillFiles(skillId, path?)` | 列出技能内的文件 |

@@ -18,8 +18,8 @@ public static class BuiltInToolNames
     public const string CopyDirectory    = nameof(CopyDirectory);
 
     // Search tools (SearchToolProvider)
-    public const string GrepFiles   = nameof(GrepFiles);
-    public const string GrepContent = nameof(GrepContent);
+    public const string FindBlobs  = nameof(FindBlobs);
+    public const string Grep       = nameof(Grep);
 
     // Shell (ShellToolProvider)
     public const string ExecuteCommand = nameof(ExecuteCommand);

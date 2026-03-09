@@ -7,12 +7,11 @@ using Microsoft.Extensions.FileSystemGlobbing.Abstractions;
 using SmallEBot.Application.Contracts.Agents.Tools;
 using SmallEBot.Application.Contracts.Workspaces;
 using SmallEBot.Core;
-using SmallEBot.Domain.Workspaces;
 
 namespace SmallEBot.Infrastructure.Agents.Tools;
 
-/// <summary>Provides file search tools (GrepFiles, GrepContent).</summary>
-public sealed class SearchToolProvider(IVirtualFileSystem vfs, IWorkspaceReadOnlyPolicy readOnlyPolicy) : IToolProvider
+/// <summary>Provides file search tools (FindBlobs for file names, Grep for content). All workspace paths are searchable.</summary>
+public sealed class SearchToolProvider(IVirtualFileSystem vfs) : IToolProvider
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -25,26 +24,22 @@ public sealed class SearchToolProvider(IVirtualFileSystem vfs, IWorkspaceReadOnl
 
     public TimeSpan? GetTimeout(string toolName) => toolName switch
     {
-        BuiltInToolNames.GrepFiles   => TimeSpan.FromSeconds(60),
-        BuiltInToolNames.GrepContent => TimeSpan.FromSeconds(60),
+        BuiltInToolNames.FindBlobs => TimeSpan.FromSeconds(60),
+        BuiltInToolNames.Grep      => TimeSpan.FromSeconds(60),
         _ => null
     };
 
     public IEnumerable<AITool> GetTools()
     {
-        yield return AIFunctionFactory.Create(GrepFiles);
-        yield return AIFunctionFactory.Create(GrepContent);
+        yield return AIFunctionFactory.Create(FindBlobs);
+        yield return AIFunctionFactory.Create(Grep);
     }
 
-    [Description("Find files by name or extension (e.g. all *.cs, *test*.py). Returns JSON with file paths. Use this when the user wants to find/locate FILES by name. pattern: glob like *.cs or regex. mode: 'glob' (default) or 'regex'. path: subdirectory to search (default root). maxDepth: recursion limit (default 10, 0=unlimited). Paths under sys.skills/, skills/, or temp/ are excluded from results and cannot be used as path.")]
-    private string GrepFiles(string pattern, string? mode = null, string? path = null, int maxDepth = 10)
+    [Description("Find files by name or extension (e.g. all *.cs, *test*.py). Returns JSON with file paths. Use this when the user wants to find/locate FILES by name. pattern: glob like *.cs or regex. mode: 'glob' (default) or 'regex'. path: subdirectory to search (default root). maxDepth: recursion limit (default 10, 0=unlimited). All paths under workspace are searchable (sys.skills/, skills/, temp/ included).")]
+    private string FindBlobs(string pattern, string? mode = null, string? path = null, int maxDepth = 10)
     {
         if (string.IsNullOrWhiteSpace(pattern))
             return "Error: pattern is required.";
-
-        var pathNorm = (path?.Trim() ?? ".").Replace('\\', '/').TrimStart('/');
-        if (!string.IsNullOrEmpty(pathNorm) && pathNorm != "." && readOnlyPolicy.IsUnder(pathNorm))
-            return readOnlyPolicy.RestrictedSearchMessage;
 
         var baseDir = Path.GetFullPath(vfs.GetRootPath());
         var searchDir = string.IsNullOrWhiteSpace(path) || path.Trim() == "."
@@ -65,17 +60,18 @@ public sealed class SearchToolProvider(IVirtualFileSystem vfs, IWorkspaceReadOnl
             if (matchMode == "glob")
             {
                 var matcher = new Matcher(StringComparison.OrdinalIgnoreCase);
-                matcher.AddInclude(pattern);
+                var globPattern = pattern.Contains("**", StringComparison.Ordinal) ? pattern : "**/" + pattern;
+                matcher.AddInclude(globPattern);
                 var matchResult = matcher.Execute(new DirectoryInfoWrapper(new DirectoryInfo(searchDir)));
                 files = matchResult.Files
-                    .Where(f => effectiveDepth == int.MaxValue || f.Path.Count(c => c == '/') < effectiveDepth)
+                    .Where(f => effectiveDepth == int.MaxValue || f.Path.Count(c => c == '/') <= effectiveDepth)
                     .Select(f =>
                     {
                         var relFromSearch = f.Path.Replace('/', Path.DirectorySeparatorChar);
                         var absolute = Path.GetFullPath(Path.Combine(searchDir, relFromSearch));
                         return Path.GetRelativePath(baseDir, absolute);
                     })
-                    .Where(f => AllowedFileExtensions.IsAllowed(Path.GetExtension(f)) && !readOnlyPolicy.IsUnder(f.Replace('\\', '/')))
+                    .Where(f => AllowedFileExtensions.IsAllowed(Path.GetExtension(f)))
                     .ToList();
             }
             else if (matchMode == "regex")
@@ -102,7 +98,6 @@ public sealed class SearchToolProvider(IVirtualFileSystem vfs, IWorkspaceReadOnl
                     return regex.IsMatch(relativePath);
                 })
                 .Select(f => Path.GetRelativePath(baseDir, f))
-                .Where(rel => !readOnlyPolicy.IsUnder(rel.Replace('\\', '/')))
                 .ToList();
             }
             else
@@ -110,7 +105,7 @@ public sealed class SearchToolProvider(IVirtualFileSystem vfs, IWorkspaceReadOnl
                 return "Error: mode must be 'glob' or 'regex'.";
             }
 
-            const int maxFiles = 500;
+            const int maxFiles = 50;
             var truncated = files.Count > maxFiles;
             var limitedFiles = files.Take(maxFiles).ToList();
 
@@ -130,8 +125,8 @@ public sealed class SearchToolProvider(IVirtualFileSystem vfs, IWorkspaceReadOnl
         }
     }
 
-    [Description("Find text INSIDE files (search file content). Use when you want to find WHERE something is defined, which files CONTAIN a string, or search within file bodies. pattern: regex matched against each line. path: subdirectory to search (default root). filePattern: restrict to file types (e.g. '*.cs'). ignoreCase: case-insensitive match. filesOnly=true: list matching files only (cheapest; use first to locate files). countOnly=true: match counts per file. contextLines/beforeLines/afterLines: surrounding lines. maxResults: result limit (default 100). maxDepth: directory recursion limit (default 0 = unlimited). Paths under sys.skills/, skills/, or temp/ are excluded and cannot be used as path.")]
-    private string GrepContent(
+    [Description("Find text INSIDE files (search file content). Use when you want to find WHERE something is defined, which files CONTAIN a string, or search within file bodies. pattern: regex matched against each line. path: subdirectory to search (default root). filePattern: restrict to file types (e.g. '*.cs'). ignoreCase: case-insensitive match. filesOnly=true: list matching files only (cheapest; use first to locate files). countOnly=true: match counts per file. contextLines/beforeLines/afterLines: surrounding lines. maxResults: result limit (default 10). maxDepth: directory recursion limit (default 0 = unlimited). All paths under workspace are searchable (sys.skills/, skills/, temp/ included).")]
+    private string Grep(
         string pattern,
         string? path = null,
         string? filePattern = null,
@@ -142,7 +137,7 @@ public sealed class SearchToolProvider(IVirtualFileSystem vfs, IWorkspaceReadOnl
         bool filesOnly = false,
         bool countOnly = false,
         bool invertMatch = false,
-        int maxResults = 100,
+        int maxResults = 10,
         int maxDepth = 0)
     {
         if (string.IsNullOrWhiteSpace(pattern))
@@ -159,10 +154,6 @@ public sealed class SearchToolProvider(IVirtualFileSystem vfs, IWorkspaceReadOnl
         {
             return $"Error: Invalid regex pattern: {ex.Message}";
         }
-
-        var pathNorm = (path?.Trim() ?? ".").Replace('\\', '/').TrimStart('/');
-        if (!string.IsNullOrEmpty(pathNorm) && pathNorm != "." && readOnlyPolicy.IsUnder(pathNorm))
-            return readOnlyPolicy.RestrictedSearchMessage;
 
         var baseDir = Path.GetFullPath(vfs.GetRootPath());
         var searchDir = string.IsNullOrWhiteSpace(path) || path.Trim() == "."
@@ -183,10 +174,11 @@ public sealed class SearchToolProvider(IVirtualFileSystem vfs, IWorkspaceReadOnl
         if (!string.IsNullOrWhiteSpace(filePattern))
         {
             var matcher = new Matcher(StringComparison.OrdinalIgnoreCase);
-            matcher.AddInclude(filePattern);
+            var globPattern = filePattern.Contains("**", StringComparison.Ordinal) ? filePattern : "**/" + filePattern;
+            matcher.AddInclude(globPattern);
             var matchResult = matcher.Execute(new DirectoryInfoWrapper(new DirectoryInfo(searchDir)));
             files = matchResult.Files
-                .Where(f => effectiveDepth == int.MaxValue || f.Path.Count(c => c == '/') < effectiveDepth)
+                .Where(f => effectiveDepth == int.MaxValue || f.Path.Count(c => c == '/') <= effectiveDepth)
                 .Select(f => Path.Combine(searchDir, f.Path.Replace('/', Path.DirectorySeparatorChar)))
                 .Where(f => AllowedFileExtensions.IsAllowed(Path.GetExtension(f)));
         }
@@ -209,10 +201,6 @@ public sealed class SearchToolProvider(IVirtualFileSystem vfs, IWorkspaceReadOnl
             foreach (var filePath in files)
             {
                 if (truncated) break;
-
-                var relPath = Path.GetRelativePath(baseDir, filePath).Replace('\\', '/');
-                if (readOnlyPolicy.IsUnder(relPath))
-                    continue;
 
                 var fileInfo = new FileInfo(filePath);
                 if (fileInfo.Length > maxFileSize)
