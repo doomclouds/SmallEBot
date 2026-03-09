@@ -36,9 +36,4 @@ public interface IConversationMetadataRepository
     /// Deletes conversation metadata (and associated session.json) by ID.
     /// </summary>
     Task DeleteAsync(Guid id, CancellationToken ct = default);
-
-    /// <summary>
-    /// Gets the total turn count for a conversation.
-    /// </summary>
-    Task<int> GetTurnCountAsync(Guid conversationId, CancellationToken ct = default);
 }

@@ -5,11 +5,6 @@ using SmallEBot.Domain.Conversations.Metadata;
 
 namespace SmallEBot.Infrastructure.Conversations.Metadata;
 
-/// <summary>
-/// File-based implementation of IConversationMetadataRepository.
-/// Metadata is stored in .agents/conversations/{conversationId:N}/metadata.json
-/// Thread-safe with SemaphoreSlim for async-safe locking.
-/// </summary>
 public sealed class ConversationMetadataRepository : IConversationMetadataRepository, IDisposable
 {
     private readonly string _basePath;
@@ -17,10 +12,6 @@ public sealed class ConversationMetadataRepository : IConversationMetadataReposi
     private readonly SemaphoreSlim _semaphore = new(1, 1);
     private bool _disposed;
 
-    /// <summary>
-    /// Initializes a new instance of ConversationMetadataRepository.
-    /// </summary>
-    /// <param name="basePath">The base path for storing conversation data (application root directory).</param>
     public ConversationMetadataRepository(string basePath)
     {
         _basePath = basePath ?? throw new ArgumentNullException(nameof(basePath));
@@ -33,7 +24,6 @@ public sealed class ConversationMetadataRepository : IConversationMetadataReposi
         };
     }
 
-    /// <inheritdoc />
     public async Task<ConversationMetadata?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
         ThrowIfDisposed();
@@ -43,9 +33,7 @@ public sealed class ConversationMetadataRepository : IConversationMetadataReposi
         try
         {
             if (!File.Exists(filePath))
-            {
                 return null;
-            }
 
             var json = await File.ReadAllTextAsync(filePath, ct).ConfigureAwait(false);
             var dto = JsonSerializer.Deserialize<ConversationMetadataPersistence>(json, _jsonOptions);
@@ -57,10 +45,8 @@ public sealed class ConversationMetadataRepository : IConversationMetadataReposi
         }
     }
 
-    /// <inheritdoc />
     public async Task<IReadOnlyList<ConversationMetadata>> GetByUserNameAsync(
-        string userName,
-        CancellationToken ct = default)
+        string userName, CancellationToken ct = default)
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(userName);
@@ -72,11 +58,8 @@ public sealed class ConversationMetadataRepository : IConversationMetadataReposi
             .ToList();
     }
 
-    /// <inheritdoc />
     public async Task<IReadOnlyList<ConversationMetadata>> SearchAsync(
-        string userName,
-        string query,
-        CancellationToken ct = default)
+        string userName, string query, CancellationToken ct = default)
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(userName);
@@ -90,7 +73,6 @@ public sealed class ConversationMetadataRepository : IConversationMetadataReposi
             .ToList();
     }
 
-    /// <inheritdoc />
     public async Task SaveAsync(ConversationMetadata metadata, CancellationToken ct = default)
     {
         ThrowIfDisposed();
@@ -113,7 +95,6 @@ public sealed class ConversationMetadataRepository : IConversationMetadataReposi
         }
     }
 
-    /// <inheritdoc />
     public async Task DeleteAsync(Guid id, CancellationToken ct = default)
     {
         ThrowIfDisposed();
@@ -123,9 +104,7 @@ public sealed class ConversationMetadataRepository : IConversationMetadataReposi
         try
         {
             if (Directory.Exists(directoryPath))
-            {
                 Directory.Delete(directoryPath, recursive: true);
-            }
         }
         finally
         {
@@ -133,19 +112,6 @@ public sealed class ConversationMetadataRepository : IConversationMetadataReposi
         }
     }
 
-    /// <inheritdoc />
-    public async Task<int> GetTurnCountAsync(Guid conversationId, CancellationToken ct = default)
-    {
-        ThrowIfDisposed();
-
-        var metadata = await GetByIdAsync(conversationId, ct).ConfigureAwait(false);
-        return metadata?.Turns.Count ?? 0;
-    }
-
-    /// <summary>
-    /// Loads all conversation metadata from storage.
-    /// Handles corrupt files gracefully by skipping them.
-    /// </summary>
     private async Task<IReadOnlyList<ConversationMetadata>> LoadAllAsync(CancellationToken ct = default)
     {
         var conversationsBasePath = Path.Combine(_basePath, ".agents", "conversations");
@@ -155,9 +121,8 @@ public sealed class ConversationMetadataRepository : IConversationMetadataReposi
         try
         {
             if (!Directory.Exists(conversationsBasePath))
-            {
                 return Array.Empty<ConversationMetadata>();
-            }
+
             var conversationDirs = Directory.GetDirectories(conversationsBasePath);
             filesToRead = conversationDirs
                 .Select(dir => Path.Combine(dir, "metadata.json"))
@@ -178,18 +143,10 @@ public sealed class ConversationMetadataRepository : IConversationMetadataReposi
                 var json = await File.ReadAllTextAsync(filePath, ct).ConfigureAwait(false);
                 var dto = JsonSerializer.Deserialize<ConversationMetadataPersistence>(json, _jsonOptions);
                 if (dto is not null)
-                {
                     results.Add(FromPersistence(dto));
-                }
             }
-            catch (JsonException)
-            {
-                // Skip corrupt files
-            }
-            catch (IOException)
-            {
-                // Skip files that can't be read
-            }
+            catch (JsonException) { }
+            catch (IOException) { }
         }
 
         return results;
@@ -205,15 +162,7 @@ public sealed class ConversationMetadataRepository : IConversationMetadataReposi
             CreatedAt = m.CreatedAt,
             UpdatedAt = m.UpdatedAt,
             CompressedContext = m.CompressedContext,
-            CompressedAt = m.CompressedAt,
-            Turns = m.Turns.Select(t => new TurnInfoPersistence
-            {
-                Id = t.Id,
-                CreatedAt = t.CreatedAt,
-                FirstMessageIndex = t.FirstMessageIndex,
-                AttachedPaths = t.AttachedPaths.ToList(),
-                RequestedSkillIds = t.RequestedSkillIds.ToList()
-            }).ToList()
+            CompressedAt = m.CompressedAt
         };
     }
 
@@ -224,17 +173,6 @@ public sealed class ConversationMetadataRepository : IConversationMetadataReposi
             dto.Title,
             dto.UserName,
             dto.CreatedAt);
-
-        foreach (var t in dto.Turns)
-        {
-            var turn = new TurnInfo(
-                t.Id,
-                t.CreatedAt,
-                t.FirstMessageIndex,
-                t.AttachedPaths.ToArray(),
-                t.RequestedSkillIds.ToArray());
-            metadata.AddExistingTurn(turn);
-        }
 
         metadata.SetUpdatedAt(dto.UpdatedAt);
         metadata.SetCompressedContextForLoad(dto.CompressedContext, dto.CompressedAt);
@@ -254,21 +192,12 @@ public sealed class ConversationMetadataRepository : IConversationMetadataReposi
     private void ThrowIfDisposed()
     {
         if (_disposed)
-        {
             throw new ObjectDisposedException(nameof(ConversationMetadataRepository));
-        }
     }
 
-    /// <summary>
-    /// Releases all resources used by the ConversationMetadataRepository.
-    /// </summary>
     public void Dispose()
     {
-        if (_disposed)
-        {
-            return;
-        }
-
+        if (_disposed) return;
         _semaphore.Dispose();
         _disposed = true;
     }
