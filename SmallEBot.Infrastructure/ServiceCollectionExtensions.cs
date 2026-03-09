@@ -63,8 +63,6 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAgentSessionReader, AgentSessionReader>();
         services.AddScoped<IConversationMessageStore, ConversationMessageStore>();
 
-        services.AddSingleton<IConversationSessionCoordinator, ConversationSessionCoordinator>();
-
         services.AddSingleton(_ => new TaskListCache(basePath));
         services.AddSingleton<ITaskListService, TaskListService>();
         services.AddSingleton<IAmbientConversationId, AmbientConversationId>();
