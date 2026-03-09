@@ -194,7 +194,14 @@
     {
         try
         {
-            // Generate title after first message completes (deferred from HandleSend)
+            // Refresh messages FIRST so content appears immediately
+            _pendingUserText = null;
+            _truncateDisplayAt = null;
+            await OnMessageSent.InvokeAsync();
+            _messageThreadRef?.RequestScrollToBottom();
+            await InvokeAsync(StateHasChanged);
+
+            // Generate title AFTER messages are displayed (slow LLM call)
             if (_needsTitleGeneration && ConversationId.HasValue)
             {
                 _needsTitleGeneration = false;
@@ -202,19 +209,16 @@
                 {
                     var title = await AgentDispatcher.GenerateTitleAsync(_titleSourceText ?? "");
                     await ConversationService.SetTitleAsync(ConversationId.Value, title);
+                    _titleSourceText = null;
+                    await OnMessageSent.InvokeAsync();
+                    await InvokeAsync(StateHasChanged);
                 }
                 catch (Exception ex)
                 {
                     Log.LogWarning(ex, "Title generation failed");
+                    _titleSourceText = null;
                 }
-                _titleSourceText = null;
             }
-
-            _pendingUserText = null;
-            _truncateDisplayAt = null;
-            await OnMessageSent.InvokeAsync();
-            _messageThreadRef?.RequestScrollToBottom();
-            await InvokeAsync(StateHasChanged);
         }
         catch (Exception ex)
         {
