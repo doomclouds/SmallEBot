@@ -10,9 +10,10 @@
             {
                 var captured = r;
                 <MudChip T="object" Color="Color.Primary" Variant="Variant.Filled"
+                         Icon="@Icons.Material.Filled.AttachFile"
                          OnClose="@(() => Orchestrator.RemoveAttachment(captured))"
                          CloseIcon="@Icons.Material.Filled.Cancel">
-                    @r.Path
+                    @System.IO.Path.GetFileName(r.Path)
                 </MudChip>
             }
             else if (item is PendingUploadAttachment p)
@@ -32,9 +33,10 @@
         {
             var captured = skillId;
             <MudChip T="object" Color="Color.Secondary" Variant="Variant.Filled"
+                     Icon="@Icons.Material.Filled.AutoAwesome"
                      OnClose="@(() => Orchestrator.RemoveSkill(captured))"
                      CloseIcon="@Icons.Material.Filled.Cancel">
-                /@skillId
+                @skillId
             </MudChip>
         }
     </div>
