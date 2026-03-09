@@ -2,6 +2,7 @@
 @using SmallEBot.Components.Chat.Services
 @using SmallEBot.Components.Chat.ViewModels.Blocks
 @using SmallEBot.Components.Chat.Messages.Blocks
+@using SmallEBot.Core
 @using Microsoft.Extensions.AI
 @inject IJSRuntime JS
 @inject ChatPresentationService Presentation
@@ -15,6 +16,7 @@
 
         @if (msg.Role == ChatRole.User)
         {
+            var decoded = UserMessageCodec.Decode(GetTextContent(msg));
             <div class="smallebot-cli-user">
                 <div class="d-flex align-center justify-space-between">
                     <MudText Typo="Typo.caption" Class="smallebot-cli-role-user">❯ User</MudText>
@@ -38,8 +40,23 @@
                         </div>
                     }
                 </div>
+                @if (decoded.HasAttachments)
+                {
+                    <div class="d-flex flex-wrap gap-1 mt-1 mb-1">
+                        @foreach (var file in decoded.Files)
+                        {
+                            <MudChip T="string" Color="Color.Primary" Variant="Variant.Outlined" Size="Size.Small"
+                                     Icon="@Icons.Material.Filled.AttachFile">@System.IO.Path.GetFileName(file)</MudChip>
+                        }
+                        @foreach (var skill in decoded.Skills)
+                        {
+                            <MudChip T="string" Color="Color.Secondary" Variant="Variant.Outlined" Size="Size.Small"
+                                     Icon="@Icons.Material.Filled.AutoAwesome">@skill</MudChip>
+                        }
+                    </div>
+                }
                 <div class="smallebot-cli-content">
-                    <MarkdownBlock Content="@GetTextContent(msg)" />
+                    <MarkdownBlock Content="@decoded.Text" />
                 </div>
             </div>
         }
@@ -70,10 +87,26 @@
 
     @if (!string.IsNullOrEmpty(PendingUserText))
     {
+        var pendingDecoded = UserMessageCodec.Decode(PendingUserText);
         <div class="smallebot-cli-user">
             <MudText Typo="Typo.caption" Class="smallebot-cli-role-user">❯ User</MudText>
+            @if (pendingDecoded.HasAttachments)
+            {
+                <div class="d-flex flex-wrap gap-1 mt-1 mb-1">
+                    @foreach (var file in pendingDecoded.Files)
+                    {
+                        <MudChip T="string" Color="Color.Primary" Variant="Variant.Outlined" Size="Size.Small"
+                                 Icon="@Icons.Material.Filled.AttachFile">@System.IO.Path.GetFileName(file)</MudChip>
+                    }
+                    @foreach (var skill in pendingDecoded.Skills)
+                    {
+                        <MudChip T="string" Color="Color.Secondary" Variant="Variant.Outlined" Size="Size.Small"
+                                 Icon="@Icons.Material.Filled.AutoAwesome">@skill</MudChip>
+                    }
+                </div>
+            }
             <div class="smallebot-cli-content">
-                <MarkdownBlock Content="@PendingUserText" />
+                <MarkdownBlock Content="@pendingDecoded.Text" />
             </div>
         </div>
     }

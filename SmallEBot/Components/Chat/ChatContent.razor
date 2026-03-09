@@ -3,6 +3,7 @@
 @using SmallEBot.Components.Chat.Messages
 @using SmallEBot.Components.Chat.Input
 @using SmallEBot.Components.Chat.Orchestration
+@using SmallEBot.Core
 @using SmallEBot.Core.Models
 @using SmallEBot.Services.Circuit
 @using Microsoft.Extensions.AI
@@ -283,12 +284,15 @@
     private async Task HandleSend()
     {
         if (!ConversationId.HasValue) return;
-        var (text, _, _) = _inputOrchestrator.Collect();
+        var (text, attachedPaths, requestedSkillIds) = _inputOrchestrator.Collect();
         if (string.IsNullOrWhiteSpace(text)) return;
         if (Orchestrator.IsStreaming || Orchestrator.IsCompressing) return;
 
+        // Encode attachments into the message text
+        var fullMessage = UserMessageCodec.Encode(text, attachedPaths, requestedSkillIds);
+
         // Immediately show pending message and switch to streaming state
-        _pendingUserText = text;
+        _pendingUserText = fullMessage;
         _messageCountBeforeSend = Messages.Count;
         _sendCts?.Dispose();
         _sendCts = new CancellationTokenSource();
@@ -307,7 +311,7 @@
         if (compressed)
             await Orchestrator.RefreshContextUsageAsync();
 
-        await Orchestrator.RunStreamingLoopAsync(text, UseThinkingMode, CircuitAccessor.CurrentCircuit?.Id, _sendCts);
+        await Orchestrator.RunStreamingLoopAsync(fullMessage, UseThinkingMode, CircuitAccessor.CurrentCircuit?.Id, _sendCts);
     }
 
     private void HandleStop() => Orchestrator.RequestStop();
