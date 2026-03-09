@@ -1,21 +1,19 @@
-@* Chat content: drop-in replacement for ChatArea. Uses ChatShell, MessageThread, ChatInput, ChatOrchestrator, InputOrchestrator. *@
+@* Chat content: CLI-style message display with streaming, approval, compression *@
 @using SmallEBot.Components.Chat.ViewModels.Blocks
 @using SmallEBot.Components.Chat.Messages
 @using SmallEBot.Components.Chat.Input
 @using SmallEBot.Components.Chat.Orchestration
 @using SmallEBot.Core.Models
-@using UserBubbleModel = SmallEBot.Core.Models.UserBubble
-@using SmallEBot.Models
 @using SmallEBot.Services.Circuit
+@using Microsoft.Extensions.AI
 @inject IConversationService ConversationService
 @inject IConversationAgentDispatcher AgentDispatcher
-@inject IDialogService DialogSvc
-@inject IWorkspaceUploadService UploadService
 @inject ICurrentCircuitAccessor CircuitAccessor
 @inject IUserNameDisplayService UserNameDisplay
 @inject IWorkspaceService WorkspaceService
 @inject ISkillsConfigService SkillsConfigService
 @inject IModelConfigService ModelConfigService
+@inject IWorkspaceUploadService UploadService
 @inject IJSRuntime JS
 @inject ISnackbar Snackbar
 @inject ILogger<ChatContent> Log
@@ -30,8 +28,8 @@
                      IsProcessing="@(Orchestrator.ApprovalProcessingCallId != null)" />
     <ChatShell>
         <MessageArea>
-            <MessageThread Bubbles="@Bubbles"
-                           PendingUserMessage="@_pendingUserMessage"
+            <MessageThread Messages="@Messages"
+                           PendingUserText="@_pendingUserText"
                            StreamingBlocks="@_streamingBlocks"
                            IsStreaming="@Orchestrator.IsStreaming"
                            IsCompressing="@Orchestrator.IsCompressing"
@@ -39,7 +37,7 @@
                            ShowWaitingForToolParams="@Orchestrator.ShowWaitingForToolParams"
                            WaitingElapsed="@Orchestrator.WaitingElapsed"
                            ShowToolCalls="@ShowToolCalls"
-                           OnEditMessage="@HandleEditMessage"
+                           OnRestartFromMessage="@HandleRestartFromMessage"
                            OnApprove="@HandleApprove"
                            OnReject="@HandleReject"
                            OnCancel="@HandleCancel"
@@ -60,11 +58,10 @@
 </MudPaper>
 
 @code {
-    [Parameter] public List<ChatBubble> Bubbles { get; set; } = [];
+    [Parameter] public IReadOnlyList<ChatMessage> Messages { get; set; } = [];
     [Parameter] public Guid? ConversationId { get; set; }
     [Parameter] public string UserName { get; set; } = "";
     [Parameter] public EventCallback OnMessageSent { get; set; }
-    [Parameter] public EventCallback<EditSubmittedArgs> OnEditSubmitted { get; set; }
     [Parameter] public EventCallback OnBeforeSend { get; set; }
     [CascadingParameter(Name = "ShowToolCalls")] public bool ShowToolCalls { get; set; } = true;
     [CascadingParameter(Name = "UseThinkingMode")] public bool UseThinkingMode { get; set; }
@@ -72,12 +69,9 @@
     private InputOrchestrator _inputOrchestrator = null!;
     private MessageThread? _messageThreadRef;
     private IReadOnlyList<IBubbleBlock> _streamingBlocks = [];
-    private MessageInfo? _pendingUserMessage;
-    private string _pendingUserMessageText = "";
-    private DateTime _pendingUserMessageTime;
-    private int _bubbleCountBeforeSend;
+    private string? _pendingUserText;
+    private int _messageCountBeforeSend;
     private CancellationTokenSource? _sendCts;
-    private string? _userNameForAction;
     private Guid? _lastConversationId;
     private bool _contextRefreshRequested;
     private DotNetObjectReference<ChatContent>? _dropZoneDotNetRef;
@@ -100,15 +94,14 @@
         {
             _lastConversationId = ConversationId;
             Orchestrator.SetConversation(ConversationId);
-            if (Bubbles.Count > 0)
+            if (Messages.Count > 0)
                 _messageThreadRef?.RequestScrollToBottom();
             _contextRefreshRequested = true;
         }
-        if (Orchestrator.IsStreaming && Bubbles.Count > _bubbleCountBeforeSend)
+        if (Orchestrator.IsStreaming && Messages.Count > _messageCountBeforeSend)
         {
             Orchestrator.RequestStop();
         }
-        RefreshPendingMessage();
     }
 
     protected override async Task OnParametersSetAsync()
@@ -176,41 +169,12 @@
         await InvokeAsync(StateHasChanged);
     }
 
-    private void RefreshPendingMessage()
-    {
-        if (!string.IsNullOrEmpty(_pendingUserMessageText) && !IsPendingMessageAlreadyInBubbles())
-        {
-            _pendingUserMessage = new MessageInfo
-            {
-                Id = Guid.Empty,
-                Role = "user",
-                Content = _pendingUserMessageText,
-                CreatedAt = _pendingUserMessageTime,
-                IsEdited = false,
-                AttachedPaths = [],
-                RequestedSkillIds = []
-            };
-        }
-        else
-        {
-            _pendingUserMessage = null;
-        }
-    }
-
-    private bool IsPendingMessageAlreadyInBubbles()
-    {
-        if (string.IsNullOrEmpty(_pendingUserMessageText) || Bubbles.Count == 0) return false;
-        var lastUser = Bubbles.OfType<UserBubbleModel>().LastOrDefault();
-        return lastUser?.Message.Content.Trim() == _pendingUserMessageText.Trim();
-    }
-
     private async void HandleOrchestratorStateChanged()
     {
         try
         {
             _streamingBlocks = Orchestrator.StreamItems;
             await InvokeAsync(StateHasChanged);
-            // Do not scroll during streaming; scroll only when streaming completes (HandleStreamingCompleted)
         }
         catch (Exception ex)
         {
@@ -222,8 +186,7 @@
     {
         try
         {
-            _pendingUserMessageText = "";
-            RefreshPendingMessage();
+            _pendingUserText = null;
             await OnMessageSent.InvokeAsync();
             _messageThreadRef?.RequestScrollToBottom();
             await InvokeAsync(StateHasChanged);
@@ -234,97 +197,49 @@
         }
     }
 
-    private async Task HandleEditMessage(MessageInfo msg)
+    private async Task HandleRestartFromMessage(int messageIndex)
     {
         if (Orchestrator.IsStreaming || !ConversationId.HasValue) return;
-        var originalBubble = Bubbles.OfType<UserBubbleModel>().FirstOrDefault(b => b.Message.Id == msg.Id);
-        if (originalBubble?.Message is not { } message) return;
-
-        var parameters = new DialogParameters
-        {
-            [nameof(EditMessageDialog.InitialContent)] = message.Content,
-            [nameof(EditMessageDialog.InitialAttachedPaths)] = message.AttachedPaths,
-            [nameof(EditMessageDialog.InitialRequestedSkillIds)] = message.RequestedSkillIds
-        };
-        var dialog = await DialogSvc.ShowAsync<EditMessageDialog>("Edit message", parameters, new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
-        var result = await dialog.Result;
-        if (result == null || result.Canceled || result.Data is not EditMessageResult editResult || string.IsNullOrWhiteSpace(editResult.Content)) return;
-
-        _userNameForAction = await UserNameDisplay.GetUserNameAsync() ?? UserName;
-        if (string.IsNullOrWhiteSpace(_userNameForAction))
-        {
-            Snackbar.Add("Username is missing.", Severity.Warning);
-            return;
-        }
 
         _sendCts?.Dispose();
         _sendCts = new CancellationTokenSource();
-        var replaceResult = await ConversationService.ReplaceUserMessageAsync(ConversationId!.Value, _userNameForAction!, message.Id, editResult.Content.Trim(), UseThinkingMode, editResult.AttachedPaths, editResult.RequestedSkillIds, _sendCts.Token);
-        if (replaceResult == null)
-        {
-            _sendCts.Dispose();
-            _sendCts = null;
-            await InvokeAsync(StateHasChanged);
-            return;
-        }
-        await AgentDispatcher.TruncateSessionFromTurnAsync(ConversationId!.Value, _userNameForAction!, replaceResult.Value.TurnId, _sendCts.Token);
-        var originalCreatedAt = (Bubbles.FirstOrDefault(b => b is UserBubbleModel ub && ub.Message.Id == replaceResult.Value.TurnId) as UserBubbleModel)?.Message.CreatedAt ?? DateTime.UtcNow;
-        await OnEditSubmitted.InvokeAsync(new EditSubmittedArgs(replaceResult.Value.TurnId, replaceResult.Value.UserMessage, replaceResult.Value.AttachedPaths, replaceResult.Value.RequestedSkillIds, originalCreatedAt));
-        _bubbleCountBeforeSend = Bubbles.Count;
-        await Orchestrator.RunStreamingLoopForTurnAsync(replaceResult.Value.TurnId, replaceResult.Value.UserMessage, UseThinkingMode, replaceResult.Value.AttachedPaths, replaceResult.Value.RequestedSkillIds, CircuitAccessor.CurrentCircuit?.Id, _sendCts, truncateFromTurnId: null, userNameForTruncate: null);
+
+        await AgentDispatcher.TruncateSessionAsync(ConversationId.Value, messageIndex, _sendCts.Token);
+        await OnMessageSent.InvokeAsync();
     }
 
-    private void HandleApprove(ApprovalBlockModel model)
-    {
-        _ = Orchestrator.ApproveAsync(model);
-    }
-
-    private void HandleApproveAndWhitelist(ApprovalBlockModel model)
-    {
-        _ = Orchestrator.ApproveAndWhitelistAsync(model);
-    }
-
-    private void HandleReject(ApprovalBlockModel model)
-    {
-        _ = Orchestrator.RejectAsync(model);
-    }
-
+    private void HandleApprove(ApprovalBlockModel model) => _ = Orchestrator.ApproveAsync(model);
+    private void HandleApproveAndWhitelist(ApprovalBlockModel model) => _ = Orchestrator.ApproveAndWhitelistAsync(model);
+    private void HandleReject(ApprovalBlockModel model) => _ = Orchestrator.RejectAsync(model);
     private void HandleCancel() => Orchestrator.RequestStop();
 
     private async Task HandleSend()
     {
         if (!ConversationId.HasValue) return;
-        var (text, attachedPaths, requestedSkillIds) = _inputOrchestrator.Collect();
+        var (text, _, _) = _inputOrchestrator.Collect();
         if (string.IsNullOrWhiteSpace(text)) return;
         if (Orchestrator.IsStreaming || Orchestrator.IsCompressing) return;
 
         await OnBeforeSend.InvokeAsync();
 
-        var userName = await UserNameDisplay.GetUserNameAsync() ?? UserName;
-        if (string.IsNullOrWhiteSpace(userName))
-        {
-            Snackbar.Add("Username is missing. Please refresh and enter your name.", Severity.Warning);
-            await InvokeAsync(StateHasChanged);
-            return;
-        }
-
         var compressed = await Orchestrator.CheckAndCompactIfNeededAsync();
         if (compressed)
             await Orchestrator.RefreshContextUsageAsync();
 
-        _pendingUserMessageText = text;
-        _pendingUserMessageTime = DateTime.UtcNow;
-        _bubbleCountBeforeSend = Bubbles.Count;
-        RefreshPendingMessage();
+        var isFirst = !await ConversationService.HasMessagesAsync(ConversationId.Value);
+        if (isFirst)
+        {
+            var title = await AgentDispatcher.GenerateTitleAsync(text);
+            await ConversationService.SetTitleAsync(ConversationId.Value, title);
+        }
+
+        _pendingUserText = text;
+        _messageCountBeforeSend = Messages.Count;
         await InvokeAsync(StateHasChanged);
 
         _sendCts?.Dispose();
         _sendCts = new CancellationTokenSource();
-        string? suggestedTitle = null;
-        if (await ConversationService.GetTurnCountAsync(ConversationId!.Value, _sendCts.Token) == 0)
-            suggestedTitle = await AgentDispatcher.GenerateTitleAsync(text, _sendCts.Token);
-        var turnId = await ConversationService.CreateTurnAndUserMessageAsync(ConversationId!.Value, userName, text, UseThinkingMode, _sendCts.Token, attachedPaths, requestedSkillIds, suggestedTitle);
-        await Orchestrator.RunStreamingLoopAsync(turnId, text, UseThinkingMode, attachedPaths, requestedSkillIds, CircuitAccessor.CurrentCircuit?.Id, _sendCts);
+        await Orchestrator.RunStreamingLoopAsync(text, UseThinkingMode, CircuitAccessor.CurrentCircuit?.Id, _sendCts);
     }
 
     private void HandleStop() => Orchestrator.RequestStop();

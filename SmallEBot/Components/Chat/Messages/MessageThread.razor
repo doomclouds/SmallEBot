@@ -1,33 +1,68 @@
-@* Message thread: bubbles + pending user + streaming + compression indicator *@
+@* CLI-style message thread: linear display, role prefixes, collapsible tool calls *@
 @using SmallEBot.Components.Chat.Services
 @using SmallEBot.Components.Chat.ViewModels.Blocks
-@using SmallEBot.Components.Chat.Messages.Bubbles
-@using SmallEBot.Core.Models
-@using UserBubbleModel = SmallEBot.Core.Models.UserBubble
-@using AssistantBubbleModel = SmallEBot.Core.Models.AssistantBubble
+@using SmallEBot.Components.Chat.Messages.Blocks
+@using Microsoft.Extensions.AI
 @inject IJSRuntime JS
 @inject ChatPresentationService Presentation
 
 <div @ref="_scrollRef" class="smallebot-chat-scroll">
-    @foreach (var bubble in Bubbles)
+    @for (var i = 0; i < Messages.Count; i++)
     {
-        @switch (bubble)
+        var msg = Messages[i];
+        var idx = i;
+
+        @if (msg.Role == ChatRole.User)
         {
-            case UserBubbleModel user:
-                <UserBubble Message="@user.Message"
-                           ShowEditButton="@ShowEditButtons"
-                           OnEdit="@OnEditMessage" />
-                break;
-            case AssistantBubbleModel asst:
-                <AssistantBubble Blocks="@GetBlocksForAssistant(asst)"
-                                 Caption="@($"SmallEBot · {(asst.Items.Count > 0 ? asst.Items[0].CreatedAt : DateTime.UtcNow):g}")" />
-                break;
+            <div class="smallebot-cli-user">
+                <div class="d-flex align-center justify-space-between">
+                    <MudText Typo="Typo.caption" Class="smallebot-cli-role-user">❯ User</MudText>
+                    @if (ShowRestartButtons && OnRestartFromMessage.HasDelegate)
+                    {
+                        <MudTooltip Text="Restart from here">
+                            <MudIconButton Icon="@Icons.Material.Filled.Replay" Size="Size.Small" Color="Color.Default"
+                                           OnClick="@(() => OnRestartFromMessage.InvokeAsync(idx))" />
+                        </MudTooltip>
+                    }
+                </div>
+                <div class="smallebot-cli-content">
+                    <MarkdownBlock Content="@GetTextContent(msg)" />
+                </div>
+            </div>
+        }
+        else if (msg.Role == ChatRole.Assistant)
+        {
+            <div class="smallebot-cli-assistant">
+                <MudText Typo="Typo.caption" Class="smallebot-cli-role-assistant">◆ Assistant</MudText>
+                <div class="smallebot-cli-content">
+                    @foreach (var block in Presentation.ConvertMessageToBlocks(msg))
+                    {
+                        @switch (block)
+                        {
+                            case TextBlock text:
+                                <MarkdownBlock Content="@text.Content" />
+                                break;
+                            case ToolCallBlockModel tool when ShowToolCalls:
+                                <ToolCallBlock Model="@tool" />
+                                break;
+                            case ReasoningBlockModel reasoning:
+                                <ReasoningBlock Content="@reasoning.Content" />
+                                break;
+                        }
+                    }
+                </div>
+            </div>
         }
     }
 
-    @if (PendingUserMessage != null)
+    @if (!string.IsNullOrEmpty(PendingUserText))
     {
-        <UserBubble Message="@PendingUserMessage" ShowEditButton="false" />
+        <div class="smallebot-cli-user">
+            <MudText Typo="Typo.caption" Class="smallebot-cli-role-user">❯ User</MudText>
+            <div class="smallebot-cli-content">
+                <MarkdownBlock Content="@PendingUserText" />
+            </div>
+        </div>
     }
 
     @if (IsCompressing)
@@ -40,24 +75,37 @@
         </div>
     }
 
-    @if (IsStreaming)
+    @if (IsStreaming && StreamingBlocks.Count > 0)
     {
-        var streamingBlocksToShow = GetStreamingBlocks();
-        @if (streamingBlocksToShow.Count > 0)
-        {
-        <AssistantBubble Blocks="@streamingBlocksToShow"
-                         Caption="@($"SmallEBot · {DateTime.Now:g}")"
-                         ApprovalProcessingCallId="@ApprovalProcessingCallId"
-                         OnApprove="@OnApprove"
-                         OnReject="@OnReject"
-                         OnCancel="@OnCancel" />
-        }
+        <div class="smallebot-cli-assistant">
+            <MudText Typo="Typo.caption" Class="smallebot-cli-role-assistant">◆ Assistant</MudText>
+            <div class="smallebot-cli-content">
+                @foreach (var block in GetStreamingBlocks())
+                {
+                    @switch (block)
+                    {
+                        case TextBlock text:
+                            <MarkdownBlock Content="@text.Content" />
+                            break;
+                        case ToolCallBlockModel tool when ShowToolCalls:
+                            <ToolCallBlock Model="@tool" OnCancel="@OnCancel" />
+                            break;
+                        case ReasoningBlockModel reasoning:
+                            <ReasoningBlock Content="@reasoning.Content" />
+                            break;
+                        case WaitingBlockModel waiting:
+                            <WaitingBlock Model="@waiting" OnCancel="@OnCancel" />
+                            break;
+                    }
+                }
+            </div>
+        </div>
     }
 </div>
 
 @code {
-    [Parameter] public IReadOnlyList<ChatBubble> Bubbles { get; set; } = [];
-    [Parameter] public MessageInfo? PendingUserMessage { get; set; }
+    [Parameter] public IReadOnlyList<ChatMessage> Messages { get; set; } = [];
+    [Parameter] public string? PendingUserText { get; set; }
     [Parameter] public IReadOnlyList<IBubbleBlock> StreamingBlocks { get; set; } = [];
     [Parameter] public bool IsStreaming { get; set; }
     [Parameter] public bool IsCompressing { get; set; }
@@ -65,8 +113,8 @@
     [Parameter] public bool ShowWaitingForToolParams { get; set; }
     [Parameter] public TimeSpan WaitingElapsed { get; set; }
     [Parameter] public bool ShowToolCalls { get; set; } = true;
-    [Parameter] public bool ShowEditButtons { get; set; } = true;
-    [Parameter] public EventCallback<MessageInfo> OnEditMessage { get; set; }
+    [Parameter] public bool ShowRestartButtons { get; set; } = true;
+    [Parameter] public EventCallback<int> OnRestartFromMessage { get; set; }
     [Parameter] public EventCallback<ApprovalBlockModel> OnApprove { get; set; }
     [Parameter] public EventCallback<ApprovalBlockModel> OnReject { get; set; }
     [Parameter] public EventCallback OnCancel { get; set; }
@@ -77,17 +125,16 @@
 
     public void RequestScrollToBottom() => _scrollToBottomRequested = true;
 
-    private IReadOnlyList<IBubbleBlock> GetBlocksForAssistant(AssistantBubbleModel asst)
+    private static string GetTextContent(ChatMessage msg)
     {
-        var blocks = Presentation.ConvertToBlocks(asst);
-        if (ShowToolCalls) return blocks;
-        return blocks.Where(b => b is not ToolCallBlockModel).ToList();
+        if (msg.Text is { Length: > 0 } text) return text;
+        var textParts = msg.Contents?.OfType<TextContent>().Select(t => t.Text).Where(t => !string.IsNullOrEmpty(t));
+        return textParts != null ? string.Join("", textParts) : "";
     }
 
     private IReadOnlyList<IBubbleBlock> GetStreamingBlocks()
     {
         var list = ShowToolCalls ? StreamingBlocks.ToList() : StreamingBlocks.Where(b => b is not ToolCallBlockModel).ToList();
-        // Pending approvals shown in ApprovalPopover, not in bubble
         list = list.Where(b => b is not ApprovalBlockModel a || a.State != ApprovalState.Pending).ToList();
         if (ShowWaitingForToolParams)
             list.Add(new WaitingBlockModel(WaitingElapsed));

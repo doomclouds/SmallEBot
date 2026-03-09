@@ -80,7 +80,6 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IConversationService, ConversationService>();
         services.AddScoped<IConversationAgentDispatcher, ConversationAgentDispatcher>();
         services.AddScoped<IAgentRunner, AgentRunner>();
-        services.AddScoped<ITurnContextFragmentBuilder, TurnContextFragmentBuilder>();
         services.AddScoped<IAgentInvalidationService, AgentInvalidationService>();
         services.AddScoped<IContextUsageEstimator, ContextUsageEstimator>();
         services.AddSingleton<IUserPreferencesService, UserPreferencesService>();

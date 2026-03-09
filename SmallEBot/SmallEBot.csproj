@@ -44,4 +44,9 @@
     </Content>
   </ItemGroup>
 
+  <ItemGroup>
+    <_ContentIncludedByDefault Remove="Components\Chat\Messages\Bubbles\AssistantBubble.razor" />
+    <_ContentIncludedByDefault Remove="Components\Chat\Messages\Bubbles\UserBubble.razor" />
+  </ItemGroup>
+
 </Project>

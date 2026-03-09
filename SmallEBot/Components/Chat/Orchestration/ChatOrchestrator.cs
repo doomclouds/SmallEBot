@@ -174,37 +174,17 @@ public class ChatOrchestrator : IDisposable
     }
 
     public Task RunStreamingLoopAsync(
-        Guid turnId,
         string userMessage,
         bool useThinking,
-        IReadOnlyList<string> attachedPaths,
-        IReadOnlyList<string> requestedSkillIds,
         string? circuitContextId,
         CancellationTokenSource sendCts) =>
-        RunStreamingLoopCoreAsync(turnId, userMessage, useThinking, attachedPaths, requestedSkillIds, circuitContextId, sendCts, truncateFromTurnId: null, userNameForTruncate: null);
-
-    public Task RunStreamingLoopForTurnAsync(
-        Guid turnId,
-        string userMessage,
-        bool useThinking,
-        IReadOnlyList<string> attachedPaths,
-        IReadOnlyList<string> requestedSkillIds,
-        string? circuitContextId,
-        CancellationTokenSource sendCts,
-        Guid? truncateFromTurnId = null,
-        string? userNameForTruncate = null) =>
-        RunStreamingLoopCoreAsync(turnId, userMessage, useThinking, attachedPaths, requestedSkillIds, circuitContextId, sendCts, truncateFromTurnId, userNameForTruncate);
+        RunStreamingLoopCoreAsync(userMessage, useThinking, circuitContextId, sendCts);
 
     private async Task RunStreamingLoopCoreAsync(
-        Guid turnId,
         string userMessage,
         bool useThinking,
-        IReadOnlyList<string> attachedPaths,
-        IReadOnlyList<string> requestedSkillIds,
         string? circuitContextId,
-        CancellationTokenSource sendCts,
-        Guid? truncateFromTurnId,
-        string? userNameForTruncate)
+        CancellationTokenSource sendCts)
     {
         var didPersist = false;
         _sendCts = sendCts;
@@ -221,7 +201,7 @@ public class ChatOrchestrator : IDisposable
         var channel = System.Threading.Channels.Channel.CreateUnbounded<StreamUpdate>();
         var sink = new ChannelStreamSink(channel.Writer);
         var runTask = _agentDispatcher
-            .StreamResponseAndCompleteAsync(ConversationId!.Value, turnId, userMessage, useThinking, sink, sendCts.Token, circuitContextId, attachedPaths, requestedSkillIds, truncateFromTurnId, userNameForTruncate)
+            .StreamResponseAsync(ConversationId!.Value, userMessage, useThinking, sink, sendCts.Token, circuitContextId)
             .ContinueWith(_ => channel.Writer.TryComplete(null));
 
         try

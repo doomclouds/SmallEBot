@@ -1,56 +1,69 @@
-// SmallEBot/Components/Chat/Services/ChatPresentationService.cs
-
+using Microsoft.Extensions.AI;
 using SmallEBot.Components.Chat.ViewModels.Blocks;
 using SmallEBot.Core.Models;
 
 namespace SmallEBot.Components.Chat.Services;
 
 /// <summary>
-/// Presentation service: converts domain models for display.
+/// Presentation service: converts ChatMessage content and StreamUpdate sequences to IBubbleBlock lists.
 /// </summary>
 public sealed class ChatPresentationService
 {
     /// <summary>
-    /// Convert persisted AssistantBubble to IBubbleBlock list for unified rendering.
+    /// Convert a persisted assistant ChatMessage into IBubbleBlock list for rendering.
+    /// Parses AIContent items (TextContent, TextReasoningContent, FunctionCallContent, FunctionResultContent).
     /// </summary>
-    public IReadOnlyList<IBubbleBlock> ConvertToBlocks(AssistantBubble bubble)
+    public IReadOnlyList<IBubbleBlock> ConvertMessageToBlocks(ChatMessage message)
     {
-        return bubble.Items
-            .Select(TimelineItemToBlock)
-            .Where(x => x != null)
-            .Cast<IBubbleBlock>()
-            .ToList();
-    }
+        var blocks = new List<IBubbleBlock>();
+        if (message.Contents is not { Count: > 0 }) return blocks;
 
-    private static IBubbleBlock? TimelineItemToBlock(TimelineItem item)
-    {
-        if (item.ThinkBlock is { } tb)
-            return new ReasoningBlockModel(tb.Content);
-        if (item.ToolCall is { } tc)
-            return new ToolCallBlockModel(
-                CallId: "",
-                Name: tc.ToolName,
-                Phase: ToolCallPhase.Completed,
-                Arguments: tc.Arguments,
-                Result: tc.Result,
-                Error: null,
-                Elapsed: null);
-        if (item.Message is { } msg)
-            return new TextBlock(msg.Content);
-        return null;
+        foreach (var content in message.Contents)
+        {
+            switch (content)
+            {
+                case TextReasoningContent reasoning when !string.IsNullOrEmpty(reasoning.Text):
+                    blocks.Add(new ReasoningBlockModel(reasoning.Text));
+                    break;
+                case TextContent text when !string.IsNullOrEmpty(text.Text):
+                    blocks.Add(new TextBlock(text.Text));
+                    break;
+                case FunctionCallContent fnCall:
+                    blocks.Add(new ToolCallBlockModel(
+                        CallId: fnCall.CallId ?? "",
+                        Name: fnCall.Name,
+                        Phase: ToolCallPhase.Started,
+                        Arguments: fnCall.Arguments?.ToString(),
+                        Result: null,
+                        Error: null,
+                        Elapsed: null));
+                    break;
+                case FunctionResultContent fnResult:
+                    blocks.Add(new ToolCallBlockModel(
+                        CallId: fnResult.CallId ?? "",
+                        Name: fnResult.CallId ?? "tool",
+                        Phase: ToolCallPhase.Completed,
+                        Arguments: null,
+                        Result: fnResult.Result?.ToString(),
+                        Error: null,
+                        Elapsed: null));
+                    break;
+            }
+        }
+
+        return blocks;
     }
 
     /// <summary>
-    /// Convert StreamUpdate list to IBubbleBlock list for unified rendering.
+    /// Convert StreamUpdate list to IBubbleBlock list for live rendering.
     /// Merges consecutive text/think updates. Handles tool call lifecycle.
-    /// Uses pendingApprovals to reflect approval state (Approved/Rejected/Completed).
     /// </summary>
     public IReadOnlyList<IBubbleBlock> ConvertStreamToBubbleBlocks(
         IReadOnlyList<StreamUpdate> updates,
         IReadOnlyDictionary<string, ApprovalBlockModel>? pendingApprovals = null)
     {
         var blocks = new List<IBubbleBlock>();
-        var toolCallsInProgress = new Dictionary<string, int>(); // CallId -> index in blocks
+        var toolCallsInProgress = new Dictionary<string, int>();
 
         string? textBuffer = null;
         string? thinkBuffer = null;
