@@ -76,6 +76,8 @@
     private CancellationTokenSource? _sendCts;
     private Guid? _lastConversationId;
     private bool _contextRefreshRequested;
+    private bool _needsTitleGeneration;
+    private string? _titleSourceText;
     private DotNetObjectReference<ChatContent>? _dropZoneDotNetRef;
 
     protected override void OnInitialized()
@@ -188,6 +190,22 @@
     {
         try
         {
+            // Generate title after first message completes (deferred from HandleSend)
+            if (_needsTitleGeneration && ConversationId.HasValue)
+            {
+                _needsTitleGeneration = false;
+                try
+                {
+                    var title = await AgentDispatcher.GenerateTitleAsync(_titleSourceText ?? "");
+                    await ConversationService.SetTitleAsync(ConversationId.Value, title);
+                }
+                catch (Exception ex)
+                {
+                    Log.LogWarning(ex, "Title generation failed");
+                }
+                _titleSourceText = null;
+            }
+
             _pendingUserText = null;
             await OnMessageSent.InvokeAsync();
             _messageThreadRef?.RequestScrollToBottom();
@@ -232,16 +250,17 @@
 
     private async Task TruncateAndResend(int messageIndex, string userText)
     {
-        _sendCts?.Dispose();
-        _sendCts = new CancellationTokenSource();
-
-        await AgentDispatcher.TruncateSessionAsync(ConversationId!.Value, messageIndex, _sendCts.Token);
-        await OnMessageSent.InvokeAsync();
-
+        // Immediately show pending message and streaming state
         _pendingUserText = userText;
         _messageCountBeforeSend = messageIndex;
+        _sendCts?.Dispose();
+        _sendCts = new CancellationTokenSource();
         await InvokeAsync(StateHasChanged);
 
+        // Truncate session (removes message[index] and after)
+        await AgentDispatcher.TruncateSessionAsync(ConversationId!.Value, messageIndex, _sendCts.Token);
+
+        // Stream the (original or edited) user message
         await Orchestrator.RunStreamingLoopAsync(userText, UseThinkingMode, CircuitAccessor.CurrentCircuit?.Id, _sendCts);
     }
 
@@ -257,25 +276,25 @@
         if (string.IsNullOrWhiteSpace(text)) return;
         if (Orchestrator.IsStreaming || Orchestrator.IsCompressing) return;
 
+        // Immediately show pending message and switch to streaming state
+        _pendingUserText = text;
+        _messageCountBeforeSend = Messages.Count;
+        _sendCts?.Dispose();
+        _sendCts = new CancellationTokenSource();
+        await InvokeAsync(StateHasChanged);
+
         await OnBeforeSend.InvokeAsync();
 
+        // Defer title generation to HandleStreamingCompleted for first message
+        _needsTitleGeneration = Messages.Count == 0;
+        if (_needsTitleGeneration)
+            _titleSourceText = text;
+
+        // Compression check runs quickly (local token estimate)
         var compressed = await Orchestrator.CheckAndCompactIfNeededAsync();
         if (compressed)
             await Orchestrator.RefreshContextUsageAsync();
 
-        var isFirst = !await ConversationService.HasMessagesAsync(ConversationId.Value);
-        if (isFirst)
-        {
-            var title = await AgentDispatcher.GenerateTitleAsync(text);
-            await ConversationService.SetTitleAsync(ConversationId.Value, title);
-        }
-
-        _pendingUserText = text;
-        _messageCountBeforeSend = Messages.Count;
-        await InvokeAsync(StateHasChanged);
-
-        _sendCts?.Dispose();
-        _sendCts = new CancellationTokenSource();
         await Orchestrator.RunStreamingLoopAsync(text, UseThinkingMode, CircuitAccessor.CurrentCircuit?.Id, _sendCts);
     }
 
