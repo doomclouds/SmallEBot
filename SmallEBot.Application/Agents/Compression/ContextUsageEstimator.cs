@@ -37,7 +37,7 @@ public sealed class ContextUsageEstimator(
             compressedContextTokens = tokenizer.CountTokens(metadata.CompressedContext);
         }
 
-        var json = SerializeRequestJsonForTokenCount(systemPrompt, filteredMessages, truncatedToolCalls, []);
+        var json = SerializeRequestJsonForTokenCount(systemPrompt, filteredMessages, truncatedToolCalls);
         var rawTokens = tokenizer.CountTokens(json);
         var usedTokens = (int)Math.Ceiling(rawTokens * 1.05) + compressedContextTokens;
         var contextWindow = await agentBuilder.GetContextWindowTokensAsync(ct);
@@ -57,26 +57,9 @@ public sealed class ContextUsageEstimator(
         IReadOnlyList<ChatMessage> allMessages,
         ConversationMetadata? metadata)
     {
-        if (metadata?.CompressedAt == null || metadata.Turns.Count == 0)
-            return allMessages;
-
-        var keepIndices = new HashSet<int>();
-        var turns = metadata.Turns;
-        for (var k = 0; k < turns.Count; k++)
-        {
-            if (turns[k].CreatedAt <= metadata.CompressedAt.Value)
-                continue;
-            var start = turns[k].FirstMessageIndex;
-            var end = k + 1 < turns.Count ? turns[k + 1].FirstMessageIndex : allMessages.Count;
-            for (var i = start; i < end && i < allMessages.Count; i++)
-                keepIndices.Add(i);
-        }
-
-        return allMessages
-            .Select((m, i) => (Message: m, Index: i))
-            .Where(x => keepIndices.Contains(x.Index))
-            .Select(x => x.Message)
-            .ToList();
+        // After compression, session only contains post-compression messages,
+        // so no filtering needed — just return all messages.
+        return allMessages;
     }
 
     private static List<ToolCallWithTruncatedResult> ExtractToolCalls(IReadOnlyList<ChatMessage> messages, int toolResultMaxLength)
@@ -127,8 +110,7 @@ public sealed class ContextUsageEstimator(
     private static string SerializeRequestJsonForTokenCount(
         string systemPrompt,
         IReadOnlyList<ChatMessage> messages,
-        List<ToolCallWithTruncatedResult> toolCalls,
-        List<ThinkBlockInfo> thinkBlocks)
+        List<ToolCallWithTruncatedResult> toolCalls)
     {
         var payload = new RequestPayloadForTokenCount
         {
@@ -139,8 +121,7 @@ public sealed class ContextUsageEstimator(
                 ToolName = t.ToolName,
                 Arguments = t.Arguments,
                 Result = t.Result
-            }).ToList(),
-            ThinkBlocks = thinkBlocks.Select(b => new ThinkBlockItemForTokenCount { Content = b.Content }).ToList()
+            }).ToList()
         };
         return System.Text.Json.JsonSerializer.Serialize(payload);
     }
@@ -156,8 +137,6 @@ public sealed class ContextUsageEstimator(
         [JsonPropertyName("toolCalls")]
         public List<ToolCallItemForTokenCount> ToolCalls { get; set; } = [];
 
-        [JsonPropertyName("thinkBlocks")]
-        public List<ThinkBlockItemForTokenCount> ThinkBlocks { get; set; } = [];
     }
 
     private sealed class MessageItemForTokenCount
@@ -179,12 +158,6 @@ public sealed class ContextUsageEstimator(
 
         [JsonPropertyName("result")]
         public string Result { get; set; } = "";
-    }
-
-    private sealed class ThinkBlockItemForTokenCount
-    {
-        [JsonPropertyName("content")]
-        public string Content { get; set; } = "";
     }
 
     private sealed class ToolCallWithTruncatedResult
