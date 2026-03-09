@@ -29,7 +29,7 @@
                      IsProcessing="@(Orchestrator.ApprovalProcessingCallId != null)" />
     <ChatShell>
         <MessageArea>
-            <MessageThread Messages="@Messages"
+            <MessageThread Messages="@DisplayMessages"
                            PendingUserText="@_pendingUserText"
                            StreamingBlocks="@_streamingBlocks"
                            IsStreaming="@Orchestrator.IsStreaming"
@@ -78,7 +78,11 @@
     private bool _contextRefreshRequested;
     private bool _needsTitleGeneration;
     private string? _titleSourceText;
+    private int? _truncateDisplayAt;
     private DotNetObjectReference<ChatContent>? _dropZoneDotNetRef;
+
+    private IReadOnlyList<ChatMessage> DisplayMessages =>
+        _truncateDisplayAt.HasValue ? Messages.Take(_truncateDisplayAt.Value).ToList() : Messages;
 
     protected override void OnInitialized()
     {
@@ -207,6 +211,7 @@
             }
 
             _pendingUserText = null;
+            _truncateDisplayAt = null;
             await OnMessageSent.InvokeAsync();
             _messageThreadRef?.RequestScrollToBottom();
             await InvokeAsync(StateHasChanged);
@@ -250,7 +255,8 @@
 
     private async Task TruncateAndResend(int messageIndex, string userText)
     {
-        // Immediately show pending message and streaming state
+        // Immediately truncate displayed messages and show pending text
+        _truncateDisplayAt = messageIndex;
         _pendingUserText = userText;
         _messageCountBeforeSend = messageIndex;
         _sendCts?.Dispose();
