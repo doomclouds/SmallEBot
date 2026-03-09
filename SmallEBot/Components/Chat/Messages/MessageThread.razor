@@ -7,6 +7,7 @@
 @inject ChatPresentationService Presentation
 
 <div @ref="_scrollRef" class="smallebot-chat-scroll">
+    @{ var toolResults = ChatPresentationService.BuildToolResultsMap(Messages); }
     @for (var i = 0; i < Messages.Count; i++)
     {
         var msg = Messages[i];
@@ -47,7 +48,7 @@
             <div class="smallebot-cli-assistant">
                 <MudText Typo="Typo.caption" Class="smallebot-cli-role-assistant">◆ Assistant</MudText>
                 <div class="smallebot-cli-content">
-                    @foreach (var block in Presentation.ConvertMessageToBlocks(msg))
+                    @foreach (var block in Presentation.ConvertMessageToBlocks(msg, toolResults))
                     {
                         @switch (block)
                         {

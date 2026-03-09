@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Encodings.Web;
 using Microsoft.Extensions.AI;
 using SmallEBot.Components.Chat.ViewModels.Blocks;
 using SmallEBot.Core.Models;
@@ -9,11 +11,37 @@ namespace SmallEBot.Components.Chat.Services;
 /// </summary>
 public sealed class ChatPresentationService
 {
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        WriteIndented = true,
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+    };
+
+    /// <summary>
+    /// Build a CallId → (result string, tool name) map from all messages for merging tool results into tool call blocks.
+    /// </summary>
+    public static Dictionary<string, string?> BuildToolResultsMap(IReadOnlyList<ChatMessage> messages)
+    {
+        var map = new Dictionary<string, string?>();
+        foreach (var msg in messages)
+        {
+            if (msg.Contents is not { Count: > 0 }) continue;
+            foreach (var content in msg.Contents)
+            {
+                if (content is FunctionResultContent fnResult && !string.IsNullOrEmpty(fnResult.CallId))
+                    map[fnResult.CallId] = SerializeValue(fnResult.Result);
+            }
+        }
+        return map;
+    }
+
     /// <summary>
     /// Convert a persisted assistant ChatMessage into IBubbleBlock list for rendering.
-    /// Parses AIContent items (TextContent, TextReasoningContent, FunctionCallContent, FunctionResultContent).
+    /// Pass toolResults (from BuildToolResultsMap) to merge function results into function call blocks.
     /// </summary>
-    public IReadOnlyList<IBubbleBlock> ConvertMessageToBlocks(ChatMessage message)
+    public IReadOnlyList<IBubbleBlock> ConvertMessageToBlocks(
+        ChatMessage message,
+        IReadOnlyDictionary<string, string?>? toolResults = null)
     {
         var blocks = new List<IBubbleBlock>();
         if (message.Contents is not { Count: > 0 }) return blocks;
@@ -29,29 +57,46 @@ public sealed class ChatPresentationService
                     blocks.Add(new TextBlock(text.Text));
                     break;
                 case FunctionCallContent fnCall:
+                    var callId = fnCall.CallId ?? "";
+                    string? resultStr = null;
+                    var hasResult = !string.IsNullOrEmpty(callId)
+                                    && toolResults != null
+                                    && toolResults.TryGetValue(callId, out resultStr);
                     blocks.Add(new ToolCallBlockModel(
-                        CallId: fnCall.CallId ?? "",
+                        CallId: callId,
                         Name: fnCall.Name,
-                        Phase: ToolCallPhase.Started,
-                        Arguments: fnCall.Arguments?.ToString(),
-                        Result: null,
+                        Phase: hasResult ? ToolCallPhase.Completed : ToolCallPhase.Started,
+                        Arguments: SerializeValue(fnCall.Arguments),
+                        Result: resultStr,
                         Error: null,
                         Elapsed: null));
                     break;
-                case FunctionResultContent fnResult:
-                    blocks.Add(new ToolCallBlockModel(
-                        CallId: fnResult.CallId ?? "",
-                        Name: fnResult.CallId ?? "tool",
-                        Phase: ToolCallPhase.Completed,
-                        Arguments: null,
-                        Result: fnResult.Result?.ToString(),
-                        Error: null,
-                        Elapsed: null));
+                case FunctionResultContent:
+                    // Handled via toolResults map — merged into the FunctionCallContent block above
                     break;
             }
         }
 
         return blocks;
+    }
+
+    private static string? SerializeValue(object? value)
+    {
+        if (value == null) return null;
+        if (value is string s) return FormatJsonString(s);
+        try { return JsonSerializer.Serialize(value, JsonOptions); }
+        catch { return value.ToString(); }
+    }
+
+    private static string FormatJsonString(string s)
+    {
+        if (string.IsNullOrWhiteSpace(s)) return s;
+        try
+        {
+            using var doc = JsonDocument.Parse(s);
+            return JsonSerializer.Serialize(doc.RootElement, JsonOptions);
+        }
+        catch { return s; }
     }
 
     /// <summary>
