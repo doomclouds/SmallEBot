@@ -4,102 +4,53 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
-using SmallEBot.Application.Agents.Context;
 using SmallEBot.Application.Contracts.Conversations.Session;
 using SmallEBot.Application.Contracts.Agents.Execution;
-using SmallEBot.Domain.Conversations.Metadata;
 using SmallEBot.Core.Models;
 using ChatMessage = Microsoft.Extensions.AI.ChatMessage;
 
 namespace SmallEBot.Application.Agents.Execution;
 
 /// <summary>
-/// Implementation of IAgentRunner: uses IConversationSessionCoordinator to manage AgentSession,
-/// runs the agent, and maps updates to StreamUpdate.
+/// Runs the agent, maps updates to StreamUpdate, and persists session on completion or cancellation.
 /// </summary>
 public sealed class AgentRunner(
     IAgentBuilder agentBuilder,
-    IConversationSessionCoordinator coordinator,
-    IAgentSessionReader sessionReader,
     IAgentSessionStore sessionStore) : IAgentRunner
 {
     public async IAsyncEnumerable<StreamUpdate> RunStreamingAsync(
         Guid conversationId,
         string userMessage,
         bool useThinking,
-        [EnumeratorCancellation] CancellationToken cancellationToken = default,
-        IReadOnlyList<string>? attachedPaths = null,
-        IReadOnlyList<string>? requestedSkillIds = null,
-        Guid? truncateFromTurnId = null,
-        string? userNameForTruncate = null)
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         var agent = await agentBuilder.GetOrCreateAgentAsync(useThinking, cancellationToken);
+        var session = await sessionStore.LoadAsync(conversationId, agent, cancellationToken)
+                      ?? await agent.CreateSessionAsync(cancellationToken);
 
-        // Remove stale assistant functionApprovalRequest so MAF framework can process new user input
-        await sessionStore.RemoveLastMessageIfAssistantApprovalRequestAsync(conversationId, cancellationToken);
+        var messages = new List<ChatMessage> { new(ChatRole.User, userMessage) };
 
-        if (truncateFromTurnId.HasValue && !string.IsNullOrEmpty(userNameForTruncate))
+        var reasoningOpt = new ReasoningOptions();
+        if (useThinking)
         {
-            await coordinator.TruncateFromTurnAsync(conversationId, userNameForTruncate, truncateFromTurnId.Value, agent, cancellationToken);
+            reasoningOpt.Effort = ReasoningEffort.ExtraHigh;
+            reasoningOpt.Output = ReasoningOutput.Full;
         }
+        var chatOptions = new ChatOptions { Reasoning = useThinking ? reasoningOpt : null };
+        var runOptions = new ChatClientAgentRunOptions(chatOptions);
 
-        // Get or create session and metadata
-        var (session, metadata) = await coordinator.GetOrCreateSessionAsync(
-            conversationId,
-            "user", // TODO: Get from context
-            agent,
-            cancellationToken);
+        var agentUpdates = agent.RunStreamingAsync(messages, session, runOptions, cancellationToken);
 
-        // Set FirstMessageIndex for new turn (placeholder 0) before agent adds user message
-        if (metadata.Turns.Count > 0 && metadata.Turns[^1].FirstMessageIndex == 0)
+        await foreach (var update in ProcessStreamingUpdates(agentUpdates, conversationId, agent, session, cancellationToken))
         {
-            var messages = await sessionReader.GetMessagesAsync(conversationId, cancellationToken);
-            metadata.SetFirstMessageIndexForTurn(metadata.Turns[^1].Id, messages.Count);
-        }
-
-        // Set turn context for AIContextProvider
-        TurnContextProvider.SetContext(new AgentTurnContext
-        {
-            AttachedPaths = attachedPaths ?? [],
-            RequestedSkillIds = requestedSkillIds ?? []
-        });
-
-        try
-        {
-            // Build messages list (just user message, context provided via AIContextProvider)
-            var messages = new List<ChatMessage>
-            {
-                new(ChatRole.User, userMessage)
-            };
-
-            // Configure reasoning
-            var reasoningOpt = new ReasoningOptions();
-            if (useThinking)
-            {
-                reasoningOpt.Effort = ReasoningEffort.ExtraHigh;
-                reasoningOpt.Output = ReasoningOutput.Full;
-            }
-            var chatOptions = new ChatOptions { Reasoning = useThinking ? reasoningOpt : null };
-            var runOptions = new ChatClientAgentRunOptions(chatOptions);
-
-            var agentUpdates = agent.RunStreamingAsync(messages, session, runOptions, cancellationToken);
-
-            await foreach (var update in ProcessStreamingUpdates(agentUpdates, conversationId, agent, session, metadata, cancellationToken))
-            {
-                yield return update;
-            }
-        }
-        finally
-        {
-            // Clear turn context after completion
-            TurnContextProvider.ClearContext();
+            yield return update;
         }
     }
 
-    public async Task TruncateSessionFromTurnAsync(Guid conversationId, string userName, Guid turnId, CancellationToken cancellationToken = default)
+    public async Task TruncateSessionAsync(Guid conversationId, int messageIndex, CancellationToken cancellationToken = default)
     {
         var agent = await agentBuilder.GetOrCreateAgentAsync(useThinking: false, cancellationToken);
-        await coordinator.TruncateFromTurnAsync(conversationId, userName, turnId, agent, cancellationToken);
+        await sessionStore.TruncateFromIndexAsync(conversationId, messageIndex, agent, cancellationToken);
     }
 
     public async IAsyncEnumerable<StreamUpdate> ContinueWithApprovalAsync(
@@ -112,80 +63,35 @@ public sealed class AgentRunner(
         IDictionary<string, object?>? rawArguments,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        // Note: Always disable thinking for approval continue to avoid DeepSeek API error
         var agent = await agentBuilder.GetOrCreateAgentAsync(useThinking: false, cancellationToken);
+        var session = await sessionStore.LoadAsync(conversationId, agent, cancellationToken)
+                      ?? await agent.CreateSessionAsync(cancellationToken);
 
-        var (session, metadata) = await coordinator.GetOrCreateSessionAsync(
-            conversationId,
-            "user",
-            agent,
-            cancellationToken);
+        var messages = new List<ChatMessage>();
 
-        TurnContextProvider.SetContext(new AgentTurnContext
+#pragma warning disable MEAI001
+        var functionCall = new FunctionCallContent(
+            callId: functionCallId,
+            name: functionName,
+            arguments: rawArguments);
+        var approvalContent = new FunctionApprovalResponseContent(
+            id: approvalRequestId,
+            approved: approved,
+            functionCall: functionCall)
         {
-            AttachedPaths = [],
-            RequestedSkillIds = []
-        });
-
-        try
-        {
-            var orphaned = await sessionReader.GetOrphanedApprovalRequestsAsync(conversationId, cancellationToken);
-            var messages = new List<ChatMessage>();
-
-            foreach (var (id, callId, name, args) in orphaned)
-            {
-                var isOurs = id == approvalRequestId;
-                var approvedForThis = isOurs && approved;
-                var reasonForThis = isOurs ? reason : "User chose a different action";
-                var argsForThis = isOurs ? rawArguments : args;
-
-#pragma warning disable MEAI001 // Type is for evaluation purposes only
-                var functionCall = new FunctionCallContent(
-                    callId: callId,
-                    name: name,
-                    arguments: argsForThis);
-                var approvalContent = new FunctionApprovalResponseContent(
-                    id: id,
-                    approved: approvedForThis,
-                    functionCall: functionCall)
-                {
-                    Reason = reasonForThis
-                };
+            Reason = reason
+        };
 #pragma warning restore MEAI001
-                messages.Add(new ChatMessage(ChatRole.User, [approvalContent]));
-            }
+        messages.Add(new ChatMessage(ChatRole.User, [approvalContent]));
 
-            if (messages.Count == 0)
-            {
-#pragma warning disable MEAI001 // Type is for evaluation purposes only
-                var functionCall = new FunctionCallContent(
-                    callId: functionCallId,
-                    name: functionName,
-                    arguments: rawArguments);
-                var approvalContent = new FunctionApprovalResponseContent(
-                    id: approvalRequestId,
-                    approved: approved,
-                    functionCall: functionCall)
-                {
-                    Reason = reason
-                };
-#pragma warning restore MEAI001
-                messages.Add(new ChatMessage(ChatRole.User, [approvalContent]));
-            }
+        var chatOptions = new ChatOptions { Reasoning = null };
+        var runOptions = new ChatClientAgentRunOptions(chatOptions);
 
-            var chatOptions = new ChatOptions { Reasoning = null };
-            var runOptions = new ChatClientAgentRunOptions(chatOptions);
+        var agentUpdates = agent.RunStreamingAsync(messages, session, runOptions, cancellationToken);
 
-            var agentUpdates = agent.RunStreamingAsync(messages, session, runOptions, cancellationToken);
-
-            await foreach (var update in ProcessStreamingUpdates(agentUpdates, conversationId, agent, session, metadata, cancellationToken))
-            {
-                yield return update;
-            }
-        }
-        finally
+        await foreach (var update in ProcessStreamingUpdates(agentUpdates, conversationId, agent, session, cancellationToken))
         {
-            TurnContextProvider.ClearContext();
+            yield return update;
         }
     }
 
@@ -194,7 +100,6 @@ public sealed class AgentRunner(
         Guid conversationId,
         AIAgent agent,
         AgentSession session,
-        ConversationMetadata metadata,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var toolTimers = new Dictionary<string, Stopwatch>();
@@ -245,7 +150,7 @@ public sealed class AgentRunner(
                                     toolNames.Remove(resCallId);
                                 }
                                 break;
-#pragma warning disable MEAI001 // Type is for evaluation purposes only
+#pragma warning disable MEAI001
                             case FunctionApprovalRequestContent approvalRequest:
                                 yield return new ApprovalRequestStreamUpdate(
                                     CallId: approvalRequest.FunctionCall.CallId,
@@ -253,8 +158,7 @@ public sealed class AgentRunner(
                                     Arguments: ToJsonString(approvalRequest.FunctionCall.Arguments),
                                     ConversationId: conversationId,
                                     FunctionCallId: approvalRequest.Id,
-                                    RawArguments: approvalRequest.FunctionCall.Arguments
-                                );
+                                    RawArguments: approvalRequest.FunctionCall.Arguments);
                                 break;
 #pragma warning restore MEAI001
                         }
@@ -268,7 +172,7 @@ public sealed class AgentRunner(
         }
         finally
         {
-            await coordinator.PersistSessionAsync(conversationId, session, metadata, agent, CancellationToken.None);
+            await sessionStore.SaveAsync(conversationId, session, agent, CancellationToken.None);
         }
     }
 
@@ -311,24 +215,12 @@ public sealed class AgentRunner(
 
         if (value is System.Collections.IDictionary dict)
         {
-            try
-            {
-                return JsonSerializer.Serialize(dict, JsonOptions);
-            }
-            catch
-            {
-                return SerializeDictionaryManually(dict);
-            }
+            try { return JsonSerializer.Serialize(dict, JsonOptions); }
+            catch { return SerializeDictionaryManually(dict); }
         }
 
-        try
-        {
-            return JsonSerializer.Serialize(value, JsonOptions);
-        }
-        catch
-        {
-            return value.ToString();
-        }
+        try { return JsonSerializer.Serialize(value, JsonOptions); }
+        catch { return value.ToString(); }
     }
 
     private static string SerializeDictionaryManually(System.Collections.IDictionary dict)

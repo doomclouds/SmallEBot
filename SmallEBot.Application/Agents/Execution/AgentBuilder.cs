@@ -3,7 +3,7 @@ using Anthropic;
 using Anthropic.Core;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
-using SmallEBot.Application.Agents.Context;
+
 using SmallEBot.Application.Contracts.Agents.Config;
 using SmallEBot.Application.Contracts.Agents.Context;
 using SmallEBot.Application.Contracts.Agents.Execution;
@@ -106,7 +106,7 @@ public sealed class AgentBuilder : IAgentBuilder
                 Instructions = instructions,
                 Tools = _allTools
             },
-            AIContextProviders = [skillsProvider, new TurnContextProvider(_serviceProvider)]
+            AIContextProviders = [skillsProvider]
         });
         return _agent;
     }

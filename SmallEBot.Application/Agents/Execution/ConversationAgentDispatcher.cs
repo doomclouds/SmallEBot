@@ -1,7 +1,6 @@
 using SmallEBot.Application.Contracts.Agents.Execution;
 using SmallEBot.Application.Contracts.Agents.Streaming;
 using SmallEBot.Application.Contracts.Agents.Compression;
-using SmallEBot.Application.Contracts.Conversations;
 using SmallEBot.Application.Contracts.Conversations.Session;
 using SmallEBot.Application.Contracts.Conversations.TaskList;
 using SmallEBot.Core.Models;
@@ -10,12 +9,10 @@ using SmallEBot.Domain.Conversations.Metadata;
 namespace SmallEBot.Application.Agents.Execution;
 
 /// <summary>
-/// Dispatches agent runs for conversations: streaming responses, regeneration, context compression,
+/// Dispatches agent runs for conversations: streaming responses, context compression,
 /// approval continuation, title generation, and session truncation.
-/// Single entry point for all Agent-related operations. Implemented in Application.Agents; consumed by Host.
 /// </summary>
 public sealed class ConversationAgentDispatcher(
-    IConversationService conversationService,
     IAgentRunner agentRunner,
     IConversationMetadataRepository metadataRepository,
     IConversationMessageStore messageStore,
@@ -30,50 +27,17 @@ public sealed class ConversationAgentDispatcher(
 
     private readonly HashSet<Guid> _compressingConversations = [];
 
-    public async Task StreamResponseAndCompleteAsync(
+    public async Task StreamResponseAsync(
         Guid conversationId,
-        Guid turnId,
         string userMessage,
         bool useThinking,
         IStreamSink sink,
         CancellationToken cancellationToken = default,
-        string? commandConfirmationContextId = null,
-        IReadOnlyList<string>? attachedPaths = null,
-        IReadOnlyList<string>? requestedSkillIds = null,
-        Guid? truncateFromTurnId = null,
-        string? userNameForTruncate = null)
+        string? commandConfirmationContextId = null)
     {
         using (ambientConversationId.BeginScope(conversationId))
         {
-            await foreach (var update in agentRunner.RunStreamingAsync(conversationId, userMessage, useThinking, cancellationToken, attachedPaths, requestedSkillIds, truncateFromTurnId, userNameForTruncate))
-            {
-                await sink.OnNextAsync(update, cancellationToken);
-            }
-        }
-    }
-
-    public async Task ReplaceMessageAndRegenerateAsync(
-        Guid conversationId,
-        string userName,
-        Guid messageId,
-        string newContent,
-        bool useThinking,
-        IStreamSink sink,
-        CancellationToken cancellationToken = default,
-        IReadOnlyList<string>? attachedPaths = null,
-        IReadOnlyList<string>? requestedSkillIds = null)
-    {
-        var result = await conversationService.ReplaceUserMessageAsync(conversationId, userName, messageId, newContent, useThinking, attachedPaths, requestedSkillIds, cancellationToken);
-        if (result == null) return;
-
-        await agentRunner.TruncateSessionFromTurnAsync(conversationId, userName, result.Value.TurnId, cancellationToken);
-
-        var effectivePaths = attachedPaths ?? result.Value.AttachedPaths;
-        var effectiveSkills = requestedSkillIds ?? result.Value.RequestedSkillIds;
-
-        using (ambientConversationId.BeginScope(conversationId))
-        {
-            await foreach (var update in agentRunner.RunStreamingAsync(conversationId, result.Value.UserMessage, useThinking, cancellationToken, effectivePaths, effectiveSkills))
+            await foreach (var update in agentRunner.RunStreamingAsync(conversationId, userMessage, useThinking, cancellationToken))
             {
                 await sink.OnNextAsync(update, cancellationToken);
             }
@@ -98,9 +62,9 @@ public sealed class ConversationAgentDispatcher(
         return agentRunner.GenerateTitleAsync(firstMessage, cancellationToken);
     }
 
-    public Task TruncateSessionFromTurnAsync(Guid conversationId, string userName, Guid turnId, CancellationToken cancellationToken = default)
+    public Task TruncateSessionAsync(Guid conversationId, int messageIndex, CancellationToken cancellationToken = default)
     {
-        return agentRunner.TruncateSessionFromTurnAsync(conversationId, userName, turnId, cancellationToken);
+        return agentRunner.TruncateSessionAsync(conversationId, messageIndex, cancellationToken);
     }
 
     public async Task<bool> CompactConversationAsync(Guid conversationId, CancellationToken ct = default)
@@ -138,14 +102,10 @@ public sealed class ConversationAgentDispatcher(
                 return false;
             }
 
-            var compressedAt = metadata.Turns.Count > 0
-                ? metadata.Turns[^1].CreatedAt
-                : DateTime.UtcNow;
-            metadata.SetCompressedContext(summary, compressedAt);
+            metadata.SetCompressedContext(summary);
 
             var firstMessageIndexToKeep = messages.Count;
             await messageStore.TruncateBeforeIndexAsync(conversationId, firstMessageIndexToKeep, ct);
-            metadata.RemoveTurnsBeforeCompression(firstMessageIndexToKeep);
 
             await metadataRepository.SaveAsync(metadata, ct);
 
@@ -171,9 +131,7 @@ public sealed class ConversationAgentDispatcher(
         var threshold = compressionThresholdProvider.GetCompressionThreshold();
 
         if (estimate.Ratio >= threshold)
-        {
             return await CompactConversationAsync(conversationId, ct);
-        }
 
         return false;
     }
