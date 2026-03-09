@@ -56,10 +56,10 @@ SmallEBot (Host)            ? Core, Domain, Application, Application.Contracts, 
 ### Request Flow
 
 ```
-Blazor UI ? SignalR ? IConversationService (ConversationService) — CRUD, turn creation
+Blazor UI ? SignalR ? IConversationService (ConversationService) — CRUD, session management
                     ? IConversationAgentDispatcher (ConversationAgentDispatcher) — dispatch to agent
                          ?
-                    IAgentRunner (AgentRunner) ? AIAgent
+                    IAgentRunner (AgentRunner) ? AIAgent ? IAgentSessionStore
                          ?
                     IStreamSink (ChannelStreamSink) ? UI updates
 ```
@@ -79,12 +79,14 @@ Blazor UI ? SignalR ? IConversationService (ConversationService) — CRUD, turn cr
 
 | Subdomain | Location | Contents |
 |-----------|----------|----------|
-| **Metadata** | `Domain/Conversations/Metadata/` | ConversationMetadata, TurnInfo, IConversationMetadataRepository |
-| **Compression** | `Application.Contracts/Agents/Compression/` | ICompressionService, ICompressionThresholdProvider, IContextUsageEstimator, IToolResultMaxProvider |
-| **Session** | `Application.Contracts/Conversations/Session/` | IConversationSessionCoordinator, IAgentSessionStore, IAgentSessionReader |
+| **Metadata** | `Domain/Conversations/Metadata/` | ConversationMetadata, IConversationMetadataRepository |
+| **Compression** | `Application.Contracts/Agents/Compression/` | ICompressionService, IContextUsageEstimator, ITokenizer |
+| **Session** | `Application.Contracts/Conversations/Session/` | IAgentSessionStore, IAgentSessionReader |
 | **TaskList** | `Application.Contracts/Conversations/TaskList/` | ITaskListService |
 | **Metadata (impl)** | `Infrastructure/Conversations/Metadata/` | ConversationMetadataRepository |
 | **Session (impl)** | `Infrastructure/Conversations/Session/` | AgentSessionStore, AgentSessionSerializer, AgentSessionReader |
+
+AgentSession is the single source of truth for conversation content. No Turn abstraction — messages map 1:1 to UI display.
 
 ### Workspace and Skills
 
@@ -100,7 +102,7 @@ Blazor UI ? SignalR ? IConversationService (ConversationService) — CRUD, turn cr
 | `GetWorkspaceRoot()` | Absolute path to workspace root |
 | `ReadFile/WriteFile/AppendFile` | File operations in workspace |
 | `ListFiles/CopyDirectory` | Directory operations |
-| `GrepFiles/GrepContent` | Search by filename or content |
+| `FindBlobs/Grep` | Search by filename or content |
 | `ReadSkill/ReadSkillFile/ListSkillFiles` | Skill file access |
 | `ExecuteCommand` | Shell command execution (with optional confirmation) |
 | `SetTaskList/ListTasks/CompleteTask/ClearTasks` | Task list management |
@@ -109,9 +111,9 @@ Blazor UI ? SignalR ? IConversationService (ConversationService) — CRUD, turn cr
 
 ### Context Attachments
 
-- `@path` — Injects file contents into turn context (per-turn synthetic user message)
-- `/skillId` — Injects directive to call `ReadSkill(skillId)`; model fetches skill via tools
-- Drag-and-drop — Uploads to `temp/`, deduplicated by hash
+- `@path` — Attaches workspace file; content encoded in user message via `UserMessageCodec`
+- `/skillId` — Attaches skill; encoded in user message; model fetches via `ReadSkill(skillId)` tool
+- Drag-and-drop — Uploads to workspace `temp/`, deduplicated by hash
 
 ### Circuit Context
 
@@ -119,34 +121,18 @@ Blazor Server uses Circuits to track user connections. The `ICurrentCircuitAcces
 
 ### Chat UI Architecture
 
-The ChatArea uses a State Container + Events pattern for clean separation of concerns:
+CLI-style linear message display (? User / ? Assistant), no chat bubbles.
 
 **Components:**
-- `ChatArea.razor` — Orchestrator component
-- `MessageList` — Renders user and assistant message bubbles
-- `StreamingIndicator` — Displays streaming message during active streaming
-- `ChatInputArea` — Input field with attachments and popover
-- `AttachmentChips` — Reusable attachment chip display
-
-**State Management:**
-- `ChatState` — State container holding all UI state, notifies changes via `StateChanged` event
-- `ChatPresentationService` — Converts domain models to view models
-
-**View Models (Components/Chat/ViewModels/):**
-- `Bubbles/BubbleViewBase` — Base class for bubble view models
-- `Bubbles/UserBubbleView` — User message view model
-- `Bubbles/AssistantBubbleView` — Assistant message view model
-- `Reasoning/ReasoningStepView` — Reasoning/tool call step view
-- `Reasoning/SegmentBlockView` — Segment block wrapper
-- `Streaming/StreamingDisplayItemView` — Streaming display item view
-
-**Key Files:**
 | Component | Location |
 |-----------|----------|
-| ChatArea orchestrator | `Components/Chat/ChatArea.razor` |
-| State container | `Components/Chat/State/ChatState.cs` |
+| Chat orchestrator | `Components/Chat/ChatContent.razor` |
+| Message thread | `Components/Chat/Messages/MessageThread.razor` |
 | Presentation service | `Components/Chat/Services/ChatPresentationService.cs` |
-| View models | `Components/Chat/ViewModels/` |
+| Edit dialog | `Components/Chat/Dialogs/EditMessageDialog.razor` |
+| Attachment chips | `Components/Chat/Input/InputAttachmentChips.razor` |
+
+**Message encoding:** `UserMessageCodec` (`SmallEBot.Core/UserMessageCodec.cs`) encodes files and skills in user message text (HTML comment + JSON). LLM sees metadata; UI parses for chip display. Edit dialog reuses `InputOrchestrator` for attachments.
 
 ## Configuration
 
@@ -165,7 +151,7 @@ The ChatArea uses a State Container + Events pattern for clean separation of con
 | `.agents/.sys.mcp.json` | System MCP config |
 | `.agents/terminal.json` | Terminal security config |
 | `.agents/models.json` | Model configurations |
-| `.agents/tasks/` | Per-conversation task lists |
+| `.agents/conversations/{id}/tasks.json` | Per-conversation task list |
 
 ## Cache Invalidation
 
@@ -184,8 +170,8 @@ Context compression reduces token usage by summarizing old conversation messages
 |-----------|----------|
 | Compression service | `Application/Agents/Compression/CompressionService.cs` |
 | Compression logic | `Application/Agents/Execution/ConversationAgentDispatcher.cs` ? `CompactConversationAsync()` |
-| UI trigger | `Components/Chat/ChatInputBar.razor` (compress button) |
-| UI handler | `Components/Chat/ChatArea.razor` ? `CompressContext()` |
+| UI trigger | `Components/Chat/Input/InputBar.razor` (compress button) |
+| UI handler | `Components/Chat/ChatContent.razor` ? `CompressContext()` |
 
 **Data Flow:**
 1. Get messages created after `CompressedAt` timestamp (new messages only)

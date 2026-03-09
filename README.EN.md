@@ -4,11 +4,13 @@ English | [简体中文](README.md)
 
 A local AI assistant built with ASP.NET Core Blazor Server. **Runs locally on your machine** — no remote server needed. Your PC is the server.
 
+![SmallEBot](app.png)
+
 ## Features
 
 - **Multi-conversation**: Create, switch, and delete conversations; history stored per user. Sidebar supports search by conversation title.
-- **Streaming chat**: Real-time streaming of assistant replies with collapsible reasoning/tool-call panel.
-- **Message edit**: Edit a user message and resend (discards that turn's assistant reply and all later turns).
+- **CLI-style UI**: Linear message flow (● User / ◆ Assistant) with collapsible thinking and tool-call panels.
+- **Message edit & restart**: Edit a user message and resend, or restart the conversation from any user message.
 - **Thinking mode**: Toggle extended reasoning (e.g. DeepSeek Reasoner) via Anthropic thinking support. Reasoning is displayed in a collapsible panel, followed by the final text response.
 - **Model switching**: Switch between multiple configured models via the app bar dropdown.
 - **MCP tools**: Connect to Model Context Protocol servers for extended capabilities (filesystem, web search, databases, etc.).
@@ -39,7 +41,7 @@ SmallEBot/
 │   ├── appsettings.json          # Configuration
 │   ├── Components/               # Razor components
 │   │   ├── Layout/               # Layout components
-│   │   ├── Chat/                 # Chat area, edit/regenerate, EditMessageDialog
+│   │   ├── Chat/                 # CLI-style chat area, message editing, streaming
 │   │   ├── Workspace/            # Workspace drawer components
 │   │   ├── TaskList/             # Task list drawer
 │   │   ├── Terminal/             # Terminal-related components

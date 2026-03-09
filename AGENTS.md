@@ -32,15 +32,28 @@ SmallEBot (Host)            → Core, Domain, Application, Application.Contracts
 ### Request Flow
 
 ```
-Blazor UI → SignalR → IConversationService (ConversationService) — CRUD, turn creation
+Blazor UI → SignalR → IConversationService (ConversationService) — CRUD, session management
                     → IConversationAgentDispatcher (ConversationAgentDispatcher) — dispatch to agent
                          ↓
-                    IAgentRunner (AgentRunner) → AIAgent
+                    IAgentRunner (AgentRunner) → AIAgent → IAgentSessionStore
                          ↓
                     IStreamSink (ChannelStreamSink) → UI updates
 ```
 
 **AgentBuilder** composes: `IAgentSystemPromptBuilder` + `IToolProviderAggregator` + `IMcpConnectionManager` → caches `AIAgent`.
+
+### UI Architecture
+
+CLI-style linear message display (no chat bubbles). Key components:
+
+| Component | Location |
+|-----------|----------|
+| Message thread | `SmallEBot/Components/Chat/Messages/MessageThread.razor` |
+| Chat orchestrator | `SmallEBot/Components/Chat/ChatContent.razor` |
+| Presentation service | `SmallEBot/Components/Chat/Services/ChatPresentationService.cs` |
+| Message codec | `SmallEBot.Core/UserMessageCodec.cs` |
+
+User-attached files and skills are encoded in user message text via `UserMessageCodec` (HTML comment with JSON metadata), visible to LLMs but parsed by UI for chip display.
 
 ### Key Paths (post-DDD migration)
 
@@ -70,8 +83,10 @@ Blazor UI → SignalR → IConversationService (ConversationService) — CRUD, t
 | Subdomain | Location | Contents |
 |-----------|----------|----------|
 | Metadata | Domain/Conversations/Metadata/ | ConversationMetadata, IConversationMetadataRepository |
-| Session | Application.Contracts/Conversations/Session/ | IAgentSessionStore, IAgentSessionReader, IConversationSessionCoordinator |
+| Session | Application.Contracts/Conversations/Session/ | IAgentSessionStore, IAgentSessionReader |
 | TaskList | Application.Contracts/Conversations/TaskList/ | ITaskListService |
+
+AgentSession is the single source of truth for conversation content. No Turn abstraction — messages map 1:1 to UI display.
 
 ### Workspace and Skills
 
