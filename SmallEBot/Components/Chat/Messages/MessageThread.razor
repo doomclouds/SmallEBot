@@ -40,6 +40,7 @@
                         </div>
                     }
                 </div>
+                <div class="smallebot-cli-body">
                 @if (decoded.HasAttachments)
                 {
                     <div class="d-flex flex-wrap gap-1 mt-1 mb-1">
@@ -58,12 +59,14 @@
                 <div class="smallebot-cli-content">
                     <MarkdownBlock Content="@decoded.Text" />
                 </div>
+                </div>
             </div>
         }
         else if (msg.Role == ChatRole.Assistant)
         {
             <div class="smallebot-cli-assistant">
                 <MudText Typo="Typo.caption" Class="smallebot-cli-role-assistant">◆ Assistant</MudText>
+                <div class="smallebot-cli-body">
                 <div class="smallebot-cli-content">
                     @foreach (var block in Presentation.ConvertMessageToBlocks(msg, toolResults))
                     {
@@ -81,6 +84,7 @@
                         }
                     }
                 </div>
+                </div>
             </div>
         }
     }
@@ -90,6 +94,7 @@
         var pendingDecoded = UserMessageCodec.Decode(PendingUserText);
         <div class="smallebot-cli-user">
             <MudText Typo="Typo.caption" Class="smallebot-cli-role-user">⬤ User</MudText>
+            <div class="smallebot-cli-body">
             @if (pendingDecoded.HasAttachments)
             {
                 <div class="d-flex flex-wrap gap-1 mt-1 mb-1">
@@ -101,12 +106,13 @@
                     @foreach (var skill in pendingDecoded.Skills)
                     {
                         <MudChip T="string" Color="Color.Secondary" Variant="Variant.Outlined" Size="Size.Small"
-                                 Icon="@Icons.Material.Filled.AutoAwesome">@skill</MudChip>
+                                 Icon="@Icons.Material.Filled.AutoAwesome">@skill                    </MudChip>
                     }
                 </div>
             }
             <div class="smallebot-cli-content">
                 <MarkdownBlock Content="@pendingDecoded.Text" />
+            </div>
             </div>
         </div>
     }
@@ -125,6 +131,7 @@
     {
         <div class="smallebot-cli-assistant">
             <MudText Typo="Typo.caption" Class="smallebot-cli-role-assistant">◆ Assistant</MudText>
+            <div class="smallebot-cli-body">
             <div class="smallebot-cli-content">
                 @foreach (var block in GetStreamingBlocks())
                 {
@@ -144,6 +151,7 @@
                             break;
                     }
                 }
+            </div>
             </div>
         </div>
     }

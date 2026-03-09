@@ -717,14 +717,18 @@ h1:focus {
 .smallebot-cli-role-user {
     color: var(--mud-palette-primary, #7c4dff);
     font-weight: 600;
+    font-size: 0.9375rem; /* 15px, larger than caption */
     letter-spacing: 0.02em;
 }
 .smallebot-cli-role-assistant {
     color: var(--mud-palette-tertiary, #4fc3f7);
     font-weight: 600;
+    font-size: 0.9375rem; /* 15px, larger than caption */
     letter-spacing: 0.02em;
+}
+.smallebot-cli-body {
+    padding-left: 1.25em; /* indent content under role title */
 }
 .smallebot-cli-content {
     margin-top: 4px;
-    padding-left: 4px;
 }
