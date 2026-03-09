@@ -261,6 +261,7 @@
         _messageCountBeforeSend = messageIndex;
         _sendCts?.Dispose();
         _sendCts = new CancellationTokenSource();
+        _messageThreadRef?.RequestScrollToBottom();
         await InvokeAsync(StateHasChanged);
 
         // Truncate session (removes message[index] and after)
@@ -287,6 +288,7 @@
         _messageCountBeforeSend = Messages.Count;
         _sendCts?.Dispose();
         _sendCts = new CancellationTokenSource();
+        _messageThreadRef?.RequestScrollToBottom();
         await InvokeAsync(StateHasChanged);
 
         await OnBeforeSend.InvokeAsync();
