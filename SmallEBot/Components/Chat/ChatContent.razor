@@ -8,6 +8,7 @@
 @using Microsoft.Extensions.AI
 @inject IConversationService ConversationService
 @inject IConversationAgentDispatcher AgentDispatcher
+@inject IDialogService DialogSvc
 @inject ICurrentCircuitAccessor CircuitAccessor
 @inject IUserNameDisplayService UserNameDisplay
 @inject IWorkspaceService WorkspaceService
@@ -38,6 +39,7 @@
                            WaitingElapsed="@Orchestrator.WaitingElapsed"
                            ShowToolCalls="@ShowToolCalls"
                            OnRestartFromMessage="@HandleRestartFromMessage"
+                           OnEditMessage="@HandleEditMessage"
                            OnApprove="@HandleApprove"
                            OnReject="@HandleReject"
                            OnCancel="@HandleCancel"
@@ -200,12 +202,47 @@
     private async Task HandleRestartFromMessage(int messageIndex)
     {
         if (Orchestrator.IsStreaming || !ConversationId.HasValue) return;
+        if (messageIndex < 0 || messageIndex >= Messages.Count) return;
 
+        var userText = MessageThread.GetTextContent(Messages[messageIndex]);
+        if (string.IsNullOrWhiteSpace(userText)) return;
+
+        await TruncateAndResend(messageIndex, userText);
+    }
+
+    private async Task HandleEditMessage(int messageIndex)
+    {
+        if (Orchestrator.IsStreaming || !ConversationId.HasValue) return;
+        if (messageIndex < 0 || messageIndex >= Messages.Count) return;
+
+        var originalText = MessageThread.GetTextContent(Messages[messageIndex]);
+
+        var parameters = new DialogParameters
+        {
+            [nameof(EditMessageDialog.InitialContent)] = originalText
+        };
+        var dialog = await DialogSvc.ShowAsync<EditMessageDialog>("Edit message", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
+        var result = await dialog.Result;
+        if (result == null || result.Canceled || result.Data is not string editedText || string.IsNullOrWhiteSpace(editedText))
+            return;
+
+        await TruncateAndResend(messageIndex, editedText);
+    }
+
+    private async Task TruncateAndResend(int messageIndex, string userText)
+    {
         _sendCts?.Dispose();
         _sendCts = new CancellationTokenSource();
 
-        await AgentDispatcher.TruncateSessionAsync(ConversationId.Value, messageIndex, _sendCts.Token);
+        await AgentDispatcher.TruncateSessionAsync(ConversationId!.Value, messageIndex, _sendCts.Token);
         await OnMessageSent.InvokeAsync();
+
+        _pendingUserText = userText;
+        _messageCountBeforeSend = messageIndex;
+        await InvokeAsync(StateHasChanged);
+
+        await Orchestrator.RunStreamingLoopAsync(userText, UseThinkingMode, CircuitAccessor.CurrentCircuit?.Id, _sendCts);
     }
 
     private void HandleApprove(ApprovalBlockModel model) => _ = Orchestrator.ApproveAsync(model);

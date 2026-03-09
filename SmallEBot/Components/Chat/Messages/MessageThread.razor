@@ -17,12 +17,24 @@
             <div class="smallebot-cli-user">
                 <div class="d-flex align-center justify-space-between">
                     <MudText Typo="Typo.caption" Class="smallebot-cli-role-user">❯ User</MudText>
-                    @if (ShowRestartButtons && OnRestartFromMessage.HasDelegate)
+                    @if (ShowRestartButtons)
                     {
-                        <MudTooltip Text="Restart from here">
-                            <MudIconButton Icon="@Icons.Material.Filled.Replay" Size="Size.Small" Color="Color.Default"
-                                           OnClick="@(() => OnRestartFromMessage.InvokeAsync(idx))" />
-                        </MudTooltip>
+                        <div class="d-flex">
+                            @if (OnEditMessage.HasDelegate)
+                            {
+                                <MudTooltip Text="Edit & resend">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Color="Color.Default"
+                                                   OnClick="@(() => OnEditMessage.InvokeAsync(idx))" />
+                                </MudTooltip>
+                            }
+                            @if (OnRestartFromMessage.HasDelegate)
+                            {
+                                <MudTooltip Text="Resend from here">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Replay" Size="Size.Small" Color="Color.Default"
+                                                   OnClick="@(() => OnRestartFromMessage.InvokeAsync(idx))" />
+                                </MudTooltip>
+                            }
+                        </div>
                     }
                 </div>
                 <div class="smallebot-cli-content">
@@ -115,6 +127,7 @@
     [Parameter] public bool ShowToolCalls { get; set; } = true;
     [Parameter] public bool ShowRestartButtons { get; set; } = true;
     [Parameter] public EventCallback<int> OnRestartFromMessage { get; set; }
+    [Parameter] public EventCallback<int> OnEditMessage { get; set; }
     [Parameter] public EventCallback<ApprovalBlockModel> OnApprove { get; set; }
     [Parameter] public EventCallback<ApprovalBlockModel> OnReject { get; set; }
     [Parameter] public EventCallback OnCancel { get; set; }
@@ -125,7 +138,7 @@
 
     public void RequestScrollToBottom() => _scrollToBottomRequested = true;
 
-    private static string GetTextContent(ChatMessage msg)
+    public static string GetTextContent(ChatMessage msg)
     {
         if (msg.Text is { Length: > 0 } text) return text;
         var textParts = msg.Contents?.OfType<TextContent>().Select(t => t.Text).Where(t => !string.IsNullOrEmpty(t));
