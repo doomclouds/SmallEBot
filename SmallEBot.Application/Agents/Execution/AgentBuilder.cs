@@ -6,6 +6,7 @@ using Microsoft.Extensions.AI;
 
 using System.Text.Json;
 using SmallEBot.Application.Contracts.Agents.Config;
+using SmallEBot.Application.Agents.Context;
 using SmallEBot.Application.Contracts.Agents.Context;
 using SmallEBot.Application.Contracts.Agents.Execution;
 using SmallEBot.Application.Contracts.Agents.Skills;
@@ -30,6 +31,7 @@ public sealed class AgentBuilder : IAgentBuilder
 
     private readonly IAgentSystemPromptBuilder _systemPromptBuilder;
     private readonly IToolProviderAggregator _toolAggregator;
+    private readonly CompressedContextProvider _compressedContextProvider;
     private readonly IMcpConnectionManager _mcpConnectionManager;
     private readonly IModelConfigService _modelConfig;
     private readonly ISkillsConfigService _skillsConfig;
@@ -49,6 +51,7 @@ public sealed class AgentBuilder : IAgentBuilder
         IModelConfigService modelConfig,
         ISkillsConfigService skillsConfig,
         IVirtualFileSystem vfs,
+        CompressedContextProvider compressedContextProvider,
         IServiceProvider serviceProvider,
         ILogger<AgentBuilder> log)
     {
@@ -57,6 +60,7 @@ public sealed class AgentBuilder : IAgentBuilder
         _mcpConnectionManager = mcpConnectionManager;
         _modelConfig = modelConfig;
         _skillsConfig = skillsConfig;
+        _compressedContextProvider = compressedContextProvider;
         _serviceProvider = serviceProvider;
         _log = log;
 
@@ -121,7 +125,7 @@ public sealed class AgentBuilder : IAgentBuilder
                 Instructions = instructions,
                 Tools = _allTools
             },
-            AIContextProviders = [skillsProvider]
+            AIContextProviders = [skillsProvider, _compressedContextProvider]
         });
         return _agent;
     }
