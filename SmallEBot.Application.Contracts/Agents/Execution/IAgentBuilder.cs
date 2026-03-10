@@ -10,4 +10,8 @@ public interface IAgentBuilder
     Task<int> GetContextWindowTokensAsync(CancellationToken ct = default);
     /// <summary>Last built system prompt for token estimation; null if not built yet.</summary>
     string? GetCachedSystemPromptForTokenCount();
+    /// <summary>Serialized tool definitions (name, description, input_schema) for token estimation; null if tools not loaded.</summary>
+    Task<string?> GetSerializedToolsForTokenCountAsync(CancellationToken ct = default);
+    /// <summary>Skills provider context (FileAgentSkillsProvider prompt + skill list) for token estimation.</summary>
+    Task<string> GetSkillsContextForTokenCountAsync(CancellationToken ct = default);
 }

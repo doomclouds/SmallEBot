@@ -4,7 +4,7 @@ English | [简体中文](README.md)
 
 A local AI assistant built with ASP.NET Core Blazor Server. **Runs locally on your machine** — no remote server needed. Your PC is the server.
 
-![SmallEBot](app.png)
+![SmallEBot](docs/images/app.png)
 
 ## Features
 

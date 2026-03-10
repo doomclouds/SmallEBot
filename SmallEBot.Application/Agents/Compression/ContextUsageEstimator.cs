@@ -19,7 +19,7 @@ public sealed class ContextUsageEstimator(
 {
     private const string FallbackSystemPromptForTokenCount = "You are SmallEBot, a helpful personal assistant. Be concise and friendly. When the user asks for the current time or date, use the GetCurrentTime tool. Use any other available MCP tools when they help answer the user.";
 
-    /// <summary>Estimated context usage for UI: ratio and token counts (e.g. for tooltip "8% · 10k/128k"). Includes system, messages, tool calls (name + arguments + result), think blocks, and compressed context.</summary>
+    /// <summary>Estimated context usage for UI: ratio and token counts (e.g. for tooltip "8% · 10k/128k"). Includes system prompt, tool definitions (name+description+schema), skills provider context, messages, tool calls (name+arguments+result), and compressed context.</summary>
     public async Task<ContextUsageEstimate?> GetEstimatedContextUsageDetailAsync(Guid conversationId, CancellationToken ct = default)
     {
         var metadata = await metadataRepository.GetByIdAsync(conversationId, ct);
@@ -39,7 +39,23 @@ public sealed class ContextUsageEstimator(
 
         var json = SerializeRequestJsonForTokenCount(systemPrompt, filteredMessages, truncatedToolCalls);
         var rawTokens = tokenizer.CountTokens(json);
-        var usedTokens = (int)Math.Ceiling(rawTokens * 1.05) + compressedContextTokens;
+
+        var toolsTokens = 0;
+        try
+        {
+            var serializedTools = await agentBuilder.GetSerializedToolsForTokenCountAsync(ct);
+            if (!string.IsNullOrEmpty(serializedTools))
+                toolsTokens = tokenizer.CountTokens(serializedTools);
+        }
+        catch
+        {
+            // Tools may not be loaded yet (e.g. MCP not connected); skip tools tokens
+        }
+
+        var skillsContext = await agentBuilder.GetSkillsContextForTokenCountAsync(ct);
+        var skillsTokens = tokenizer.CountTokens(skillsContext);
+
+        var usedTokens = (int)Math.Ceiling(rawTokens * 1.05) + compressedContextTokens + toolsTokens + skillsTokens;
         var contextWindow = await agentBuilder.GetContextWindowTokensAsync(ct);
         if (contextWindow <= 0) return new ContextUsageEstimate(0, usedTokens, contextWindow);
         var ratio = Math.Min(1.0, usedTokens / (double)contextWindow);
@@ -74,6 +90,7 @@ public sealed class ContextUsageEstimator(
                 {
                     result.Add(new ToolCallWithTruncatedResult
                     {
+                        CallId = fnCall.CallId ?? "",
                         ToolName = fnCall.Name ?? "",
                         Arguments = ToJsonString(fnCall.Arguments) ?? "",
                         Result = ""
@@ -81,7 +98,7 @@ public sealed class ContextUsageEstimator(
                 }
                 else if (content is FunctionResultContent fnResult)
                 {
-                    var matchingCall = result.FirstOrDefault(t => t.ToolName == fnResult.CallId);
+                    var matchingCall = result.FirstOrDefault(t => t.CallId == fnResult.CallId);
                     if (matchingCall != null)
                     {
                         matchingCall.Result = TruncateToolResult(fnResult.Result?.ToString(), toolResultMaxLength) ?? "";
@@ -162,6 +179,7 @@ public sealed class ContextUsageEstimator(
 
     private sealed class ToolCallWithTruncatedResult
     {
+        public string CallId { get; set; } = "";
         public string ToolName { get; set; } = "";
         public string Arguments { get; set; } = "";
         public string Result { get; set; } = "";

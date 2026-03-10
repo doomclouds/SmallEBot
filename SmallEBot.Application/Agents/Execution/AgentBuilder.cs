@@ -4,9 +4,11 @@ using Anthropic.Core;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 
+using System.Text.Json;
 using SmallEBot.Application.Contracts.Agents.Config;
 using SmallEBot.Application.Contracts.Agents.Context;
 using SmallEBot.Application.Contracts.Agents.Execution;
+using SmallEBot.Application.Contracts.Agents.Skills;
 using SmallEBot.Application.Contracts.Workspaces;
 using SmallEBot.Application.Contracts.Agents.Mcp;
 using SmallEBot.Application.Contracts.Agents.Tools;
@@ -16,10 +18,21 @@ namespace SmallEBot.Application.Agents.Execution;
 /// <summary>Builds and caches AIAgent from context factory and tool factories. MCP connections are managed by IMcpConnectionManager.</summary>
 public sealed class AgentBuilder : IAgentBuilder
 {
+    private const string SkillsInstructionTemplate = """
+        You have access to specialized skills.
+
+        <available_skills>
+        {0}
+        </available_skills>
+
+        When relevant, use load_skill to load and follow the skill's instructions.
+        """;
+
     private readonly IAgentSystemPromptBuilder _systemPromptBuilder;
     private readonly IToolProviderAggregator _toolAggregator;
     private readonly IMcpConnectionManager _mcpConnectionManager;
     private readonly IModelConfigService _modelConfig;
+    private readonly ISkillsConfigService _skillsConfig;
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<AgentBuilder> _log;
     private readonly string _skillsPath;
@@ -34,6 +47,7 @@ public sealed class AgentBuilder : IAgentBuilder
         IToolProviderAggregator toolAggregator,
         IMcpConnectionManager mcpConnectionManager,
         IModelConfigService modelConfig,
+        ISkillsConfigService skillsConfig,
         IVirtualFileSystem vfs,
         IServiceProvider serviceProvider,
         ILogger<AgentBuilder> log)
@@ -42,6 +56,7 @@ public sealed class AgentBuilder : IAgentBuilder
         _toolAggregator = toolAggregator;
         _mcpConnectionManager = mcpConnectionManager;
         _modelConfig = modelConfig;
+        _skillsConfig = skillsConfig;
         _serviceProvider = serviceProvider;
         _log = log;
 
@@ -130,6 +145,51 @@ public sealed class AgentBuilder : IAgentBuilder
     }
 
     public string? GetCachedSystemPromptForTokenCount() => _systemPromptBuilder.GetCachedSystemPrompt();
+
+    public async Task<string?> GetSerializedToolsForTokenCountAsync(CancellationToken ct = default)
+    {
+        var tools = await EnsureToolsLoadedAsync(ct);
+        if (tools.Length == 0) return null;
+
+        var items = new List<object>();
+        foreach (var t in tools)
+        {
+            object inputSchema;
+            if (t is AIFunctionDeclaration fn && fn.JsonSchema.ValueKind != JsonValueKind.Undefined)
+                inputSchema = JsonSerializer.Deserialize<object>(fn.JsonSchema.GetRawText()) ?? new { type = "object", properties = new Dictionary<string, object>() };
+            else
+                inputSchema = new { type = "object", properties = new Dictionary<string, object>() };
+
+            items.Add(new
+            {
+                name = t.Name ?? "",
+                description = t.Description ?? "",
+                input_schema = inputSchema
+            });
+        }
+        return JsonSerializer.Serialize(new { tools = items });
+    }
+
+    public async Task<string> GetSkillsContextForTokenCountAsync(CancellationToken ct = default)
+    {
+        var skills = await _skillsConfig.GetMetadataForAgentAsync(ct);
+        var list = skills.Count == 0
+            ? "(none)"
+            : string.Join("\n", skills.Select(s => $"- {s.Id}"));
+        return string.Format(SkillsInstructionTemplate, list);
+    }
+
+    private async Task<AITool[]> EnsureToolsLoadedAsync(CancellationToken ct)
+    {
+        if (_allTools != null) return _allTools;
+        var builtIn = await _toolAggregator.GetAllToolsAsync(ct);
+        var mcpTools = await _mcpConnectionManager.GetAllToolsAsync(ct);
+        var combined = new List<AITool>(builtIn.Length + mcpTools.Length);
+        combined.AddRange(builtIn);
+        combined.AddRange(mcpTools);
+        _allTools = combined.ToArray();
+        return _allTools;
+    }
 
     private static string? ResolveApiKey(string source)
     {
