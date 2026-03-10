@@ -70,9 +70,14 @@ public class ChatOrchestrator : IDisposable
     public string ContextPercentText { get; private set; } = "—";
     public string? ContextUsageTooltip { get; private set; }
     public string CompressionMessage { get; private set; } = "";
+    public TimeSpan CompressionElapsed => IsCompressing && _compressionStartedAt.HasValue
+        ? DateTime.UtcNow - _compressionStartedAt.Value
+        : TimeSpan.Zero;
 
     private DateTime? _lastStreamActivityAt;
     private DateTime? _waitingForToolParamsSince;
+    private DateTime? _compressionStartedAt;
+    private Timer? _compressionRefreshTimer;
 
     public event Action? OnStateChanged;
 
@@ -130,7 +135,10 @@ public class ChatOrchestrator : IDisposable
         if (!ConversationId.HasValue || IsCompressing) return;
 
         IsCompressing = true;
+        _compressionStartedAt = DateTime.UtcNow;
         CompressionMessage = "Compressing context...";
+        _compressionRefreshTimer?.Dispose();
+        _compressionRefreshTimer = new Timer(_ => _ = InvokeOnUIAsync(() => { OnStateChanged?.Invoke(); return Task.CompletedTask; }), null, 1000, 1000);
         OnStateChanged?.Invoke();
 
         try
@@ -154,6 +162,9 @@ public class ChatOrchestrator : IDisposable
         finally
         {
             IsCompressing = false;
+            _compressionStartedAt = null;
+            _compressionRefreshTimer?.Dispose();
+            _compressionRefreshTimer = null;
             CompressionMessage = "";
             OnStateChanged?.Invoke();
         }
@@ -534,7 +545,10 @@ public class ChatOrchestrator : IDisposable
     {
         if (conversationId != ConversationId) return;
         IsCompressing = true;
+        _compressionStartedAt = DateTime.UtcNow;
         CompressionMessage = "Compressing context...";
+        _compressionRefreshTimer?.Dispose();
+        _compressionRefreshTimer = new Timer(_ => _ = InvokeOnUIAsync(() => { OnStateChanged?.Invoke(); return Task.CompletedTask; }), null, 1000, 1000);
         OnStateChanged?.Invoke();
     }
 
@@ -542,6 +556,9 @@ public class ChatOrchestrator : IDisposable
     {
         if (conversationId != ConversationId) return;
         IsCompressing = false;
+        _compressionStartedAt = null;
+        _compressionRefreshTimer?.Dispose();
+        _compressionRefreshTimer = null;
         CompressionMessage = success ? "Context compressed" : "Compression failed";
         _ = InvokeOnUIAsync(async () =>
         {
@@ -615,5 +632,7 @@ public class ChatOrchestrator : IDisposable
     public void Dispose()
     {
         StopWaitingCheckTimer();
+        _compressionRefreshTimer?.Dispose();
+        _compressionRefreshTimer = null;
     }
 }

@@ -124,12 +124,7 @@
 
     @if (IsCompressing)
     {
-        <div class="d-flex align-center ga-2 pa-3 mud-width-full">
-            <MudProgressCircular Color="Color.Primary" Indeterminate="true" Size="Size.Small" />
-            <MudText Typo="Typo.body2" Style="color: var(--mud-palette-text-secondary);">
-                @CompressionMessage
-            </MudText>
-        </div>
+        <SpinnerBlock Verbs="@CompressionVerbs" Elapsed="@CompressionElapsed" />
     }
 
     @if (IsStreaming && StreamingBlocks.Count > 0)
@@ -168,7 +163,7 @@
     [Parameter] public IReadOnlyList<IBubbleBlock> StreamingBlocks { get; set; } = [];
     [Parameter] public bool IsStreaming { get; set; }
     [Parameter] public bool IsCompressing { get; set; }
-    [Parameter] public string CompressionMessage { get; set; } = "Compressing context...";
+    [Parameter] public TimeSpan CompressionElapsed { get; set; }
     [Parameter] public bool ShowWaitingForToolParams { get; set; }
     [Parameter] public TimeSpan WaitingElapsed { get; set; }
     [Parameter] public bool ShowToolCalls { get; set; } = true;
@@ -179,6 +174,15 @@
     [Parameter] public EventCallback<ApprovalBlockModel> OnReject { get; set; }
     [Parameter] public EventCallback OnCancel { get; set; }
     [Parameter] public string? ApprovalProcessingCallId { get; set; }
+
+    private static readonly string[] CompressionVerbs =
+    [
+        "Compressing…",
+        "Summarizing…",
+        "Merging context…",
+        "Almost there…",
+        "One moment…"
+    ];
 
     private ElementReference _scrollRef;
     private bool _scrollToBottomRequested;

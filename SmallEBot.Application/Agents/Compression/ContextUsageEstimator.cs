@@ -73,9 +73,9 @@ public sealed class ContextUsageEstimator(
         IReadOnlyList<ChatMessage> allMessages,
         ConversationMetadata? metadata)
     {
-        // After compression, session only contains post-compression messages,
-        // so no filtering needed — just return all messages.
-        return allMessages;
+        if (metadata?.EffectiveStartIndex is not { } start) return allMessages;
+        if (start <= 0 || start >= allMessages.Count) return allMessages;
+        return allMessages.Skip(start).ToList();
     }
 
     private static List<ToolCallWithTruncatedResult> ExtractToolCalls(IReadOnlyList<ChatMessage> messages, int toolResultMaxLength)
