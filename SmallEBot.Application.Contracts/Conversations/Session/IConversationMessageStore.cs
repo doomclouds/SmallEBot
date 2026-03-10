@@ -13,4 +13,7 @@ public interface IConversationMessageStore
 
     /// <summary>Truncates messages before a specific index (keeps [firstMessageIndex, ...)). Used after compression.</summary>
     Task TruncateBeforeIndexAsync(Guid conversationId, int firstMessageIndex, CancellationToken ct = default);
+
+    /// <summary>Archives current session to session.archives.json and resets session (new session).</summary>
+    Task ArchiveAndResetSessionAsync(Guid conversationId, DateTime compressedAt, CancellationToken ct = default);
 }

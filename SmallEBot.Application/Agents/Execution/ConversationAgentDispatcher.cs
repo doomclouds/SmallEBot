@@ -103,8 +103,9 @@ public sealed class ConversationAgentDispatcher(
             }
 
             metadata.SetCompressedContext(summary);
-            metadata.SetEffectiveStartIndex(messages.Count);
+            metadata.SetEffectiveStartIndex(0);
 
+            await messageStore.ArchiveAndResetSessionAsync(conversationId, metadata.CompressedAt!.Value, ct);
             await metadataRepository.SaveAsync(metadata, ct);
 
             CompressionCompleted?.Invoke(conversationId, true);
