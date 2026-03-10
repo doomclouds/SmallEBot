@@ -16,7 +16,11 @@
 
         @if (msg.Role == ChatRole.User)
         {
-            var decoded = UserMessageCodec.Decode(GetTextContent(msg));
+            var userText = GetTextContent(msg);
+            @* 不显示仅包含 functionApprovalResponse 的消息，只显示有 text 内容的消息 *@
+            @if (!string.IsNullOrWhiteSpace(userText))
+            {
+            var decoded = UserMessageCodec.Decode(userText);
             <div class="smallebot-cli-user">
                 <div class="d-flex align-center justify-space-between">
                     <MudText Typo="Typo.caption" Class="smallebot-cli-role-user">⬤ User</MudText>
@@ -61,6 +65,7 @@
                 </div>
                 </div>
             </div>
+            }
         }
         else if (msg.Role == ChatRole.Assistant)
         {
