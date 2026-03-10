@@ -6,7 +6,7 @@ using SmallEBot.Domain.Conversations.Metadata;
 namespace SmallEBot.Application.Agents.Context;
 
 /// <summary>
-/// AIContextProvider that injects compressed conversation summary for the current conversation.
+/// AIContextProvider that injects compressed conversation summary and filters messages by EffectiveStartIndex.
 /// Uses IAmbientConversationId to get conversation ID at runtime (no session state stored in provider).
 /// </summary>
 public sealed class CompressedContextProvider : AIContextProvider
@@ -23,25 +23,35 @@ public sealed class CompressedContextProvider : AIContextProvider
         _metadataRepository = metadataRepository;
     }
 
-    protected override async ValueTask<AIContext> ProvideAIContextAsync(
+    protected override async ValueTask<AIContext> InvokingCoreAsync(
         InvokingContext context,
         CancellationToken cancellationToken = default)
     {
         var conversationId = _ambientConversationId.GetConversationId();
-        if (!conversationId.HasValue)
-            return new AIContext();
+        var metadata = conversationId.HasValue
+            ? await _metadataRepository.GetByIdAsync(conversationId.Value, cancellationToken)
+            : null;
 
-        var metadata = await _metadataRepository.GetByIdAsync(conversationId.Value, cancellationToken);
-        if (metadata == null || string.IsNullOrWhiteSpace(metadata.CompressedContext))
-            return new AIContext();
+        var messages = (context.AIContext.Messages ?? []).ToList();
+        var effectiveStart = metadata?.EffectiveStartIndex ?? 0;
+        if (effectiveStart > 0 && messages.Count > effectiveStart)
+        {
+            messages = messages.Skip(effectiveStart).ToList();
+        }
 
-        var summaryMessage = new ChatMessage(
-            ChatRole.System,
-            $"## Conversation Summary\n\n{metadata.CompressedContext}");
+        if (metadata != null && !string.IsNullOrWhiteSpace(metadata.CompressedContext))
+        {
+            var summaryMessage = new ChatMessage(
+                ChatRole.System,
+                $"## Conversation Summary\n\n{metadata.CompressedContext}");
+            messages = [summaryMessage, ..messages];
+        }
 
         return new AIContext
         {
-            Messages = [summaryMessage]
+            Messages = messages,
+            Instructions = context.AIContext.Instructions,
+            Tools = context.AIContext.Tools
         };
     }
 }
