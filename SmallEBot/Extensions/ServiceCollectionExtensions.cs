@@ -62,6 +62,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ICompressionThresholdProvider>(sp => sp.GetRequiredService<AgentConfigService>());
         services.AddScoped<ICompressionService, CompressionService>();
         services.AddSingleton<IMcpConnectionManager, McpConnectionManager>();
+        services.AddSingleton<CompressedContextProvider>();
         services.AddScoped<IAgentBuilder, AgentBuilder>();
 
         // Register AIAgent factory for Infrastructure layer (AgentSessionSerializer needs it)
