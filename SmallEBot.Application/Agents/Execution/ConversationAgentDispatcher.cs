@@ -103,9 +103,7 @@ public sealed class ConversationAgentDispatcher(
             }
 
             metadata.SetCompressedContext(summary);
-
-            var firstMessageIndexToKeep = messages.Count;
-            await messageStore.TruncateBeforeIndexAsync(conversationId, firstMessageIndexToKeep, ct);
+            metadata.SetEffectiveStartIndex(messages.Count);
 
             await metadataRepository.SaveAsync(metadata, ct);
 
