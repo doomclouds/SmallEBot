@@ -4,7 +4,8 @@
 
 一个基于 ASP.NET Core Blazor Server 构建的本地 AI 助手应用。**在你的电脑上本地运行**，无需远程服务器——你的电脑就是服务器。
 
-![SmallEBot](https://github.com/doomclouds/SmallEBot/blob/main/docs/images/app.png?raw=true)
+<img width="2874" height="1636" alt="app" src="https://github.com/user-attachments/assets/658620b5-53df-43b9-9ffd-386073b5ae0f" />
+
 
 ## 功能特性
 
