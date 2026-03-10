@@ -9,27 +9,18 @@ namespace SmallEBot.Application.Agents.Context;
 /// AIContextProvider that injects compressed conversation summary and filters messages by EffectiveStartIndex.
 /// Uses IAmbientConversationId to get conversation ID at runtime (no session state stored in provider).
 /// </summary>
-public sealed class CompressedContextProvider : AIContextProvider
+public sealed class CompressedContextProvider(
+    IAmbientConversationId ambientConversationId,
+    IConversationMetadataRepository metadataRepository)
+    : AIContextProvider
 {
-    private readonly IAmbientConversationId _ambientConversationId;
-    private readonly IConversationMetadataRepository _metadataRepository;
-
-    public CompressedContextProvider(
-        IAmbientConversationId ambientConversationId,
-        IConversationMetadataRepository metadataRepository)
-        : base(null, null)
-    {
-        _ambientConversationId = ambientConversationId;
-        _metadataRepository = metadataRepository;
-    }
-
     protected override async ValueTask<AIContext> InvokingCoreAsync(
         InvokingContext context,
         CancellationToken cancellationToken = default)
     {
-        var conversationId = _ambientConversationId.GetConversationId();
+        var conversationId = ambientConversationId.GetConversationId();
         var metadata = conversationId.HasValue
-            ? await _metadataRepository.GetByIdAsync(conversationId.Value, cancellationToken)
+            ? await metadataRepository.GetByIdAsync(conversationId.Value, cancellationToken)
             : null;
 
         var messages = (context.AIContext.Messages ?? []).ToList();

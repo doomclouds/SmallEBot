@@ -8,6 +8,24 @@
 @inject ChatPresentationService Presentation
 
 <div @ref="_scrollRef" class="smallebot-chat-scroll">
+    @if (HasCompressionInfo)
+    {
+        <div class="smallebot-compression-info mb-2">
+            <MudExpansionPanels Class="smallebot-compression-panels" Elevation="0">
+                <MudExpansionPanel Text="📋 Compression summary" Dense="true" expanded="true">
+                    <div class="smallebot-compression-body">
+                        <MarkdownBlock Content="@CompressedContext" />
+                        @if (CompressedAt.HasValue)
+                        {
+                            <MudText Typo="Typo.caption" Class="smallebot-compression-time mt-1">
+                                @CompressedAt.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+                            </MudText>
+                        }
+                    </div>
+                </MudExpansionPanel>
+            </MudExpansionPanels>
+        </div>
+    }
     @{ var toolResults = ChatPresentationService.BuildToolResultsMap(Messages); }
     @for (var i = 0; i < Messages.Count; i++)
     {
@@ -147,7 +165,7 @@
                             <ReasoningBlock Content="@reasoning.Content" />
                             break;
                         case WaitingBlockModel waiting:
-                            <WaitingBlock Model="@waiting" OnCancel="@OnCancel" />
+                            <WaitingBlock Model="@waiting" />
                             break;
                     }
                 }
@@ -159,7 +177,11 @@
 
 @code {
     [Parameter] public IReadOnlyList<ChatMessage> Messages { get; set; } = [];
+    [Parameter] public string? CompressedContext { get; set; }
+    [Parameter] public DateTime? CompressedAt { get; set; }
     [Parameter] public string? PendingUserText { get; set; }
+
+    private bool HasCompressionInfo => !string.IsNullOrWhiteSpace(CompressedContext);
     [Parameter] public IReadOnlyList<IBubbleBlock> StreamingBlocks { get; set; } = [];
     [Parameter] public bool IsStreaming { get; set; }
     [Parameter] public bool IsCompressing { get; set; }
@@ -181,7 +203,12 @@
         "Summarizing…",
         "Merging context…",
         "Almost there…",
-        "One moment…"
+        "One moment…",
+        "Condensing…",
+        "Reducing tokens…",
+        "Building summary…",
+        "Processing history…",
+        "Finalizing…",
     ];
 
     private ElementReference _scrollRef;

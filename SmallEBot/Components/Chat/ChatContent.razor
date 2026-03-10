@@ -31,6 +31,8 @@
     <ChatShell>
         <MessageArea>
             <MessageThread Messages="@DisplayMessages"
+                           CompressedContext="@CompressedContext"
+                           CompressedAt="@CompressedAt"
                            PendingUserText="@_pendingUserText"
                            StreamingBlocks="@_streamingBlocks"
                            IsStreaming="@Orchestrator.IsStreaming"
@@ -48,7 +50,8 @@
                            @ref="_messageThreadRef" />
         </MessageArea>
         <InputArea>
-            <ChatInput Orchestrator="@_inputOrchestrator"
+            <ChatInput @key="_inputKey"
+                       Orchestrator="@_inputOrchestrator"
                        IsStreaming="@Orchestrator.IsStreaming"
                        IsCompressing="@Orchestrator.IsCompressing"
                        ContextPercentText="@Orchestrator.ContextPercentText"
@@ -63,6 +66,8 @@
 @code {
     [Parameter] public IReadOnlyList<ChatMessage> Messages { get; set; } = [];
     [Parameter] public Guid? ConversationId { get; set; }
+    [Parameter] public string? CompressedContext { get; set; }
+    [Parameter] public DateTime? CompressedAt { get; set; }
     [Parameter] public string UserName { get; set; } = "";
     [Parameter] public EventCallback OnMessageSent { get; set; }
     [Parameter] public EventCallback OnBeforeSend { get; set; }
@@ -81,6 +86,8 @@
     private string? _titleSourceText;
     private int? _truncateDisplayAt;
     private DotNetObjectReference<ChatContent>? _dropZoneDotNetRef;
+    private bool _scrollOnNextCompress;
+    private int _inputKey;
 
     private IReadOnlyList<ChatMessage> DisplayMessages =>
         _truncateDisplayAt.HasValue ? Messages.Take(_truncateDisplayAt.Value).ToList() : Messages;
@@ -95,6 +102,7 @@
         Orchestrator.SetConversation(ConversationId);
         Orchestrator.OnStateChanged += HandleOrchestratorStateChanged;
         Orchestrator.OnStreamingCompleted += HandleStreamingCompleted;
+        Orchestrator.OnCompressionCompletedForRefresh += HandleCompressionCompletedForRefresh;
     }
 
     protected override void OnParametersSet()
@@ -183,6 +191,11 @@
         try
         {
             _streamingBlocks = Orchestrator.StreamItems;
+            if (_scrollOnNextCompress && Orchestrator.IsCompressing)
+            {
+                _scrollOnNextCompress = false;
+                _messageThreadRef?.RequestScrollToBottom();
+            }
             await InvokeAsync(StateHasChanged);
         }
         catch (Exception ex)
@@ -191,13 +204,29 @@
         }
     }
 
+    private async void HandleCompressionCompletedForRefresh()
+    {
+        try
+        {
+            await OnMessageSent.InvokeAsync();
+            _messageThreadRef?.RequestScrollToBottom();
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            Log.LogWarning(ex, "HandleCompressionCompletedForRefresh failed");
+        }
+    }
+
     private async void HandleStreamingCompleted()
     {
         try
         {
-            // Refresh messages FIRST so content appears immediately
+            // Clear pending display and input, refresh messages
             _pendingUserText = null;
             _truncateDisplayAt = null;
+            _inputOrchestrator.Reset();
+            _inputKey++;
             await OnMessageSent.InvokeAsync();
             _messageThreadRef?.RequestScrollToBottom();
             await InvokeAsync(StateHasChanged);
@@ -288,6 +317,9 @@
         if (string.IsNullOrWhiteSpace(text)) return;
         if (Orchestrator.IsStreaming || Orchestrator.IsCompressing) return;
 
+        _inputKey++;
+        await InvokeAsync(StateHasChanged);
+
         // Encode attachments into the message text
         var fullMessage = UserMessageCodec.Encode(text, attachedPaths, requestedSkillIds);
 
@@ -316,7 +348,11 @@
 
     private void HandleStop() => Orchestrator.RequestStop();
 
-    private async Task HandleCompress() => await Orchestrator.CompressAsync();
+    private async Task HandleCompress()
+    {
+        _scrollOnNextCompress = true;
+        await Orchestrator.CompressAsync();
+    }
 
     public void Dispose()
     {
@@ -326,6 +362,7 @@
         _inputOrchestrator.OnStateChanged -= StateHasChanged;
         Orchestrator.OnStateChanged -= HandleOrchestratorStateChanged;
         Orchestrator.OnStreamingCompleted -= HandleStreamingCompleted;
+        Orchestrator.OnCompressionCompletedForRefresh -= HandleCompressionCompletedForRefresh;
         AgentDispatcher.CompressionStarted -= Orchestrator.OnCompressionStarted;
         AgentDispatcher.CompressionCompleted -= Orchestrator.OnCompressionCompleted;
         ModelConfigService.OnChanged -= Orchestrator.OnModelConfigChanged;

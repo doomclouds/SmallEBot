@@ -24,59 +24,20 @@ public sealed class AgentSessionReader(
         Guid conversationId,
         CancellationToken ct = default)
     {
-        var allMessages = new List<ChatMessage>();
-
-        var archivesJson = await sessionStore.GetArchivesJsonAsync(conversationId, ct);
-        if (!string.IsNullOrEmpty(archivesJson))
-        {
-            try
-            {
-                using var archivesDoc = JsonDocument.Parse(archivesJson);
-                var archived = ParseArchivedMessages(archivesDoc.RootElement);
-                allMessages.AddRange(archived);
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex, "Failed to parse archives for conversation {ConversationId}", conversationId);
-            }
-        }
-
         var sessionJson = await sessionStore.GetSessionJsonAsync(conversationId, ct);
-        if (!string.IsNullOrEmpty(sessionJson))
+        if (string.IsNullOrEmpty(sessionJson))
+            return [];
+
+        try
         {
-            try
-            {
-                using var sessionDoc = JsonDocument.Parse(sessionJson);
-                var sessionMessages = ParseMessages(sessionDoc.RootElement);
-                allMessages.AddRange(sessionMessages);
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex, "Failed to parse session data for conversation {ConversationId}", conversationId);
-            }
+            using var sessionDoc = JsonDocument.Parse(sessionJson);
+            return ParseMessages(sessionDoc.RootElement);
         }
-
-        return allMessages;
-    }
-
-    private List<ChatMessage> ParseArchivedMessages(JsonElement archivesRoot)
-    {
-        var result = new List<ChatMessage>();
-        if (!archivesRoot.TryGetProperty("entries", out var entries) || entries.ValueKind != JsonValueKind.Array)
-            return result;
-
-        foreach (var entry in entries.EnumerateArray())
+        catch (Exception ex)
         {
-            if (!entry.TryGetProperty("messages", out var messages) || messages.ValueKind != JsonValueKind.Array)
-                continue;
-            foreach (var msgElement in messages.EnumerateArray())
-            {
-                var msg = ParseMessage(msgElement);
-                if (msg != null)
-                    result.Add(msg);
-            }
+            logger.LogWarning(ex, "Failed to parse session data for conversation {ConversationId}", conversationId);
+            return [];
         }
-        return result;
     }
 
     /// <inheritdoc />

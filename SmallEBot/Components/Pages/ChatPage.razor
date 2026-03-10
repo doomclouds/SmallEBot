@@ -30,6 +30,8 @@ else
                         <ChatContent Messages="@_messages"
                                     ConversationId="_selectedConversation.Id"
                                     UserName="_userName"
+                                    CompressedContext="@_selectedConversation.CompressedContext"
+                                    CompressedAt="@_selectedConversation.CompressedAt"
                                     OnMessageSent="@RefreshSidebar"
                                     OnBeforeSend="@RefreshCurrentConversation" />
                     </div>

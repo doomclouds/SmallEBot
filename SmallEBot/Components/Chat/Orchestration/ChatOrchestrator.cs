@@ -84,6 +84,9 @@ public class ChatOrchestrator : IDisposable
     /// <summary>Fired when streaming completes successfully (persisted). Component should call OnMessageSent.</summary>
     public event Action? OnStreamingCompleted;
 
+    /// <summary>Fired when compression completes successfully. Component should refresh messages and conversation.</summary>
+    public event Action? OnCompressionCompletedForRefresh;
+
     public void SetConversation(Guid? id)
     {
         ConversationId = id;
@@ -147,6 +150,7 @@ public class ChatOrchestrator : IDisposable
             if (compressed)
             {
                 await RefreshContextUsageAsync();
+                OnCompressionCompletedForRefresh?.Invoke();
                 await ShowMessageAsync("Context compressed successfully.", Severity.Success);
             }
             else
@@ -567,6 +571,8 @@ public class ChatOrchestrator : IDisposable
             OnStateChanged?.Invoke();
         });
         _contextRefreshRequested = true;
+        if (success)
+            _ = InvokeOnUIAsync(() => { OnCompressionCompletedForRefresh?.Invoke(); return Task.CompletedTask; });
     }
 
     public void OnModelConfigChanged()

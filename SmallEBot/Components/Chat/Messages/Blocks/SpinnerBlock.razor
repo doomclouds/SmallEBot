@@ -1,27 +1,10 @@
 @using SmallEBot.Components.Chat.ViewModels.Blocks
 
-<div class="mt-2 tool-call-view">
-    <MudPaper Class="tool-call-paper tool-call-paper-active" Elevation="0">
-        <div class="waiting-tool-params-row">
-            <span class="mud-typography-body2 font-weight-medium">Waiting…</span>
-            <div class="waiting-tool-params-center">
-                <span class="waiting-tool-params-time tool-call-status-text mud-typography-caption mud-secondary-text">@TimeFormatHelper.FormatElapsed(Elapsed)</span>
-            </div>
-            @if (OnCancel.HasDelegate)
-            {
-                <MudIconButton Icon="@Icons.Material.Filled.Cancel"
-                               Size="Size.Small"
-                               Color="Color.Warning"
-                               OnClick="@OnCancel"
-                               title="Cancel" />
-            }
-            else
-            {
-                <span class="waiting-tool-params-right-placeholder"></span>
-            }
-        </div>
-        <div class="waiting-tool-params-danmaku mud-typography-caption" style="color: @GetColor();">
-            @GetCurrentVerb()…
+<div class="mt-2 smallebot-spinner-wrap">
+    <MudPaper Class="smallebot-spinner-block" Elevation="0">
+        <div class="smallebot-spinner-line">
+            <span class="smallebot-spinner-asterisk" style="color: @GetColor();">*</span>
+            <span class="smallebot-spinner-text" style="color: @GetColor();">@GetCurrentVerb()…</span>
         </div>
     </MudPaper>
 </div>
@@ -29,16 +12,17 @@
 @code {
     [Parameter] public string[] Verbs { get; set; } = [];
     [Parameter] public TimeSpan Elapsed { get; set; }
-    [Parameter] public EventCallback OnCancel { get; set; }
 
     private const string ColorStart = "#e8a54a";
     private const string ColorEnd = "#8b0000";
     private const double ColorTransitionSeconds = 30;
+    private const double VerbRotateSeconds = 10;
 
     private string GetCurrentVerb()
     {
         if (Verbs.Length == 0) return "Waiting";
-        var index = (int)(Elapsed.TotalSeconds / 30) % Verbs.Length;
+        var slot = (int)(Elapsed.TotalSeconds / VerbRotateSeconds);
+        var index = (slot * 31 + 7) % Verbs.Length;
         return Verbs[index];
     }
 

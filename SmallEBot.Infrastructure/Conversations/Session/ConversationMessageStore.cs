@@ -13,7 +13,4 @@ public sealed class ConversationMessageStore(
 
     public Task TruncateBeforeIndexAsync(Guid conversationId, int firstMessageIndex, CancellationToken ct = default)
         => sessionStore.TruncateBeforeIndexAsync(conversationId, firstMessageIndex, ct);
-
-    public Task ArchiveAndResetSessionAsync(Guid conversationId, DateTime compressedAt, CancellationToken ct = default)
-        => sessionStore.ArchiveAndResetSessionAsync(conversationId, compressedAt, ct);
 }
