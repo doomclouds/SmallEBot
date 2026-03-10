@@ -9,4 +9,5 @@ internal sealed class ConversationMetadataPersistence
     public DateTime UpdatedAt { get; set; }
     public string? CompressedContext { get; set; }
     public DateTime? CompressedAt { get; set; }
+    public int? EffectiveStartIndex { get; set; }
 }

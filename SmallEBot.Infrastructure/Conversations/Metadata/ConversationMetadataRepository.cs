@@ -162,7 +162,8 @@ public sealed class ConversationMetadataRepository : IConversationMetadataReposi
             CreatedAt = m.CreatedAt,
             UpdatedAt = m.UpdatedAt,
             CompressedContext = m.CompressedContext,
-            CompressedAt = m.CompressedAt
+            CompressedAt = m.CompressedAt,
+            EffectiveStartIndex = m.EffectiveStartIndex
         };
     }
 
@@ -176,6 +177,7 @@ public sealed class ConversationMetadataRepository : IConversationMetadataReposi
 
         metadata.SetUpdatedAt(dto.UpdatedAt);
         metadata.SetCompressedContextForLoad(dto.CompressedContext, dto.CompressedAt);
+        metadata.SetEffectiveStartIndexForLoad(dto.EffectiveStartIndex);
         return metadata;
     }
 

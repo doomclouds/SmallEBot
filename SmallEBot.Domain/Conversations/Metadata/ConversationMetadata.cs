@@ -17,6 +17,7 @@ public class ConversationMetadata(
 
     public string? CompressedContext { get; private set; }
     public DateTime? CompressedAt { get; private set; }
+    public int? EffectiveStartIndex { get; private set; }
 
     public static ConversationMetadata Create(string userName, string title = "New conversation")
     {
@@ -38,6 +39,17 @@ public class ConversationMetadata(
         CompressedContext = compressedContext;
         CompressedAt = compressedAt;
         UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void SetEffectiveStartIndex(int index)
+    {
+        EffectiveStartIndex = index;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    internal void SetEffectiveStartIndexForLoad(int? value)
+    {
+        EffectiveStartIndex = value;
     }
 
     public void SetTitle(string? title)
