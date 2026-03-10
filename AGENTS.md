@@ -8,10 +8,9 @@ This file provides guidance to Cursor when working with code in this repository.
 |------|---------|
 | Build | `dotnet build` |
 | Run | `dotnet run --project SmallEBot` |
-| EF migration | `dotnet ef migrations add <Name> --project SmallEBot.Infrastructure --startup-project SmallEBot` |
 
 - Solution: `SmallEBot.slnx`
-- Migrations auto-apply on startup
+- Data: JSON files (`.agents/`), no database migrations
 - No test project; no lint script
 
 **PowerShell:** Use `;` to chain commands, not `&&`. Quote paths with spaces.
@@ -50,6 +49,7 @@ CLI-style linear message display (no chat bubbles). Key components:
 |-----------|----------|
 | Message thread | `SmallEBot/Components/Chat/Messages/MessageThread.razor` |
 | Chat orchestrator | `SmallEBot/Components/Chat/ChatContent.razor` |
+| Chat/Input orchestration | `SmallEBot/Components/Chat/Orchestration/ChatOrchestrator.cs`, `InputOrchestrator.cs` |
 | Presentation service | `SmallEBot/Components/Chat/Services/ChatPresentationService.cs` |
 | Message codec | `SmallEBot.Core/UserMessageCodec.cs` |
 
@@ -66,6 +66,7 @@ User-attached files and skills are encoded in user message text via `UserMessage
 | Agent runner | `SmallEBot.Application/Agents/Execution/AgentRunner.cs` |
 | Agent builder | `SmallEBot.Application/Agents/Execution/AgentBuilder.cs` |
 | System prompt | `SmallEBot.Application/Agents/Context/AgentSystemPromptBuilder.cs` |
+| Compressed context | `SmallEBot.Application/Agents/Context/CompressedContextProvider.cs` |
 | Built-in tools | `SmallEBot.Infrastructure/Agents/Tools/` (IToolProvider implementations) |
 | Workspace VFS | `SmallEBot.Infrastructure/Workspaces/` |
 
@@ -97,7 +98,8 @@ AgentSession is the single source of truth for conversation content. No Turn abs
 ### Context Compression
 
 - Trigger: automatic (≥80% context usage) or manual (compress button)
-- Logic: `ConversationAgentDispatcher.CompactConversationAsync()` → `CompressionService`
+- Logic: `ConversationAgentDispatcher.CompactConversationAsync()` → `CompressionService.GenerateSummaryAsync()` (merges with existing `CompressedContext`) → `metadata.SetCompressedContext` + `SetEffectiveStartIndex(0)` + `TruncateSessionAsync(0)` (clears session; summary replaces old messages)
+- Injection: `CompressedContextProvider` (AIContextProvider in `Application/Agents/Context/`) injects summary as system message and filters messages by `EffectiveStartIndex`; not in system prompt
 
 ### Cache Invalidation
 

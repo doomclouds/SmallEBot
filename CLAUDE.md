@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Language Rules
 
-- **UI and logs: English only** — labels, buttons, messages, exception text shown to users
+- **UI and logs: English only** â€” labels, buttons, messages, exception text shown to users
 - **Code comments and git commits: English**
 - Do not leave Chinese or other non-English text in production code
 
@@ -18,10 +18,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 |------|---------|
 | Build | `dotnet build` |
 | Run | `dotnet run --project SmallEBot` |
-| EF migration | `dotnet ef migrations add <Name> --project SmallEBot.Infrastructure --startup-project SmallEBot` |
 
 - Solution: `SmallEBot.slnx`
-- Migrations auto-apply on startup (`Program.cs` calls `db.Database.Migrate()`)
+- Data: JSON files (`.agents/`), no database migrations
 - No test project; no lint script
 
 **PowerShell:** Use `;` to chain commands, not `&&`. Quote paths with spaces.
@@ -31,12 +30,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Project Dependencies
 
 ```
-SmallEBot.Core              ? (no deps) — entities, models
-SmallEBot.Domain            ? (no deps) — entities, value objects, repository interfaces
-SmallEBot.Application.Contracts ? Core, Domain — service interfaces
-SmallEBot.Application       ? Core, Domain, Application.Contracts — orchestration
-SmallEBot.Infrastructure    ? Core, Domain, Application.Contracts — persistence, VFS, tools
-SmallEBot (Host)            ? Core, Domain, Application, Application.Contracts, Infrastructure — Blazor UI, DI
+SmallEBot.Core              -> (no deps) â€” entities, models
+SmallEBot.Domain            -> (no deps) â€” entities, value objects, repository interfaces
+SmallEBot.Application.Contracts -> Core, Domain â€” service interfaces
+SmallEBot.Application       -> Core, Domain, Application.Contracts â€” orchestration
+SmallEBot.Infrastructure    -> Core, Domain, Application.Contracts â€” persistence, VFS, tools
+SmallEBot (Host)            -> Core, Domain, Application, Application.Contracts, Infrastructure â€” Blazor UI, DI
 ```
 
 ### Key Files
@@ -56,15 +55,15 @@ SmallEBot (Host)            ? Core, Domain, Application, Application.Contracts, 
 ### Request Flow
 
 ```
-Blazor UI ? SignalR ? IConversationService (ConversationService) — CRUD, session management
-                    ? IConversationAgentDispatcher (ConversationAgentDispatcher) — dispatch to agent
-                         ?
-                    IAgentRunner (AgentRunner) ? AIAgent ? IAgentSessionStore
-                         ?
-                    IStreamSink (ChannelStreamSink) ? UI updates
+Blazor UI -> SignalR -> IConversationService (ConversationService) â€” CRUD, session management
+                    -> IConversationAgentDispatcher (ConversationAgentDispatcher) â€” dispatch to agent
+                         |
+                    IAgentRunner (AgentRunner) -> AIAgent -> IAgentSessionStore
+                         |
+                    IStreamSink (ChannelStreamSink) -> UI updates
 ```
 
-**AgentBuilder** composes: `IAgentSystemPromptBuilder` (system prompt + skills) + `IToolProviderAggregator` + `IMcpConnectionManager` ? caches `AIAgent`.
+**AgentBuilder** composes: `IAgentSystemPromptBuilder` (system prompt + skills) + `IToolProviderAggregator` + `IMcpConnectionManager` -> caches `AIAgent`.
 
 ### Agents Domain (DDD subdomains)
 
@@ -80,18 +79,17 @@ Blazor UI ? SignalR ? IConversationService (ConversationService) — CRUD, session
 | Subdomain | Location | Contents |
 |-----------|----------|----------|
 | **Metadata** | `Domain/Conversations/Metadata/` | ConversationMetadata, IConversationMetadataRepository |
-| **Compression** | `Application.Contracts/Agents/Compression/` | ICompressionService, IContextUsageEstimator, ITokenizer |
 | **Session** | `Application.Contracts/Conversations/Session/` | IAgentSessionStore, IAgentSessionReader |
 | **TaskList** | `Application.Contracts/Conversations/TaskList/` | ITaskListService |
 | **Metadata (impl)** | `Infrastructure/Conversations/Metadata/` | ConversationMetadataRepository |
-| **Session (impl)** | `Infrastructure/Conversations/Session/` | AgentSessionStore, AgentSessionSerializer, AgentSessionReader |
+| **Session (impl)** | `Infrastructure/Conversations/Session/` | AgentSessionStore, AgentSessionReader |
 
-AgentSession is the single source of truth for conversation content. No Turn abstraction — messages map 1:1 to UI display.
+AgentSession is the single source of truth for conversation content. No Turn abstraction â€” messages map 1:1 to UI display.
 
 ### Workspace and Skills
 
-- Workspace root: `.agents/vfs/` — all file operations and `ExecuteCommand` cwd are scoped here
-- Skills: `.agents/vfs/sys.skills/` and `.agents/vfs/skills/` — **read-only in workspace UI** (view/list only)
+- Workspace root: `.agents/vfs/` â€” all file operations and `ExecuteCommand` cwd are scoped here
+- Skills: `.agents/vfs/sys.skills/` and `.agents/vfs/skills/` â€” **read-only in workspace UI** (view/list only)
 - Use `GetWorkspaceRoot()` tool when MCP or scripts need an absolute path
 
 ### Built-in Tools
@@ -101,19 +99,17 @@ AgentSession is the single source of truth for conversation content. No Turn abs
 | `GetCurrentTime` | Current local datetime |
 | `GetWorkspaceRoot()` | Absolute path to workspace root |
 | `ReadFile/WriteFile/AppendFile` | File operations in workspace |
-| `ListFiles/CopyDirectory` | Directory operations |
+| `ListFiles/CopyFile/CopyDirectory` | Directory and file operations |
 | `FindBlobs/Grep` | Search by filename or content |
-| `ReadSkill/ReadSkillFile/ListSkillFiles` | Skill file access |
+| `load_skill/read_skill_resource` | Skill loading (Agent framework native, via FileAgentSkillsProvider) |
 | `ExecuteCommand` | Shell command execution (with optional confirmation) |
-| `SetTaskList/ListTasks/CompleteTask/ClearTasks` | Task list management |
-| `ReadConversationData()` | Timeline of current conversation (messages, tool calls, thinking) |
+| `SetTaskList/ListTasks/CompleteTask/CompleteTasks/ClearTasks` | Task list management |
 | `GenerateSkill(...)` | Create new skill from analyzed patterns |
 
 ### Context Attachments
 
-- `@path` — Attaches workspace file; content encoded in user message via `UserMessageCodec`
-- `/skillId` — Attaches skill; encoded in user message; model fetches via `ReadSkill(skillId)` tool
-- Drag-and-drop — Uploads to workspace `temp/`, deduplicated by hash
+- **Add files/skills buttons** â€” Open dialogs to select workspace files or skills; `UserMessageCodec` encodes as `<!--meta:{"files":["path"],"skills":["id"]}-->\n\n{text}` in user message
+- Drag-and-drop â€” Uploads to workspace `temp/`, deduplicated by hash
 
 ### Circuit Context
 
@@ -143,15 +139,13 @@ CLI-style linear message display (? User / ? Assistant), no chat bubbles.
 
 | Path | Purpose |
 |------|---------|
-| `smallebot.db` | SQLite database |
-| `smallebot-settings.json` | User preferences |
+| `.agents/settings.json` | User preferences, theme, username |
 | `.agents/conversations/{id:N}/` | Conversation storage: `metadata.json` (Domain.ConversationMetadata) + `session.json` (AgentSession) + `tasks.json` (per-conversation task list) |
 | `.agents/vfs/` | Workspace (agent file tools, ExecuteCommand cwd) |
 | `.agents/.mcp.json` | User MCP config |
 | `.agents/.sys.mcp.json` | System MCP config |
 | `.agents/terminal.json` | Terminal security config |
 | `.agents/models.json` | Model configurations |
-| `.agents/conversations/{id}/tasks.json` | Per-conversation task list |
 
 ## Cache Invalidation
 
@@ -159,33 +153,34 @@ After modifying MCP config, skills, or model configuration, call `IAgentInvalida
 
 ## Context Compression
 
-Context compression reduces token usage by summarizing old conversation messages into a compact summary.
+Context compression reduces token usage by summarizing conversation messages into a compact summary. After compression, the session is truncated (old messages removed); the summary replaces them for LLM context.
 
 **Trigger Methods:**
-1. **Automatic**: Before each message send, if context usage ? threshold (default 80%), compression runs automatically
+1. **Automatic**: Before each message send, if context usage >= threshold (default 80%), compression runs automatically
 2. **Manual**: User clicks the compress button (left side of input bar)
 
 **Implementation:**
 | Component | Location |
 |-----------|----------|
 | Compression service | `Application/Agents/Compression/CompressionService.cs` |
-| Compression logic | `Application/Agents/Execution/ConversationAgentDispatcher.cs` ? `CompactConversationAsync()` |
+| Compression logic | `Application/Agents/Execution/ConversationAgentDispatcher.cs` -> `CompactConversationAsync()` |
+| Context injection | `Application/Agents/Context/CompressedContextProvider.cs` (AIContextProvider) |
 | UI trigger | `Components/Chat/Input/InputBar.razor` (compress button) |
-| UI handler | `Components/Chat/ChatContent.razor` ? `CompressContext()` |
+| UI handler | `Components/Chat/ChatContent.razor` -> `CompressContext()` |
 
 **Data Flow:**
-1. Get messages created after `CompressedAt` timestamp (new messages only)
+1. Get all messages from session
 2. Call LLM to generate/merge summary (includes existing `CompressedContext` for merge)
-3. Save summary to `ConversationMetadata.CompressedContext`, update `CompressedAt`
-4. System prompt includes `CompressedContext` as "Conversation Summary" section
-5. Token estimator excludes compressed messages from token count
+3. Save summary to `ConversationMetadata.CompressedContext`, set `EffectiveStartIndex = 0`
+4. `TruncateSessionAsync(0)` â€” clear session; UI shows compression summary block only
+5. `CompressedContextProvider` injects summary as system message and filters messages by `EffectiveStartIndex` (not in system prompt)
+6. Token estimator uses `EffectiveStartIndex` to exclude compressed messages from count
 
 **Key Files:**
-- `Domain/Conversations/Metadata/ConversationMetadata.cs` — `CompressedContext`, `CompressedAt` fields
-- `Application.Contracts/Conversations/ConversationDto.cs` — DTO for UI (maps from Domain)
-- `Application.Contracts/Agents/Compression/ICompressionService.cs` — interface
-- `Application/Agents/Compression/CompressionService.cs` — LLM-based summary generation
-- `Application/Agents/Context/AgentSystemPromptBuilder.cs` — injects summary into system prompt
+- `Domain/Conversations/Metadata/ConversationMetadata.cs` â€” `CompressedContext`, `CompressedAt`, `EffectiveStartIndex`
+- `Application.Contracts/Agents/Compression/ICompressionService.cs` â€” interface
+- `Application/Agents/Compression/CompressionService.cs` â€” LLM-based summary generation
+- `Application/Agents/Context/CompressedContextProvider.cs` â€” AIContextProvider that injects summary and filters messages
 
 ## Technology Stack
 
@@ -195,7 +190,7 @@ Context compression reduces token usage by summarizing old conversation messages
 | UI | Blazor Server + MudBlazor |
 | Agent | Microsoft.Agents.AI.Anthropic |
 | LLM API | DeepSeek (Anthropic-compatible) or any Anthropic-compatible endpoint |
-| Database | EF Core + SQLite |
+| Data | JSON files (`.agents/` directory) |
 | MCP | ModelContextProtocol |
 
 ## Design Docs

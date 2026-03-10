@@ -18,7 +18,7 @@ A local AI assistant built with ASP.NET Core Blazor Server. **Runs locally on yo
 - **Terminal**: Execute shell commands via `ExecuteCommand` tool. Configurable command blacklist. Optional command confirmation and whitelist.
 - **Workspace**: Agent file tools and ExecuteCommand scoped to `.agents/vfs/`. Browse files via the Workspace drawer (refreshes via FileSystemWatcher).
 - **Task list**: Assistant can manage a task list per conversation via tools; Task List drawer stays in sync.
-- **Context compression**: Automatically compresses conversation history when context reaches threshold. Manual compress via button. Summary merged with existing context, injected into system prompt.
+- **Context compression**: Automatically compresses conversation history when context reaches threshold. Manual compress via button. Summary merged with existing context; after compression session is cleared and summary is injected via CompressedContextProvider into LLM context.
 - **Themes**: Multiple UI themes (dark, light, terminal style, etc.) with persistence.
 - **No login**: First visit asks for a username; data is scoped by that name.
 
@@ -30,7 +30,7 @@ A local AI assistant built with ASP.NET Core Blazor Server. **Runs locally on yo
 | UI | Blazor Server + MudBlazor |
 | Agent | Microsoft Agent Framework (Anthropic) |
 | LLM | DeepSeek (Anthropic-compatible API) or other Anthropic-compatible endpoints |
-| Data | EF Core + SQLite |
+| Data | JSON files (`.agents/` directory) |
 
 ## Project Structure
 
@@ -42,7 +42,7 @@ SmallEBot/
 │   ├── Components/               # Razor components
 │   │   ├── Layout/               # Layout components
 │   │   ├── Chat/                 # CLI-style chat area, message editing, streaming
-│   │   ├── Workspace/            # Workspace drawer components
+│   │   ├── Workspaces/           # Workspace drawer components
 │   │   ├── TaskList/             # Task list drawer
 │   │   ├── Terminal/             # Terminal-related components
 │   │   ├── Agent/                # Model selector, etc.
@@ -78,14 +78,14 @@ SmallEBot/
 │   ├── Agents/                   # Config, Mcp, Skills, Tools, Tokenizers
 │   ├── Conversations/            # Metadata, Session, TaskList
 │   ├── Workspaces/               # VirtualFileSystem, WorkspaceWatcher
-│   ├── UserPreferences/          # UserPreferenceRepository
-│   └── Migrations/               # EF Core migrations
+│   └── UserPreferences/          # UserPreferenceRepository
 │
 ├── .agents/                      # Runtime data directory (auto-created)
 │   ├── vfs/                      # Workspace (Agent file operations scope)
 │   │   ├── sys.skills/           # System skills (read-only in workspace)
 │   │   └── skills/               # User custom skills (read-only in workspace)
-│   ├── conversations/{id}/      # Per-conversation metadata.json, session.json, tasks.json
+│   ├── conversations/{id}/      # Per-conversation metadata.json, session.json; tasks.json
+│   ├── tasks/                    # [Legacy] Old task storage tasks/{id}.json; migrates to conversations/{id}/tasks.json on first load
 │   ├── .mcp.json                 # MCP configuration
 │   ├── .sys.mcp.json             # System MCP configuration
 │   ├── terminal.json             # Terminal configuration
@@ -169,15 +169,14 @@ All runtime data is stored in the application directory:
 
 | File/Directory | Description |
 |----------------|-------------|
-| `smallebot.db` | SQLite database |
-| `smallebot-settings.json` | User preferences |
+| `.agents/settings.json` | User preferences, theme, username, etc. |
 | `.agents/vfs/` | Workspace (Agent file operations scope) |
 | `.agents/vfs/sys.skills/` | System skills (view only in workspace; no delete/write) |
 | `.agents/vfs/skills/` | User skills (view only in workspace; no delete/write) |
 | `.agents/.mcp.json` | MCP server configuration |
 | `.agents/terminal.json` | Terminal security configuration |
 | `.agents/models.json` | Model configurations (switch via Settings or AppBar) |
-| `.agents/conversations/{id}/tasks.json` | Per-conversation task list |
+| `.agents/conversations/{id}/tasks.json` | Per-conversation task list (new path; legacy `.agents/tasks/{id}.json` migrates on first load) |
 
 ## Usage Guide
 
@@ -192,13 +191,13 @@ All runtime data is stored in the application directory:
 
 In the chat input:
 
-- Type `@` to attach workspace files (file content is injected into the conversation context)
-- Type `/` to attach skills (assistant automatically loads skill content)
+- Click the "Add files" button to open a dialog and select workspace files (content is injected into the conversation context)
+- Click the "Add skills" button to open a dialog and select skills (assistant automatically loads skill content)
 - Drag and drop files to upload to workspace
 
 ### Thinking Mode
 
-Click the "Thinking" button next to the input to toggle. When enabled, the assistant shows its reasoning process in a collapsible panel, followed by the final text response (requires a model that supports thinking, e.g., DeepSeek Reasoner).
+Click the thinking mode button (Psychology icon) in the app bar to toggle. When enabled, the assistant shows its reasoning process in a collapsible panel, followed by the final text response (requires a model that supports thinking, e.g., DeepSeek Reasoner).
 
 ### Model Switching
 
@@ -217,29 +216,14 @@ Click the "Workspace" button in the app bar to open the sidebar:
 - Preview file contents
 - Agent file read/write operations are scoped to this directory
 
-### Skills Management
+### Settings (MCP, Skills, Terminal)
 
-Click the "Skills" button in the app bar:
+Click the "Settings" button in the app bar to open the settings dialog, which includes:
 
-- View installed skills
-- Create new skills (under workspace `.agents/vfs/skills/`; view-only in workspace)
-- Skills are `SKILL.md` files with YAML frontmatter
-
-### MCP Servers
-
-Click the "MCP" button in the app bar:
-
-- Configure external MCP servers
-- System-level MCP in `.agents/.sys.mcp.json`
-- User-level MCP in `.agents/.mcp.json`
-
-### Terminal Configuration
-
-Click the "Terminal" button in the app bar:
-
-- **Blacklist**: Command prefixes that are blocked
-- **Require Confirmation**: When enabled, commands require approval before execution
-- **Whitelist**: Approved command prefixes (auto-added)
+- **Theme**: Theme switching
+- **MCP**: Configure external MCP servers (system: `.agents/.sys.mcp.json`, user: `.agents/.mcp.json`)
+- **Skills**: View, create, and import skills (under `.agents/vfs/skills/`; view-only in workspace; `SKILL.md` with YAML frontmatter)
+- **Terminal**: Command blacklist, require confirmation, whitelist
 
 ## Built-in Tools
 
@@ -253,18 +237,18 @@ The assistant can use the following tools:
 | `WriteFile(path, content)` | Write workspace file |
 | `AppendFile(path, content)` | Append content to a file (creates if missing) |
 | `ListFiles(path?)` | List workspace directory contents |
+| `CopyFile(sourcePath, destPath)` | Copy a single file |
 | `CopyDirectory(sourcePath, destPath)` | Copy a directory and its contents recursively to another path |
 | `FindBlobs(pattern, ...)` | Search file names by pattern (glob/regex) |
 | `Grep(pattern, ...)` | Search file content (supports regex) |
-| `ReadSkill(skillName)` | Load skill file |
-| `ReadSkillFile(skillId, relativePath)` | Read file inside a skill |
-| `ListSkillFiles(skillId, path?)` | List files inside a skill |
+| `load_skill(skillName)` | Load skill instructions (Agent framework native) |
+| `read_skill_resource(skillName, resourcePath)` | Read resource file inside a skill (Agent framework native) |
 | `ExecuteCommand(command)` | Execute shell command |
 | `SetTaskList(tasksJson)` | Create task list |
 | `ListTasks` | View task list |
-| `CompleteTask(taskId)` | Mark task as done |
+| `CompleteTask(taskId)` | Mark a single task as done |
+| `CompleteTasks(taskIds)` | Mark multiple tasks as done |
 | `ClearTasks` | Clear task list |
-| `ReadConversationData()` | Get timeline of current conversation (messages, tool calls, thinking) |
 | `GenerateSkill(...)` | Create new skill from analyzed patterns |
 
 ## Development Commands
@@ -275,12 +259,9 @@ dotnet build
 
 # Run project
 dotnet run --project SmallEBot
-
-# Add EF Core migration
-dotnet ef migrations add <MigrationName> --project SmallEBot.Infrastructure --startup-project SmallEBot
 ```
 
-**PowerShell**: Use `;` to chain commands, not `&&`.
+Data is stored as JSON files; no database migrations. **PowerShell**: Use `;` to chain commands, not `&&`.
 
 For architecture and Claude Code guidance, see [CLAUDE.md](CLAUDE.md).
 For Cursor, see [AGENTS.md](AGENTS.md).
