@@ -36,4 +36,8 @@ public static class BuiltInToolNames
 
     // Skill generation (SkillGenerationToolProvider)
     public const string GenerateSkill = nameof(GenerateSkill);
+
+    // Sub-agent (SubAgentToolProvider)
+    public const string RunSubAgent  = nameof(RunSubAgent);
+    public const string StopSubAgent = nameof(StopSubAgent);
 }

@@ -40,3 +40,11 @@ public sealed record ApprovalRequestStreamUpdate(
     Guid ConversationId,
     string FunctionCallId,
     IDictionary<string, object?>? RawArguments = null) : StreamUpdate;
+
+/// <summary>
+/// Wraps a StreamUpdate from a sub-agent. Used to route sub-agent stream to UI.
+/// </summary>
+public sealed record SubAgentStreamUpdate(
+    Guid SubAgentId,
+    string SubAgentName,
+    StreamUpdate InnerUpdate) : StreamUpdate;
