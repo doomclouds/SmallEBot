@@ -6,6 +6,7 @@ namespace SmallEBot.Application.Contracts.Agents.Execution;
 public interface IAgentBuilder
 {
     Task<AIAgent> GetOrCreateAgentAsync(bool useThinking, CancellationToken ct = default);
+    Task<AIAgent> GetSubAgentAgentAsync(string identity, CancellationToken ct = default);
     Task InvalidateAsync();
     Task<int> GetContextWindowTokensAsync(CancellationToken ct = default);
     /// <summary>Last built system prompt for token estimation; null if not built yet.</summary>

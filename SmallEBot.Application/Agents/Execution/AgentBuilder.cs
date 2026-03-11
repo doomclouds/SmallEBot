@@ -130,6 +130,53 @@ public sealed class AgentBuilder : IAgentBuilder
         return _agent;
     }
 
+    public async Task<AIAgent> GetSubAgentAgentAsync(string identity, CancellationToken ct = default)
+    {
+        var baseInstructions = await _systemPromptBuilder.BuildSystemPromptAsync(ct);
+        var instructions = baseInstructions + "\n\n## Your Role for This Task\n\n" + identity;
+
+        var config = await _modelConfig.GetDefaultAsync(ct)
+            ?? throw new InvalidOperationException("No model configured. Add a model in Settings.");
+
+        var tools = await EnsureToolsLoadedAsync(ct);
+
+        var apiKey = ResolveApiKey(config.ApiKeySource);
+        if (string.IsNullOrEmpty(apiKey))
+            _log.LogWarning("API key not set for model '{Model}'. ApiKeySource: {Source}", config.Model, config.ApiKeySource);
+
+        var clientOptions = new ClientOptions { ApiKey = apiKey ?? "", BaseUrl = config.BaseUrl };
+        var anthropicClient = new AnthropicClient(clientOptions);
+
+#pragma warning disable MAAI001 // Type is for evaluation purposes only and is subject to change or removal in future updates
+        var skillsProvider = new FileAgentSkillsProvider(
+            skillPaths: [_skillsPath, _userSkillsPath],
+            options: new FileAgentSkillsProviderOptions
+            {
+                SkillsInstructionPrompt = """
+                    You have access to specialized skills.
+
+                    <available_skills>
+                    {0}
+                    </available_skills>
+
+                    When relevant, use load_skill to load and follow the skill's instructions.
+                    """
+            });
+#pragma warning restore MAAI001
+
+        return anthropicClient.AsAIAgent(new ChatClientAgentOptions
+        {
+            Name = "SmallEBot-SubAgent",
+            ChatOptions = new()
+            {
+                ModelId = config.Model,
+                Instructions = instructions,
+                Tools = tools
+            },
+            AIContextProviders = [skillsProvider]
+        });
+    }
+
     public Task InvalidateAsync()
     {
         _agent = null;
