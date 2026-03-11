@@ -200,7 +200,7 @@ public sealed class AgentSystemPromptBuilder(
 
         Use `{BuiltInToolNames.RunSubAgent}` when a task is self-contained and can be delegated: exploration, research, analysis, or parallel work. Pass `identity` (role, responsibilities) and `task` (what to do). When `identity` is omitted, a default explorer sub-agent is used.
 
-        - **Max 2 concurrent:** A third call waits until one completes.
+        - **Max 1 concurrent:** A second call waits until the first completes.
         - **{BuiltInToolNames.StopSubAgent}(subAgentId):** Cancel a running sub-agent when you need to abort.
         """;
 

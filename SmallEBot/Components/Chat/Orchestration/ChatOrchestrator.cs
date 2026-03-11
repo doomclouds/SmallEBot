@@ -1,6 +1,7 @@
 using SmallEBot.Application.Contracts.Agents.Compression;
 using SmallEBot.Application.Contracts.Agents.Config;
 using SmallEBot.Application.Contracts.Agents.Execution;
+using SmallEBot.Application.Contracts.Agents.SubAgents;
 using SmallEBot.Application.Agents.Streaming;
 using SmallEBot.Components.Chat.Services;
 using SmallEBot.Components.Chat.ViewModels.Blocks;
@@ -20,6 +21,7 @@ public class ChatOrchestrator : IDisposable
     private readonly IAgentInvalidationService _agentInvalidation;
     private readonly ITerminalConfigService _terminalConfig;
     private readonly ChatPresentationService _presentation;
+    private readonly ISubAgentLiveCache _subAgentLiveCache;
     private readonly ILogger<ChatOrchestrator> _log;
 
     private readonly List<StreamUpdate> _streamingUpdates = [];
@@ -37,6 +39,7 @@ public class ChatOrchestrator : IDisposable
         IAgentInvalidationService agentInvalidation,
         ITerminalConfigService terminalConfig,
         ChatPresentationService presentation,
+        ISubAgentLiveCache subAgentLiveCache,
         ILogger<ChatOrchestrator> log)
     {
         _agentDispatcher = agentDispatcher;
@@ -44,6 +47,7 @@ public class ChatOrchestrator : IDisposable
         _agentInvalidation = agentInvalidation;
         _terminalConfig = terminalConfig;
         _presentation = presentation;
+        _subAgentLiveCache = subAgentLiveCache;
         _log = log;
     }
 
@@ -224,18 +228,23 @@ public class ChatOrchestrator : IDisposable
             await foreach (var update in channel.Reader.ReadAllAsync(sendCts.Token))
             {
                 sendCts.Token.ThrowIfCancellationRequested();
-                _lastStreamActivityAt = DateTime.UtcNow;
-                ShowWaitingForToolParams = false;
 
                 switch (update)
                 {
+                    case SubAgentStreamUpdate sub:
+                        if (ConversationId.HasValue)
+                            _subAgentLiveCache.AddUpdate(ConversationId.Value, sub.SubAgentId, sub.SubAgentName, sub.InnerUpdate);
+                        break;
                     case TextStreamUpdate:
                     case ThinkStreamUpdate:
                     case ToolCallStreamUpdate:
-                    case SubAgentStreamUpdate:
+                        _lastStreamActivityAt = DateTime.UtcNow;
+                        ShowWaitingForToolParams = false;
                         _streamingUpdates.Add(update);
                         break;
                     case ApprovalRequestStreamUpdate approval:
+                        _lastStreamActivityAt = DateTime.UtcNow;
+                        ShowWaitingForToolParams = false;
                         _streamingUpdates.Add(update);
                         _pendingApprovals[approval.CallId] = new ApprovalBlockModel(
                             approval.CallId,

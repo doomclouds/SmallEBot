@@ -66,6 +66,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IAgentSessionStore>(_ => new AgentSessionStore(basePath));
         services.AddSingleton<ISubAgentSessionStore>(_ => new SubAgentSessionStore(basePath));
         services.AddScoped<ISubAgentRunner, SubAgentRunner>();
+        services.AddSingleton<ISubAgentRunningRegistry, SubAgentRunningRegistry>();
+        services.AddSingleton<ISubAgentLiveCache, SubAgentLiveCache>();
         services.AddScoped<SubAgentOrchestrator>();
 
         services.AddScoped<IAgentSessionReader, AgentSessionReader>();

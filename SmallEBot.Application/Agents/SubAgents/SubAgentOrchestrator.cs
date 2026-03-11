@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using SmallEBot.Application.Contracts.Agents.Streaming;
 using SmallEBot.Application.Contracts.Agents.SubAgents;
 using SmallEBot.Application.Contracts.Conversations.TaskList;
@@ -13,13 +12,14 @@ namespace SmallEBot.Application.Agents.SubAgents;
 public sealed class SubAgentOrchestrator(
     ISubAgentRunner subAgentRunner,
     IAmbientStreamSink ambientStreamSink,
-    IAmbientConversationId ambientConversationId)
+    IAmbientConversationId ambientConversationId,
+    ISubAgentRunningRegistry runningRegistry,
+    ISubAgentLiveCache liveCache)
 {
     private const string DefaultExplorerIdentity =
         "Explore and gather information. Search files, read directories, run safe read-only commands. Report findings concisely.";
 
-    private readonly SemaphoreSlim _semaphore = new(2, 2);
-    private readonly ConcurrentDictionary<Guid, CancellationTokenSource> _runningAgents = new();
+    private readonly SemaphoreSlim _semaphore = new(1, 1);
 
     /// <summary>
     /// Runs a sub-agent with the given identity and task. Streams updates to the ambient sink and returns aggregated text.
@@ -42,7 +42,8 @@ public sealed class SubAgentOrchestrator(
         await _semaphore.WaitAsync(cancellationToken);
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        _runningAgents[subAgentId] = cts;
+        runningRegistry.Register(subAgentId, cts);
+        liveCache.Register(conversationId, subAgentId, subAgentName);
 
         try
         {
@@ -66,7 +67,8 @@ public sealed class SubAgentOrchestrator(
         }
         finally
         {
-            _runningAgents.TryRemove(subAgentId, out _);
+            liveCache.Complete(conversationId, subAgentId);
+            runningRegistry.Remove(subAgentId);
             _semaphore.Release();
         }
     }
@@ -76,18 +78,7 @@ public sealed class SubAgentOrchestrator(
     /// </summary>
     public ValueTask StopAsync(Guid subAgentId)
     {
-        if (_runningAgents.TryRemove(subAgentId, out var cts))
-        {
-            try
-            {
-                cts.Cancel();
-            }
-            finally
-            {
-                cts.Dispose();
-            }
-        }
-
+        runningRegistry.TryCancelAndRemove(subAgentId);
         return ValueTask.CompletedTask;
     }
 

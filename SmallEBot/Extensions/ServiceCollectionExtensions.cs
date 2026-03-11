@@ -56,7 +56,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IToolProvider, ShellToolProvider>();
         services.AddSingleton<IToolProvider, TaskToolProvider>();
         services.AddSingleton<IToolProvider>(sp => new SubAgentToolProvider(
-            () => sp.GetRequiredService<SubAgentOrchestrator>(),
+            sp.GetRequiredService<IServiceScopeFactory>(),
             sp.GetRequiredService<IAmbientConversationId>()));
         services.AddScoped<IToolProvider, SkillGenerationToolProvider>();
         services.AddScoped<IToolProviderAggregator, ToolProviderAggregator>();

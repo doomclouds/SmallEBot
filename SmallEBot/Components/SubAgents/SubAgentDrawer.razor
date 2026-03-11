@@ -1,0 +1,181 @@
+@using SmallEBot.Application.Contracts.Agents.SubAgents
+@using SmallEBot.Components.Chat.Services
+@using SmallEBot.Components.Chat.ViewModels.Blocks
+@using SmallEBot.Components.Chat.Messages.Blocks
+@implements IDisposable
+@inject ICurrentConversationService CurrentConversation
+@inject ISubAgentLiveCache LiveCache
+@inject ChatPresentationService Presentation
+
+<div class="sub-agent-drawer">
+    <div class="sub-agent-drawer-header">
+        <div class="sub-agent-drawer-title">
+            <MudIcon Icon="@Icons.Material.Filled.SmartToy" Class="sub-agent-drawer-icon" />
+            <MudText Typo="Typo.h6">Sub-agents @(_entries?.Count ?? 0)</MudText>
+        </div>
+        <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(() => OnClose.InvokeAsync())" />
+    </div>
+    <div class="sub-agent-drawer-body">
+        @if (_conversationId == null)
+        {
+            <MudText Typo="Typo.body2" Class="pa-2" Style="color: var(--seb-text-secondary);">Select a conversation.</MudText>
+        }
+        else if (_entries == null || _entries.Count == 0)
+        {
+            <MudText Typo="Typo.body2" Class="pa-2" Style="color: var(--seb-text-secondary);">No running sub-agents.</MudText>
+        }
+        else
+        {
+            <div class="sub-agent-drawer-slots">
+                @foreach (var entry in _entries.Take(2))
+                {
+                    <div class="sub-agent-drawer-slot">
+                        <MudText Typo="Typo.subtitle2" Class="sub-agent-slot-title">🤖 @entry.SubAgentName</MudText>
+                        <div class="sub-agent-slot-content">
+                            @if (entry.Updates.Count > 0)
+                            {
+                                @foreach (var block in Presentation.ConvertStreamToBubbleBlocks(entry.Updates, null))
+                                {
+                                    @switch (block)
+                                    {
+                                        case TextBlock text:
+                                            <MarkdownBlock Content="@text.Content" />
+                                            break;
+                                        case ToolCallBlockModel tool:
+                                            <ToolCallBlock Model="@tool" />
+                                            break;
+                                        case ReasoningBlockModel reasoning:
+                                            <ReasoningBlock Content="@reasoning.Content" />
+                                            break;
+                                    }
+                                }
+                            }
+                            <SpinnerBlock Verbs="@SubAgentVerbs" Elapsed="@GetSlotElapsed(entry.SubAgentId)" />
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public bool Open { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private static readonly string[] SubAgentVerbs =
+    [
+        "Exploring…",
+        "Searching…",
+        "Analyzing…",
+        "Gathering…",
+        "One moment…",
+        "Working on it…",
+        "Hang tight…",
+        "Almost there…",
+        "Processing…",
+        "Checking…",
+        "Running…",
+        "Fetching…",
+        "Building…",
+        "Computing…",
+        "Finishing up…",
+    ];
+
+    private Guid? _conversationId;
+    private IReadOnlyList<SubAgentLiveEntry>? _entries;
+    private readonly Dictionary<Guid, DateTime> _slotStartTimes = new();
+    private Timer? _spinnerTimer;
+
+    protected override void OnInitialized()
+    {
+        CurrentConversation.CurrentConversationChanged += OnConversationChanged;
+        _conversationId = CurrentConversation.CurrentConversationId;
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (Open)
+        {
+            _conversationId ??= CurrentConversation.CurrentConversationId;
+            Refresh();
+            SubscribeToChanges();
+        }
+        else
+        {
+            UnsubscribeFromChanges();
+        }
+    }
+
+    private void OnConversationChanged()
+    {
+        _conversationId = CurrentConversation.CurrentConversationId;
+        _ = InvokeAsync(Refresh);
+    }
+
+    private void SubscribeToChanges()
+    {
+        LiveCache.OnChanged += HandleChange;
+    }
+
+    private void UnsubscribeFromChanges()
+    {
+        LiveCache.OnChanged -= HandleChange;
+    }
+
+    private void HandleChange()
+    {
+        _ = InvokeAsync(() =>
+        {
+            Refresh();
+            StateHasChanged();
+        });
+    }
+
+    private void Refresh()
+    {
+        _entries = _conversationId.HasValue
+            ? LiveCache.GetRunning(_conversationId.Value)
+            : [];
+
+        foreach (var e in _entries ?? [])
+        {
+            if (!_slotStartTimes.ContainsKey(e.SubAgentId))
+                _slotStartTimes[e.SubAgentId] = DateTime.UtcNow;
+        }
+        foreach (var id in _slotStartTimes.Keys.ToList())
+        {
+            if (_entries?.All(e => e.SubAgentId != id) ?? true)
+                _slotStartTimes.Remove(id);
+        }
+
+        if (_entries is { Count: > 0 })
+        {
+            _spinnerTimer ??= new Timer(_ =>
+            {
+                _ = InvokeAsync(StateHasChanged);
+            }, null, 500, 500);
+        }
+        else
+        {
+            _spinnerTimer?.Dispose();
+            _spinnerTimer = null;
+        }
+
+        StateHasChanged();
+    }
+
+    private TimeSpan GetSlotElapsed(Guid subAgentId)
+    {
+        return _slotStartTimes.TryGetValue(subAgentId, out var start)
+            ? DateTime.UtcNow - start
+            : TimeSpan.Zero;
+    }
+
+    public void Dispose()
+    {
+        _spinnerTimer?.Dispose();
+        CurrentConversation.CurrentConversationChanged -= OnConversationChanged;
+        UnsubscribeFromChanges();
+    }
+}

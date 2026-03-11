@@ -147,11 +147,13 @@
 
     @if (IsStreaming && StreamingBlocks.Count > 0)
     {
+        var streamingBlocks = GetStreamingBlocks().ToList();
+        var lastBlock = streamingBlocks.LastOrDefault();
         <div class="smallebot-cli-assistant">
             <MudText Typo="Typo.caption" Class="smallebot-cli-role-assistant">◆ Assistant</MudText>
             <div class="smallebot-cli-body">
             <div class="smallebot-cli-content">
-                @foreach (var block in GetStreamingBlocks())
+                @foreach (var block in streamingBlocks)
                 {
                     @switch (block)
                     {
@@ -162,10 +164,7 @@
                             <ToolCallBlock Model="@tool" OnCancel="@OnCancel" />
                             break;
                         case ReasoningBlockModel reasoning:
-                            <ReasoningBlock Content="@reasoning.Content" />
-                            break;
-                        case SubAgentBlockModel subAgent:
-                            <SubAgentBlock Model="@subAgent" />
+                            <ReasoningBlock Content="@reasoning.Content" Expanded="@(block == lastBlock)" />
                             break;
                         case WaitingBlockModel waiting:
                             <WaitingBlock Model="@waiting" />
@@ -228,7 +227,7 @@
 
     private IReadOnlyList<IBubbleBlock> GetStreamingBlocks()
     {
-        var list = ShowToolCalls ? StreamingBlocks.ToList() : StreamingBlocks.Where(b => b is not ToolCallBlockModel and not SubAgentBlockModel).ToList();
+        var list = ShowToolCalls ? StreamingBlocks.ToList() : StreamingBlocks.Where(b => b is not ToolCallBlockModel).ToList();
         list = list.Where(b => b is not ApprovalBlockModel a || a.State != ApprovalState.Pending).ToList();
         if (ShowWaitingForToolParams)
             list.Add(new WaitingBlockModel(WaitingElapsed));

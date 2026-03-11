@@ -1,11 +1,13 @@
 @using SmallEBot.Components.Chat.Messages.Blocks
 
 <div class="reasoning-block mt-2">
-    <MudExpansionPanel Text="💭 Thinking" Dense="true" expanded="false">
+    <MudExpansionPanel Text="💭 Thinking" Dense="true" expanded="@Expanded">
         <MarkdownBlock Content="@Content" />
     </MudExpansionPanel>
 </div>
 
 @code {
     [Parameter] public string Content { get; set; } = "";
+    /// <summary>When true, panel is expanded (e.g. last block while streaming). When false, collapsed.</summary>
+    [Parameter] public bool Expanded { get; set; }
 }
