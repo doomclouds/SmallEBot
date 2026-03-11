@@ -59,6 +59,7 @@ public static class ServiceCollectionExtensions
         });
 
         services.AddSingleton<IAgentSessionStore>(_ => new AgentSessionStore(basePath));
+        services.AddSingleton<ISubAgentSessionStore>(_ => new SubAgentSessionStore(basePath));
 
         services.AddScoped<IAgentSessionReader, AgentSessionReader>();
         services.AddScoped<IConversationMessageStore, ConversationMessageStore>();
