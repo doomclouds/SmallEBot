@@ -46,6 +46,7 @@ public sealed class AgentSystemPromptBuilder(
             GetFileToolsSection(),
             GetShellSection(),
             GetTaskListSection(),
+            GetSubAgentsSection(),
             GetNativeSkillsSection(),
             GetSkillGenerationSection(),
             GetTempFilesSection(),
@@ -190,6 +191,17 @@ public sealed class AgentSystemPromptBuilder(
         2. Execute task(s) → call `{{BuiltInToolNames.CompleteTask}}(id)` immediately after each; or use `{{BuiltInToolNames.CompleteTasks}}([id1, id2, ...])` to mark multiple done at once
         3. Both return { nextTask, remaining } — use `nextTask.id` directly without calling `{{BuiltInToolNames.ListTasks}}` again
         4. Proceed to the next task immediately; do not pause unless the user asked you to
+        """;
+
+    private static string GetSubAgentsSection() => $"""
+        ## Sub-Agents
+
+        Tools: `{BuiltInToolNames.RunSubAgent}`, `{BuiltInToolNames.StopSubAgent}`.
+
+        Use `{BuiltInToolNames.RunSubAgent}` when a task is self-contained and can be delegated: exploration, research, analysis, or parallel work. Pass `identity` (role, responsibilities) and `task` (what to do). When `identity` is omitted, a default explorer sub-agent is used.
+
+        - **Max 2 concurrent:** A third call waits until one completes.
+        - **{BuiltInToolNames.StopSubAgent}(subAgentId):** Cancel a running sub-agent when you need to abort.
         """;
 
     private static string GetNativeSkillsSection() => """
