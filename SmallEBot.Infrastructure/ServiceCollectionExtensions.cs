@@ -17,6 +17,7 @@ using SmallEBot.Infrastructure.Agents.Streaming;
 using SmallEBot.Infrastructure.Agents.Tokenizers;
 using SmallEBot.Infrastructure.Conversations;
 using SmallEBot.Infrastructure.Conversations.Metadata;
+using SmallEBot.Application.Agents.SubAgents;
 using SmallEBot.Infrastructure.Agents.SubAgents;
 using SmallEBot.Infrastructure.Conversations.Session;
 using SmallEBot.Infrastructure.Conversations.TaskList;
@@ -65,6 +66,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IAgentSessionStore>(_ => new AgentSessionStore(basePath));
         services.AddSingleton<ISubAgentSessionStore>(_ => new SubAgentSessionStore(basePath));
         services.AddScoped<ISubAgentRunner, SubAgentRunner>();
+        services.AddSingleton<SubAgentOrchestrator>();
 
         services.AddScoped<IAgentSessionReader, AgentSessionReader>();
         services.AddScoped<IConversationMessageStore, ConversationMessageStore>();
