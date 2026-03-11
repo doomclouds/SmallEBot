@@ -156,7 +156,8 @@ public sealed class CompressionService(IAgentBuilder agentBuilder, ILogger<Compr
                 new(ChatRole.User, sb.ToString())
             };
 
-            var chatOptions = new ChatOptions { Reasoning = null };
+            // Ensure sufficient output tokens for full summary (sections 1-9); default API limits may truncate.
+            var chatOptions = new ChatOptions { Reasoning = null, MaxOutputTokens = 32768 };
             var runOptions = new ChatClientAgentRunOptions(chatOptions);
             var result = await agent.RunAsync(chatMessages, null, runOptions, ct);
             var summary = ExtractSummaryContent(result.Text);
