@@ -109,6 +109,7 @@ public sealed class ChatPresentationService
     {
         var blocks = new List<IBubbleBlock>();
         var toolCallsInProgress = new Dictionary<string, int>();
+        var subAgentBlocks = new Dictionary<Guid, (int Index, List<IBubbleBlock> Nested, string Name)>();
 
         string? textBuffer = null;
         string? thinkBuffer = null;
@@ -155,6 +156,12 @@ public sealed class ChatPresentationService
                     }
                     break;
 
+                case SubAgentStreamUpdate sub:
+                    FlushThinkBuffer(ref thinkBuffer, blocks);
+                    FlushTextBuffer(ref textBuffer, blocks);
+                    AppendSubAgentUpdate(subAgentBlocks, blocks, sub);
+                    break;
+
                 case ApprovalRequestStreamUpdate approval:
                     FlushThinkBuffer(ref thinkBuffer, blocks);
                     FlushTextBuffer(ref textBuffer, blocks);
@@ -176,6 +183,47 @@ public sealed class ChatPresentationService
         FlushThinkBuffer(ref thinkBuffer, blocks);
         FlushTextBuffer(ref textBuffer, blocks);
         return blocks;
+    }
+
+    private static void AppendSubAgentUpdate(
+        Dictionary<Guid, (int Index, List<IBubbleBlock> Nested, string Name)> subAgentBlocks,
+        List<IBubbleBlock> blocks,
+        SubAgentStreamUpdate sub)
+    {
+        var inner = sub.InnerUpdate;
+        if (!subAgentBlocks.TryGetValue(sub.SubAgentId, out var existing))
+        {
+            var nested = new List<IBubbleBlock>();
+            var idx = blocks.Count;
+            blocks.Add(new SubAgentBlockModel(sub.SubAgentId, sub.SubAgentName, nested, false));
+            subAgentBlocks[sub.SubAgentId] = (idx, nested, sub.SubAgentName);
+            existing = (idx, nested, sub.SubAgentName);
+        }
+
+        var block = InnerUpdateToBlock(inner);
+        if (block != null)
+        {
+            existing.Nested.Add(block);
+            blocks[existing.Index] = new SubAgentBlockModel(sub.SubAgentId, sub.SubAgentName, existing.Nested.ToList(), false);
+        }
+    }
+
+    private static IBubbleBlock? InnerUpdateToBlock(StreamUpdate inner)
+    {
+        return inner switch
+        {
+            TextStreamUpdate t => new TextBlock(t.Text),
+            ThinkStreamUpdate th => new ReasoningBlockModel(th.Text),
+            ToolCallStreamUpdate tc => new ToolCallBlockModel(
+                tc.CallId ?? "",
+                tc.ToolName,
+                tc.Phase,
+                tc.Arguments,
+                tc.Result,
+                tc.Error,
+                tc.Elapsed),
+            _ => null
+        };
     }
 
     private static void FlushTextBuffer(ref string? buffer, List<IBubbleBlock> blocks)

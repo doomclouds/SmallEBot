@@ -1,0 +1,31 @@
+@using SmallEBot.Components.Chat.ViewModels.Blocks
+@using SmallEBot.Components.Chat.Messages.Blocks
+@using SmallEBot.Core.Models
+
+<div class="mt-3 sub-agent-block">
+    <MudExpansionPanels Elevation="0" Class="sub-agent-panels">
+        <MudExpansionPanel Text="@($"🤖 {Model.SubAgentName}")" Dense="true" expanded="@(!Model.IsCompleted)">
+            <div class="sub-agent-content" style="max-height: 400px; overflow-y: auto;">
+                @foreach (var block in Model.NestedBlocks)
+                {
+                    @switch (block)
+                    {
+                        case TextBlock text:
+                            <MarkdownBlock Content="@text.Content" />
+                            break;
+                        case ToolCallBlockModel tool:
+                            <ToolCallBlock Model="@tool" />
+                            break;
+                        case ReasoningBlockModel reasoning:
+                            <ReasoningBlock Content="@reasoning.Content" />
+                            break;
+                    }
+                }
+            </div>
+        </MudExpansionPanel>
+    </MudExpansionPanels>
+</div>
+
+@code {
+    [Parameter] public SubAgentBlockModel Model { get; set; } = default!;
+}

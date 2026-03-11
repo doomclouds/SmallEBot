@@ -164,6 +164,9 @@
                         case ReasoningBlockModel reasoning:
                             <ReasoningBlock Content="@reasoning.Content" />
                             break;
+                        case SubAgentBlockModel subAgent:
+                            <SubAgentBlock Model="@subAgent" />
+                            break;
                         case WaitingBlockModel waiting:
                             <WaitingBlock Model="@waiting" />
                             break;
@@ -225,7 +228,7 @@
 
     private IReadOnlyList<IBubbleBlock> GetStreamingBlocks()
     {
-        var list = ShowToolCalls ? StreamingBlocks.ToList() : StreamingBlocks.Where(b => b is not ToolCallBlockModel).ToList();
+        var list = ShowToolCalls ? StreamingBlocks.ToList() : StreamingBlocks.Where(b => b is not ToolCallBlockModel and not SubAgentBlockModel).ToList();
         list = list.Where(b => b is not ApprovalBlockModel a || a.State != ApprovalState.Pending).ToList();
         if (ShowWaitingForToolParams)
             list.Add(new WaitingBlockModel(WaitingElapsed));

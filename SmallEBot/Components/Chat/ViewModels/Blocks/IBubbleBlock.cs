@@ -56,3 +56,12 @@ public record ApprovalBlockModel(
 /// Waiting-for-tool-params placeholder block.
 /// </summary>
 public record WaitingBlockModel(TimeSpan Elapsed) : IBubbleBlock;
+
+/// <summary>
+/// Sub-agent execution block. Contains nested blocks from sub-agent stream.
+/// </summary>
+public record SubAgentBlockModel(
+    Guid SubAgentId,
+    string SubAgentName,
+    IReadOnlyList<IBubbleBlock> NestedBlocks,
+    bool IsCompleted) : IBubbleBlock;
