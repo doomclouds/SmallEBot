@@ -53,6 +53,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IToolProvider, SearchToolProvider>();
         services.AddSingleton<IToolProvider, ShellToolProvider>();
         services.AddSingleton<IToolProvider, TaskToolProvider>();
+        services.AddSingleton<IToolProvider, SubAgentToolProvider>();
         services.AddScoped<IToolProvider, SkillGenerationToolProvider>();
         services.AddScoped<IToolProviderAggregator, ToolProviderAggregator>();
         services.AddSingleton<IModelConfigService, ModelConfigService>();
