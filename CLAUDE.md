@@ -73,6 +73,7 @@ Blazor UI -> SignalR -> IConversationService (ConversationService) — CRUD, ses
 | **Compression** | `Application.Contracts/Agents/Compression/`, `Application/Agents/Compression/` | ICompressionService, IContextUsageEstimator, ITokenizer, CompressionService, ContextUsageEstimator |
 | **Execution** | `Application.Contracts/Agents/Execution/`, `Application/Agents/Execution/` | IAgentBuilder, IAgentRunner, IConversationAgentDispatcher, AgentBuilder, AgentRunner |
 | **Tools** | `Application.Contracts/Agents/Tools/`, `Infrastructure/Agents/Tools/` | IToolProvider, IToolProviderAggregator, FileToolProvider, ShellToolProvider |
+| **SubAgents** | `Application.Contracts/Agents/SubAgents/`, `Application/Agents/SubAgents/`, `Infrastructure/Agents/SubAgents/` | ISubAgentRunner, ISubAgentSessionStore, ISubAgentLiveCache, SubAgentOrchestrator, SubAgentRunner, SubAgentToolProvider |
 
 ### Conversations Domain (DDD subdomains)
 
@@ -105,6 +106,8 @@ AgentSession is the single source of truth for conversation content. No Turn abs
 | `ExecuteCommand` | Shell command execution (with optional confirmation) |
 | `SetTaskList/ListTasks/CompleteTask/CompleteTasks/ClearTasks` | Task list management |
 | `GenerateSkill(...)` | Create new skill from analyzed patterns |
+| `RunSubAgent(identity?, task)` | Delegate to a sub-agent (e.g. explorer); max 1 concurrent; returns aggregated text |
+| `StopSubAgent(subAgentId)` | Cancel a running sub-agent by id |
 
 ### Context Attachments
 
@@ -124,11 +127,16 @@ CLI-style linear message display (? User / ? Assistant), no chat bubbles.
 |-----------|----------|
 | Chat orchestrator | `Components/Chat/ChatContent.razor` |
 | Message thread | `Components/Chat/Messages/MessageThread.razor` |
+| Sub-agent drawer | `Components/SubAgents/SubAgentDrawer.razor` |
 | Presentation service | `Components/Chat/Services/ChatPresentationService.cs` |
 | Edit dialog | `Components/Chat/Dialogs/EditMessageDialog.razor` |
 | Attachment chips | `Components/Chat/Input/InputAttachmentChips.razor` |
 
 **Message encoding:** `UserMessageCodec` (`SmallEBot.Core/UserMessageCodec.cs`) encodes files and skills in user message text (HTML comment + JSON). LLM sees metadata; UI parses for chip display. Edit dialog reuses `InputOrchestrator` for attachments.
+
+### Sub-Agents
+
+Main agent can delegate tasks via `RunSubAgent(identity?, task)`. Sub-agents run with their own session; stream updates go to `ISubAgentLiveCache` (not main chat). Main chat shows RunSubAgent as a normal tool call (args + result). **Sub-agent drawer** (AppBar SmartToy icon): shows running sub-agents only; each slot has verbs spinner in header and MessageThread-style content (thinking, tool calls, text). Max 1 concurrent; session stored at `.agents/conversations/{id}/subAgents/{subAgentId}/session.json` when complete.
 
 ## Configuration
 

@@ -19,6 +19,7 @@
 - **终端执行**：通过 `ExecuteCommand` 工具执行 shell 命令，支持命令黑名单、确认机制和白名单
 - **工作区**：文件操作和命令执行限定在 `.agents/vfs/` 工作区，通过侧边栏浏览文件（支持 FileSystemWatcher 刷新）
 - **任务列表**：助手可通过工具维护当前对话的任务列表，侧边栏任务抽屉实时同步
+- **子代理**：主代理可通过 `RunSubAgent` 委托任务；子代理独立会话运行。子代理抽屉（AppBar SmartToy 图标）展示运行中的子代理及其实时流（思考、工具调用、文本）。最多 1 个并发子代理
 - **上下文压缩**：当对话上下文达到阈值时自动压缩，也可手动点击按钮压缩。摘要与现有压缩内容合并；压缩后清空会话，摘要通过 CompressedContextProvider 注入 LLM 上下文
 - **主题切换**：多种 UI 主题（深色、浅色、终端风格等），自动持久化
 - **免登录**：首次访问设置用户名即可使用
@@ -45,6 +46,7 @@ SmallEBot/
 │   │   ├── Chat/                 # CLI 风格聊天区、消息编辑、流式显示
 │   │   ├── Workspaces/            # 工作区抽屉组件
 │   │   ├── TaskList/             # 任务列表抽屉
+│   │   ├── SubAgents/            # 子代理抽屉
 │   │   ├── Terminal/             # 终端相关组件
 │   │   ├── Agent/                # 模型选择等
 │   │   ├── Skills/               # 技能配置
@@ -85,7 +87,7 @@ SmallEBot/
 │   ├── vfs/                      # 工作区 (Agent 文件操作范围)
 │   │   ├── sys.skills/           # 系统技能 (工作区内只读)
 │   │   └── skills/               # 用户自定义技能 (工作区内只读)
-│   ├── conversations/{id}/       # 各对话 metadata.json, session.json；tasks.json（任务列表）
+│   ├── conversations/{id}/       # 各对话 metadata.json, session.json；tasks.json；subAgents/{subAgentId}/session.json
 │   ├── tasks/                    # [已废弃] 旧版任务存储 tasks/{id}.json，首次加载时迁移至 conversations/{id}/tasks.json
 │   ├── .mcp.json                 # MCP 配置
 │   ├── .sys.mcp.json             # 系统 MCP 配置
@@ -209,6 +211,10 @@ dotnet user-secrets set "Anthropic:ApiKey" "your-api-key"
 - 新建、切换、删除对话
 - 顶部搜索框可按标题搜索对话
 
+### 子代理抽屉
+
+点击应用栏的 SmartToy 图标打开子代理抽屉。当主代理通过 `RunSubAgent` 委托任务时，运行中的子代理会在此展示实时流（思考、工具调用、文本）。最多 1 个并发子代理。
+
 ### 工作区
 
 点击应用栏的「工作区」按钮打开侧边栏：
@@ -251,6 +257,8 @@ dotnet user-secrets set "Anthropic:ApiKey" "your-api-key"
 | `CompleteTasks(taskIds)` | 批量标记任务完成 |
 | `ClearTasks` | 清空任务列表 |
 | `GenerateSkill(...)` | 根据分析的模式创建新技能 |
+| `RunSubAgent(identity?, task)` | 委托给子代理（如 explorer）；最多 1 个并发 |
+| `StopSubAgent(subAgentId)` | 取消运行中的子代理 |
 
 ## 开发命令
 

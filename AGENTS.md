@@ -48,6 +48,7 @@ CLI-style linear message display (no chat bubbles). Key components:
 | Component | Location |
 |-----------|----------|
 | Message thread | `SmallEBot/Components/Chat/Messages/MessageThread.razor` |
+| Sub-agent drawer | `SmallEBot/Components/SubAgents/SubAgentDrawer.razor` |
 | Chat orchestrator | `SmallEBot/Components/Chat/ChatContent.razor` |
 | Chat/Input orchestration | `SmallEBot/Components/Chat/Orchestration/ChatOrchestrator.cs`, `InputOrchestrator.cs` |
 | Presentation service | `SmallEBot/Components/Chat/Services/ChatPresentationService.cs` |
@@ -68,6 +69,7 @@ User-attached files and skills are encoded in user message text via `UserMessage
 | System prompt | `SmallEBot.Application/Agents/Context/AgentSystemPromptBuilder.cs` |
 | Compressed context | `SmallEBot.Application/Agents/Context/CompressedContextProvider.cs` |
 | Built-in tools | `SmallEBot.Infrastructure/Agents/Tools/` (IToolProvider implementations) |
+| Sub-agent drawer | `SmallEBot/Components/SubAgents/SubAgentDrawer.razor` |
 | Workspace VFS | `SmallEBot.Infrastructure/Workspaces/` |
 
 ### Agents Subdomains
@@ -78,6 +80,15 @@ User-attached files and skills are encoded in user message text via `UserMessage
 | Compression | ICompressionService, IContextUsageEstimator, ITokenizer | CompressionService, ContextUsageEstimator | — |
 | Execution | IAgentBuilder, IAgentRunner, IConversationAgentDispatcher | AgentBuilder, AgentRunner, ConversationAgentDispatcher | — |
 | Tools | IToolProvider, IToolProviderAggregator, ICommandRunner | — | FileToolProvider, ShellToolProvider, CommandRunner |
+| SubAgents | ISubAgentRunner, ISubAgentSessionStore, ISubAgentLiveCache, ISubAgentRunningRegistry | SubAgentOrchestrator | SubAgentRunner, SubAgentSessionStore, SubAgentLiveCache, SubAgentRunningRegistry, SubAgentToolProvider |
+
+### Sub-Agents
+
+- **Tools**: `RunSubAgent(identity?, task)`, `StopSubAgent(subAgentId)` — delegate tasks to specialized sub-agents (e.g. explorer)
+- **Concurrency**: Max 1 concurrent; second call waits until first completes
+- **Stream routing**: `SubAgentStreamUpdate` → `ISubAgentLiveCache` (not main chat); main chat shows RunSubAgent as normal ToolCall
+- **UI**: AppBar SmartToy icon opens SubAgentDrawer; drawer shows running sub-agents with verbs spinner in slot header, MessageThread-style content below
+- **Storage**: Running → in-memory cache; completed → `.agents/conversations/{id}/subAgents/{subAgentId}/session.json`, then cache cleared
 
 ### Conversations Subdomains
 
@@ -111,4 +122,4 @@ Use `.cursor/skills/smallebot-ddd-practices/SKILL.md` when designing new domains
 
 ## Design Docs
 
-`docs/plans/` contains design notes. Do not rely on `docs/plans/archives/` for current architecture.
+`docs/plans/` contains design notes. Do not rely on `docs/plans/archives/` for current architecture. Sub-agent: `docs/plans/2026-03-11-sub-agent-drawer-design.md`.

@@ -18,6 +18,7 @@ A local AI assistant built with ASP.NET Core Blazor Server. **Runs locally on yo
 - **Terminal**: Execute shell commands via `ExecuteCommand` tool. Configurable command blacklist. Optional command confirmation and whitelist.
 - **Workspace**: Agent file tools and ExecuteCommand scoped to `.agents/vfs/`. Browse files via the Workspace drawer (refreshes via FileSystemWatcher).
 - **Task list**: Assistant can manage a task list per conversation via tools; Task List drawer stays in sync.
+- **Sub-agents**: Main agent can delegate tasks via `RunSubAgent`; sub-agents run with their own session. Sub-agent drawer (AppBar SmartToy icon) shows running sub-agents with live stream (thinking, tool calls, text). Max 1 concurrent.
 - **Context compression**: Automatically compresses conversation history when context reaches threshold. Manual compress via button. Summary merged with existing context; after compression session is cleared and summary is injected via CompressedContextProvider into LLM context.
 - **Themes**: Multiple UI themes (dark, light, terminal style, etc.) with persistence.
 - **No login**: First visit asks for a username; data is scoped by that name.
@@ -44,6 +45,7 @@ SmallEBot/
 │   │   ├── Chat/                 # CLI-style chat area, message editing, streaming
 │   │   ├── Workspaces/           # Workspace drawer components
 │   │   ├── TaskList/             # Task list drawer
+│   │   ├── SubAgents/            # Sub-agent drawer
 │   │   ├── Terminal/             # Terminal-related components
 │   │   ├── Agent/                # Model selector, etc.
 │   │   ├── Skills/               # Skills configuration
@@ -84,7 +86,7 @@ SmallEBot/
 │   ├── vfs/                      # Workspace (Agent file operations scope)
 │   │   ├── sys.skills/           # System skills (read-only in workspace)
 │   │   └── skills/               # User custom skills (read-only in workspace)
-│   ├── conversations/{id}/      # Per-conversation metadata.json, session.json; tasks.json
+│   ├── conversations/{id}/      # Per-conversation metadata.json, session.json; tasks.json; subAgents/{subAgentId}/session.json
 │   ├── tasks/                    # [Legacy] Old task storage tasks/{id}.json; migrates to conversations/{id}/tasks.json on first load
 │   ├── .mcp.json                 # MCP configuration
 │   ├── .sys.mcp.json             # System MCP configuration
@@ -208,6 +210,10 @@ Use the dropdown in the app bar to switch between configured models. Models are 
 - Create, switch, and delete conversations
 - Search box at the top filters conversations by title
 
+### Sub-agent Drawer
+
+Click the SmartToy icon in the app bar to open the sub-agent drawer. When the main agent delegates a task via `RunSubAgent`, the running sub-agent appears here with live stream (thinking, tool calls, text). Max 1 concurrent sub-agent.
+
 ### Workspace
 
 Click the "Workspace" button in the app bar to open the sidebar:
@@ -250,6 +256,8 @@ The assistant can use the following tools:
 | `CompleteTasks(taskIds)` | Mark multiple tasks as done |
 | `ClearTasks` | Clear task list |
 | `GenerateSkill(...)` | Create new skill from analyzed patterns |
+| `RunSubAgent(identity?, task)` | Delegate to sub-agent (e.g. explorer); max 1 concurrent |
+| `StopSubAgent(subAgentId)` | Cancel a running sub-agent |
 
 ## Development Commands
 
