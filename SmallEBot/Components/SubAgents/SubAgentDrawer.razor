@@ -30,7 +30,15 @@
                 @foreach (var entry in _entries.Take(2))
                 {
                     <div class="sub-agent-drawer-slot">
-                        <MudText Typo="Typo.subtitle2" Class="sub-agent-slot-title">🤖 @entry.SubAgentName</MudText>
+                        <div class="sub-agent-slot-header">
+                            <div class="sub-agent-slot-title">
+                                <span class="sub-agent-slot-icon">🤖</span>
+                                <MudText Typo="Typo.subtitle2">@entry.SubAgentName</MudText>
+                            </div>
+                            <div class="sub-agent-slot-verbs">
+                                <SpinnerBlock Verbs="@SubAgentVerbs" Elapsed="@GetSlotElapsed(entry.SubAgentId)" />
+                            </div>
+                        </div>
                         <div class="sub-agent-slot-content">
                             @if (entry.Updates.Count > 0)
                             {
@@ -50,7 +58,6 @@
                                     }
                                 }
                             }
-                            <SpinnerBlock Verbs="@SubAgentVerbs" Elapsed="@GetSlotElapsed(entry.SubAgentId)" />
                         </div>
                     </div>
                 }

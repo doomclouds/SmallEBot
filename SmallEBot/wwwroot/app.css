@@ -789,10 +789,35 @@ h1:focus {
     border-radius: 8px;
     overflow: hidden;
 }
-.sub-agent-slot-title {
+.sub-agent-slot-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
     padding: 8px 12px;
     background: var(--seb-surface-elevated);
     border-bottom: 1px solid var(--seb-border);
+}
+.sub-agent-slot-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+.sub-agent-slot-icon {
+    flex-shrink: 0;
+}
+.sub-agent-slot-verbs {
+    flex-shrink: 0;
+}
+.sub-agent-slot-verbs .smallebot-spinner-wrap {
+    margin: 0;
+}
+.sub-agent-slot-verbs .smallebot-spinner-block {
+    padding: 0 4px;
+}
+.sub-agent-slot-verbs .smallebot-spinner-line {
+    font-size: 0.875rem;
 }
 .sub-agent-slot-content {
     max-height: 400px;
