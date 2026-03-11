@@ -232,6 +232,7 @@ public class ChatOrchestrator : IDisposable
                     case TextStreamUpdate:
                     case ThinkStreamUpdate:
                     case ToolCallStreamUpdate:
+                    case SubAgentStreamUpdate:
                         _streamingUpdates.Add(update);
                         break;
                     case ApprovalRequestStreamUpdate approval:
