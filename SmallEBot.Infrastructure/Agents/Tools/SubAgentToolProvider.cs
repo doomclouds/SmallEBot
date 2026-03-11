@@ -7,8 +7,9 @@ using SmallEBot.Application.Contracts.Conversations.TaskList;
 namespace SmallEBot.Infrastructure.Agents.Tools;
 
 /// <summary>Provides sub-agent delegation tools (RunSubAgent, StopSubAgent).</summary>
+/// <remarks>Uses Func to break circular dependency: SubAgentToolProvider -> SubAgentOrchestrator -> SubAgentRunner -> AgentBuilder -> ToolProviderAggregator -> SubAgentToolProvider.</remarks>
 public sealed class SubAgentToolProvider(
-    SubAgentOrchestrator orchestrator,
+    Func<SubAgentOrchestrator> getOrchestrator,
     IAmbientConversationId ambientConversationId) : IToolProvider
 {
     public string Name => "SubAgent";
@@ -29,7 +30,7 @@ public sealed class SubAgentToolProvider(
             return "Error: Sub-agent must run within a conversation scope.";
         try
         {
-            return await orchestrator.RunAsync(identity, task);
+            return await getOrchestrator().RunAsync(identity, task);
         }
         catch (InvalidOperationException ex)
         {
@@ -48,7 +49,7 @@ public sealed class SubAgentToolProvider(
             return "Error: subAgentId is required.";
         if (!Guid.TryParse(subAgentId, out var id))
             return "Error: subAgentId must be a valid Guid format.";
-        await orchestrator.StopAsync(id);
+        await getOrchestrator().StopAsync(id);
         return "Stopped";
     }
 }

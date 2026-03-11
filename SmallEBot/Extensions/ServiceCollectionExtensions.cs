@@ -1,5 +1,6 @@
 using SmallEBot.Application.Agents.Compression;
 using SmallEBot.Application.Agents.Execution;
+using SmallEBot.Application.Agents.SubAgents;
 using SmallEBot.Application.Conversations;
 using SmallEBot.Services.Presentation;
 using Microsoft.AspNetCore.Components.Server.Circuits;
@@ -21,6 +22,7 @@ using SmallEBot.Application.Contracts.Agents.Context;
 using SmallEBot.Application.Contracts.Agents.Execution;
 using SmallEBot.Application.Contracts.Agents.Skills;
 using SmallEBot.Application.Contracts.Conversations;
+using SmallEBot.Application.Contracts.Conversations.TaskList;
 using SmallEBot.Application.Contracts.Agents.Compression;
 using SmallEBot.Application.Contracts.UserPreferences;
 using SmallEBot.Application.Contracts.Workspaces;
@@ -53,7 +55,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IToolProvider, SearchToolProvider>();
         services.AddSingleton<IToolProvider, ShellToolProvider>();
         services.AddSingleton<IToolProvider, TaskToolProvider>();
-        services.AddSingleton<IToolProvider, SubAgentToolProvider>();
+        services.AddSingleton<IToolProvider>(sp => new SubAgentToolProvider(
+            () => sp.GetRequiredService<SubAgentOrchestrator>(),
+            sp.GetRequiredService<IAmbientConversationId>()));
         services.AddScoped<IToolProvider, SkillGenerationToolProvider>();
         services.AddScoped<IToolProviderAggregator, ToolProviderAggregator>();
         services.AddSingleton<IModelConfigService, ModelConfigService>();
