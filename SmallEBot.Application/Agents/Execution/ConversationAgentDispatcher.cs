@@ -20,7 +20,8 @@ public sealed class ConversationAgentDispatcher(
     IToolResultMaxProvider toolResultMaxProvider,
     ICompressionThresholdProvider compressionThresholdProvider,
     IContextUsageEstimator contextUsageEstimator,
-    IAmbientConversationId ambientConversationId) : IConversationAgentDispatcher
+    IAmbientConversationId ambientConversationId,
+    IAmbientStreamSink ambientStreamSink) : IConversationAgentDispatcher
 {
     public event Action<Guid>? CompressionStarted;
     public event Action<Guid, bool>? CompressionCompleted;
@@ -35,11 +36,14 @@ public sealed class ConversationAgentDispatcher(
         CancellationToken cancellationToken = default,
         string? commandConfirmationContextId = null)
     {
-        using (ambientConversationId.BeginScope(conversationId))
+        using (ambientStreamSink.BeginScope(sink))
         {
-            await foreach (var update in agentRunner.RunStreamingAsync(conversationId, userMessage, useThinking, cancellationToken))
+            using (ambientConversationId.BeginScope(conversationId))
             {
-                await sink.OnNextAsync(update, cancellationToken);
+                await foreach (var update in agentRunner.RunStreamingAsync(conversationId, userMessage, useThinking, cancellationToken))
+                {
+                    await sink.OnNextAsync(update, cancellationToken);
+                }
             }
         }
     }

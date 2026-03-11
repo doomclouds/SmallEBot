@@ -8,9 +8,11 @@ using SmallEBot.Application.Contracts.Conversations.Session;
 using SmallEBot.Application.Contracts.Workspaces;
 using SmallEBot.Domain.Agents.Config;
 using SmallEBot.Application.Contracts.Agents.Compression;
+using SmallEBot.Application.Contracts.Agents.Streaming;
 using SmallEBot.Domain.Conversations.Metadata;
 using SmallEBot.Domain.UserPreferences;
 using SmallEBot.Infrastructure.Agents.Config;
+using SmallEBot.Infrastructure.Agents.Streaming;
 using SmallEBot.Infrastructure.Agents.Tokenizers;
 using SmallEBot.Infrastructure.Conversations;
 using SmallEBot.Infrastructure.Conversations.Metadata;
@@ -67,6 +69,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton(_ => new TaskListCache(basePath));
         services.AddSingleton<ITaskListService, TaskListService>();
         services.AddSingleton<IAmbientConversationId, AmbientConversationId>();
+        services.AddSingleton<IAmbientStreamSink, AmbientStreamSink>();
         services.AddSingleton<ICurrentConversationService, CurrentConversationService>();
 
         // Tokenizer services
