@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using SmallEBot.Application.Agents.SubAgents;
 using SmallEBot.Application.Contracts.Agents.Tools;
 using SmallEBot.Application.Contracts.Conversations.TaskList;
@@ -11,7 +12,8 @@ namespace SmallEBot.Infrastructure.Agents.Tools;
 /// <remarks>Uses IServiceScopeFactory to resolve Scoped SubAgentOrchestrator from a scope (breaks circular dependency and root-provider restriction).</remarks>
 public sealed class SubAgentToolProvider(
     IServiceScopeFactory scopeFactory,
-    IAmbientConversationId ambientConversationId) : IToolProvider
+    IAmbientConversationId ambientConversationId,
+    ILogger<SubAgentToolProvider> logger) : IToolProvider
 {
     public string Name => "SubAgent";
     public bool IsEnabled => true;
@@ -37,10 +39,12 @@ public sealed class SubAgentToolProvider(
         }
         catch (InvalidOperationException ex)
         {
+            logger.LogError(ex, "RunSubAgent failed: {Message}", ex.Message);
             return "Error: " + ex.Message;
         }
         catch (Exception ex)
         {
+            logger.LogError(ex, "RunSubAgent failed: {Message}", ex.Message);
             return "Error: " + ex.Message;
         }
     }
