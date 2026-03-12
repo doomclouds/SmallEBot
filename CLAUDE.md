@@ -104,7 +104,7 @@ AgentSession is the single source of truth for conversation content. No Turn abs
 | `FindBlobs/Grep` | Search by filename or content |
 | `load_skill/read_skill_resource` | Skill loading (Agent framework native, via FileAgentSkillsProvider) |
 | `ExecuteCommand` | Shell command execution (with optional confirmation) |
-| `SetTaskList/ListTasks/CompleteTask/CompleteTasks/ClearTasks` | Task list management |
+| `SetTaskList/ListTasks/CompleteTask/CompleteTasks/ClearTasks` | Task list management (scoped by IAmbientTaskListScope: main vs sub-agent) |
 | `GenerateSkill(...)` | Create new skill from analyzed patterns |
 | `RunSubAgent(identity?, task)` | Delegate to a sub-agent (e.g. explorer); max 1 concurrent; returns aggregated text |
 | `StopSubAgent(subAgentId)` | Cancel a running sub-agent by id |
@@ -136,7 +136,7 @@ CLI-style linear message display (? User / ? Assistant), no chat bubbles.
 
 ### Sub-Agents
 
-Main agent can delegate tasks via `RunSubAgent(identity?, task)`. Sub-agents run with their own session; stream updates go to `ISubAgentLiveCache` (not main chat). Main chat shows RunSubAgent as a normal tool call (args + result). **Sub-agent drawer** (AppBar SmartToy icon): shows running sub-agents only; each slot has verbs spinner in header and MessageThread-style content (thinking, tool calls, text). Max 1 concurrent; session stored at `.agents/conversations/{id}/subAgents/{subAgentId}/session.json` when complete.
+Main agent can delegate tasks via `RunSubAgent(identity?, task)`. Sub-agents run with their own session; stream updates go to `ISubAgentLiveCache` (not main chat). Main chat shows RunSubAgent as a normal tool call (args + result). **Sub-agent drawer** (AppBar SmartToy icon): shows running sub-agents only; each slot has verbs spinner in header, MessageThread-style content, and task list in lower half (read-only). Task list scoped by `IAmbientTaskListScope` — main agent uses `tasks.json`, sub-agent uses `subAgents/{id}/tasks.json`. Max 1 concurrent; session stored at `.agents/conversations/{id}/subAgents/{subAgentId}/session.json` when complete.
 
 ## Configuration
 
@@ -148,7 +148,8 @@ Main agent can delegate tasks via `RunSubAgent(identity?, task)`. Sub-agents run
 | Path | Purpose |
 |------|---------|
 | `.agents/settings.json` | User preferences, theme, username |
-| `.agents/conversations/{id:N}/` | Conversation storage: `metadata.json` (Domain.ConversationMetadata) + `session.json` (AgentSession) + `tasks.json` (per-conversation task list) |
+| `.agents/conversations/{id:N}/` | Conversation storage: `metadata.json` (Domain.ConversationMetadata) + `session.json` (AgentSession) + `tasks.json` (main agent task list) |
+| `.agents/conversations/{id:N}/subAgents/{subAgentId}/` | Sub-agent session + `tasks.json` (sub-agent task list) |
 | `.agents/vfs/` | Workspace (agent file tools, ExecuteCommand cwd) |
 | `.agents/.mcp.json` | User MCP config |
 | `.agents/.sys.mcp.json` | System MCP config |

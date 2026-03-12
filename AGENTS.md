@@ -87,8 +87,8 @@ User-attached files and skills are encoded in user message text via `UserMessage
 - **Tools**: `RunSubAgent(identity?, task)`, `StopSubAgent(subAgentId)` — delegate tasks to specialized sub-agents (e.g. explorer)
 - **Concurrency**: Max 1 concurrent; second call waits until first completes
 - **Stream routing**: `SubAgentStreamUpdate` → `ISubAgentLiveCache` (not main chat); main chat shows RunSubAgent as normal ToolCall
-- **UI**: AppBar SmartToy icon opens SubAgentDrawer; drawer shows running sub-agents with verbs spinner in slot header, MessageThread-style content below
-- **Storage**: Running → in-memory cache; completed → `.agents/conversations/{id}/subAgents/{subAgentId}/session.json`, then cache cleared
+- **UI**: AppBar SmartToy icon opens SubAgentDrawer; drawer shows running sub-agents with verbs spinner in slot header, MessageThread-style content below, task list in slot lower half
+- **Storage**: Running → in-memory cache; completed → `.agents/conversations/{id}/subAgents/{subAgentId}/session.json` + `tasks.json`, then cache cleared
 
 ### Conversations Subdomains
 
@@ -96,7 +96,9 @@ User-attached files and skills are encoded in user message text via `UserMessage
 |-----------|----------|----------|
 | Metadata | Domain/Conversations/Metadata/ | ConversationMetadata, IConversationMetadataRepository |
 | Session | Application.Contracts/Conversations/Session/ | IAgentSessionStore, IAgentSessionReader |
-| TaskList | Application.Contracts/Conversations/TaskList/ | ITaskListService |
+| TaskList | Application.Contracts/Conversations/TaskList/ | ITaskListService, IAmbientTaskListScope |
+
+**Task list scope:** `IAmbientTaskListScope` isolates main vs sub-agent tasks. Main agent: `tasks.json`; sub-agent: `subAgents/{subAgentId}/tasks.json`. SubAgentDrawer shows sub-agent tasks in slot lower half (read-only).
 
 AgentSession is the single source of truth for conversation content. No Turn abstraction — messages map 1:1 to UI display.
 
