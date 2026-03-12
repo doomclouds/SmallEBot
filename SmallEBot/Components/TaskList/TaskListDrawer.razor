@@ -106,6 +106,7 @@
     private async void HandleChange(TaskListChangeEvent e)
     {
         if (_conversationId == null) return;
+        if (e.SubAgentId != null) return; // TaskListDrawer shows main agent only; sub-agent events go to SubAgentDrawer
         var expectedPath = Path.Combine("conversations", _conversationId.Value.ToString("N"), "tasks.json");
         var normalizedEvent = e.RelativePath.Replace('\\', '/');
         var normalizedExpected = expectedPath.Replace('\\', '/');
