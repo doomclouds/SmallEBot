@@ -7,9 +7,10 @@ using SmallEBot.Application.Contracts.Conversations.TaskList;
 
 namespace SmallEBot.Infrastructure.Agents.Tools;
 
-/// <summary>Provides task list management tools.</summary>
+/// <summary>Provides task list management tools. Uses IAmbientTaskListScope for main vs sub-agent isolation.</summary>
 public sealed class TaskToolProvider(
     IAmbientConversationId ambientConversationId,
+    IAmbientTaskListScope ambientTaskListScope,
     ITaskListService taskService) : IToolProvider
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -36,7 +37,8 @@ public sealed class TaskToolProvider(
         var conversationId = ambientConversationId.GetConversationId();
         if (conversationId == null)
             return "Error: Task list is not available (no conversation context).";
-        var data = taskService.GetTaskListData(conversationId.Value);
+        var subAgentId = ambientTaskListScope.GetSubAgentId();
+        var data = taskService.GetTaskListData(conversationId.Value, subAgentId);
         return JsonSerializer.Serialize(new { tasks = data.Tasks }, JsonOptions);
     }
 
@@ -69,7 +71,8 @@ public sealed class TaskToolProvider(
             .ToList();
         if (tasks.Count == 0)
             return "Error: No valid tasks (each must have a non-empty title).";
-        taskService.UpdateTasks(conversationId.Value, new TaskListData(tasks));
+        var subAgentId = ambientTaskListScope.GetSubAgentId();
+        taskService.UpdateTasks(conversationId.Value, new TaskListData(tasks), subAgentId);
         return JsonSerializer.Serialize(new { tasks }, JsonOptions);
     }
 
@@ -79,12 +82,13 @@ public sealed class TaskToolProvider(
         var conversationId = ambientConversationId.GetConversationId();
         if (conversationId == null)
             return "Error: Task list is not available (no conversation context).";
-        var data = taskService.GetTaskListData(conversationId.Value);
+        var subAgentId = ambientTaskListScope.GetSubAgentId();
+        var data = taskService.GetTaskListData(conversationId.Value, subAgentId);
         var task = data.Tasks.FirstOrDefault(t => string.Equals(t.Id, taskId, StringComparison.Ordinal));
         if (task == null)
             return JsonSerializer.Serialize(new { ok = false, error = "Task not found" }, JsonOptions);
         task.Done = true;
-        taskService.UpdateTasks(conversationId.Value, data);
+        taskService.UpdateTasks(conversationId.Value, data, subAgentId);
         var nextTask = data.Tasks.FirstOrDefault(t => !t.Done);
         var remaining = data.Tasks.Count(t => !t.Done);
         return JsonSerializer.Serialize(new { ok = true, task, nextTask, remaining }, JsonOptions);
@@ -108,7 +112,8 @@ public sealed class TaskToolProvider(
         if (ids == null || ids.Count == 0)
             return "Error: taskIdsJson must be a non-empty array of task id strings.";
 
-        var data = taskService.GetTaskListData(conversationId.Value);
+        var subAgentId = ambientTaskListScope.GetSubAgentId();
+        var data = taskService.GetTaskListData(conversationId.Value, subAgentId);
         var completed = new List<TaskItem>();
         var failed = new List<object>();
 
@@ -131,7 +136,7 @@ public sealed class TaskToolProvider(
         }
 
         if (completed.Count > 0)
-            taskService.UpdateTasks(conversationId.Value, data);
+            taskService.UpdateTasks(conversationId.Value, data, subAgentId);
 
         var nextTask = data.Tasks.FirstOrDefault(t => !t.Done);
         var remaining = data.Tasks.Count(t => !t.Done);
@@ -144,7 +149,8 @@ public sealed class TaskToolProvider(
         var conversationId = ambientConversationId.GetConversationId();
         if (conversationId == null)
             return "Error: Task list is not available (no conversation context).";
-        taskService.ClearTasksAsync(conversationId.Value).GetAwaiter().GetResult();
+        var subAgentId = ambientTaskListScope.GetSubAgentId();
+        taskService.ClearTasksAsync(conversationId.Value, subAgentId).GetAwaiter().GetResult();
         return JsonSerializer.Serialize(new { ok = true }, JsonOptions);
     }
 
