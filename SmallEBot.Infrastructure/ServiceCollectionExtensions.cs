@@ -76,6 +76,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton(_ => new TaskListCache(basePath));
         services.AddSingleton<ITaskListService, TaskListService>();
         services.AddSingleton<IAmbientConversationId, AmbientConversationId>();
+        services.AddSingleton<IAmbientTaskListScope, AmbientTaskListScope>();
         services.AddSingleton<IAmbientStreamSink, AmbientStreamSink>();
         services.AddSingleton<ICurrentConversationService, CurrentConversationService>();
 
