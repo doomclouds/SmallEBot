@@ -2,24 +2,26 @@ using SmallEBot.Application.Contracts.Conversations.TaskList;
 
 namespace SmallEBot.Infrastructure.Conversations.TaskList;
 
-/// <summary>Implements ITaskListService by delegating to TaskListCache. Merges former ITaskListService + ITaskListCache.</summary>
+/// <summary>Implements ITaskListService by delegating to TaskListCache.</summary>
 public sealed class TaskListService(TaskListCache cache) : ITaskListService
 {
-    public IReadOnlyList<TaskItem> GetTasks(Guid conversationId)
+    public IReadOnlyList<TaskItem> GetTasks(Guid conversationId, Guid? subAgentId = null)
     {
-        var data = cache.GetOrLoad(conversationId);
+        var data = cache.GetOrLoad(conversationId, subAgentId);
         return data.Tasks;
     }
 
-    public TaskListData GetTaskListData(Guid conversationId) => cache.GetOrLoad(conversationId);
+    public TaskListData GetTaskListData(Guid conversationId, Guid? subAgentId = null) =>
+        cache.GetOrLoad(conversationId, subAgentId);
 
-    public Task ClearTasksAsync(Guid conversationId, CancellationToken ct = default)
+    public Task ClearTasksAsync(Guid conversationId, Guid? subAgentId = null, CancellationToken ct = default)
     {
-        cache.Remove(conversationId);
+        cache.Remove(conversationId, subAgentId);
         return Task.CompletedTask;
     }
 
-    public void UpdateTasks(Guid conversationId, TaskListData data) => cache.Update(conversationId, data);
+    public void UpdateTasks(Guid conversationId, TaskListData data, Guid? subAgentId = null) =>
+        cache.Update(conversationId, data, subAgentId);
 
     public event Action<TaskListChangeEvent>? OnChange
     {

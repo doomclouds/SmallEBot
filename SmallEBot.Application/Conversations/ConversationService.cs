@@ -43,7 +43,7 @@ public sealed class ConversationService(
         var m = await metadataRepository.GetByIdAsync(id, cancellationToken);
         if (m == null || m.UserName != userName) return false;
         await metadataRepository.DeleteAsync(id, cancellationToken);
-        await taskListService.ClearTasksAsync(id, cancellationToken);
+        await taskListService.ClearTasksAsync(id, null, cancellationToken);
         return true;
     }
 
