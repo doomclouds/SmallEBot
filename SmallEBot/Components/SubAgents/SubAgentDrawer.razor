@@ -1,10 +1,12 @@
 @using SmallEBot.Application.Contracts.Agents.SubAgents
+@using SmallEBot.Application.Contracts.Conversations.TaskList
 @using SmallEBot.Components.Chat.Services
 @using SmallEBot.Components.Chat.ViewModels.Blocks
 @using SmallEBot.Components.Chat.Messages.Blocks
 @implements IDisposable
 @inject ICurrentConversationService CurrentConversation
 @inject ISubAgentLiveCache LiveCache
+@inject ITaskListService TaskListService
 @inject ChatPresentationService Presentation
 
 <div class="sub-agent-drawer">
@@ -57,6 +59,32 @@
                                             break;
                                     }
                                 }
+                            }
+                        </div>
+                        <div class="sub-agent-slot-tasks mt-2">
+                            @{
+                                var slotTasks = _conversationId.HasValue ? TaskListService.GetTasks(_conversationId.Value, entry.SubAgentId) : [];
+                            }
+                            @if (slotTasks.Count > 0)
+                            {
+                                <MudText Typo="Typo.caption" Class="mb-1" Style="color: var(--seb-text-secondary);">Tasks</MudText>
+                                <div class="task-list-items">
+                                    @foreach (var task in slotTasks)
+                                    {
+                                        <div class="task-list-item">
+                                            <MudIcon Icon="@(task.Done ? Icons.Material.Filled.CheckCircle : Icons.Material.Filled.RadioButtonUnchecked)"
+                                                     Class="task-list-item-icon"
+                                                     Color="@(task.Done ? Color.Success : Color.Default)" />
+                                            <div class="task-list-item-content">
+                                                <MudText Typo="Typo.body2" Class="@(task.Done ? "task-list-item-done" : "")">@task.Title</MudText>
+                                                @if (!string.IsNullOrEmpty(task.Description))
+                                                {
+                                                    <MudText Typo="Typo.caption" Class="task-list-item-desc" Style="color: var(--seb-text-secondary);">@task.Description</MudText>
+                                                }
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
                             }
                         </div>
                     </div>
@@ -122,15 +150,24 @@
 
     private void SubscribeToChanges()
     {
-        LiveCache.OnChanged += HandleChange;
+        LiveCache.OnChanged += HandleLiveCacheChange;
+        TaskListService.OnChange += HandleTaskListChange;
     }
 
     private void UnsubscribeFromChanges()
     {
-        LiveCache.OnChanged -= HandleChange;
+        LiveCache.OnChanged -= HandleLiveCacheChange;
+        TaskListService.OnChange -= HandleTaskListChange;
     }
 
-    private void HandleChange()
+    private void HandleTaskListChange(TaskListChangeEvent e)
+    {
+        if (_conversationId == null || e.SubAgentId == null) return;
+        if (_entries?.Any(x => x.SubAgentId == e.SubAgentId) != true) return;
+        _ = InvokeAsync(() => { StateHasChanged(); });
+    }
+
+    private void HandleLiveCacheChange()
     {
         _ = InvokeAsync(() =>
         {
