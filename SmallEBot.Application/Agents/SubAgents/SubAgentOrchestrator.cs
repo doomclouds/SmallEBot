@@ -13,6 +13,7 @@ public sealed class SubAgentOrchestrator(
     ISubAgentRunner subAgentRunner,
     IAmbientStreamSink ambientStreamSink,
     IAmbientConversationId ambientConversationId,
+    IAmbientTaskListScope ambientTaskListScope,
     ISubAgentRunningRegistry runningRegistry,
     ISubAgentLiveCache liveCache)
 {
@@ -47,6 +48,7 @@ public sealed class SubAgentOrchestrator(
 
         try
         {
+            using var _ = ambientTaskListScope.BeginScope(subAgentId);
             var resultBuilder = new List<string>();
             await foreach (var update in subAgentRunner.RunStreamingAsync(
                 conversationId, subAgentId, effectiveIdentity, task, cts.Token))
