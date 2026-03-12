@@ -20,13 +20,11 @@ namespace SmallEBot.Application.Agents.Execution;
 public sealed class AgentBuilder : IAgentBuilder
 {
     private const string SkillsInstructionTemplate = """
-        You have access to specialized skills.
+        ## Skills
 
-        <available_skills>
         {0}
-        </available_skills>
 
-        When relevant, use load_skill to load and follow the skill's instructions.
+        Use `load_skill(skillName)` to load a skill's instructions; `read_skill_resource(skillName, resourcePath)` for reference files.
         """;
 
     private readonly IAgentSystemPromptBuilder _systemPromptBuilder;
@@ -105,13 +103,11 @@ public sealed class AgentBuilder : IAgentBuilder
             options: new FileAgentSkillsProviderOptions
             {
                 SkillsInstructionPrompt = """
-                    You have access to specialized skills.
+                    ## Skills
 
-                    <available_skills>
                     {0}
-                    </available_skills>
 
-                    When relevant, use load_skill to load and follow the skill's instructions.
+                    Use `load_skill(skillName)` to load a skill's instructions; `read_skill_resource(skillName, resourcePath)` for reference files.
                     """
             });
 #pragma warning restore MAAI001
@@ -133,7 +129,18 @@ public sealed class AgentBuilder : IAgentBuilder
     public async Task<AIAgent> GetSubAgentAgentAsync(string identity, CancellationToken ct = default)
     {
         var baseInstructions = await _systemPromptBuilder.BuildSystemPromptAsync(ct);
-        var instructions = baseInstructions + "\n\n## Your Role for This Task\n\n" + identity;
+        var subAgentBlock = $"""
+            ## Sub-Agent Instructions
+
+            You are running as a delegated sub-agent. The main agent assigned you a specific task. Your session is independent and clean — no prior tasks.
+
+            **Task list (use for multi-step work):**
+            - If the task has 3+ distinct steps: Call `{BuiltInToolNames.SetTaskList}` directly to create the plan. No need for `{BuiltInToolNames.ClearTasks}` — your session is fresh.
+            - Break down the task into concrete steps; do not treat the entire assignment as a single step.
+            - Execute step by step; call `{BuiltInToolNames.CompleteTask}(id)` or `{BuiltInToolNames.CompleteTasks}([id, …])` after each.
+            - Your task list is visible to the main agent; it helps track progress and avoid duplication.
+            """;
+        var instructions = baseInstructions + "\n\n" + subAgentBlock + "\n\n## Your Role for This Task\n\n" + identity;
 
         var config = await _modelConfig.GetDefaultAsync(ct)
             ?? throw new InvalidOperationException("No model configured. Add a model in Settings.");
@@ -153,13 +160,11 @@ public sealed class AgentBuilder : IAgentBuilder
             options: new FileAgentSkillsProviderOptions
             {
                 SkillsInstructionPrompt = """
-                    You have access to specialized skills.
+                    ## Skills
 
-                    <available_skills>
                     {0}
-                    </available_skills>
 
-                    When relevant, use load_skill to load and follow the skill's instructions.
+                    Use `load_skill(skillName)` to load a skill's instructions; `read_skill_resource(skillName, resourcePath)` for reference files.
                     """
             });
 #pragma warning restore MAAI001

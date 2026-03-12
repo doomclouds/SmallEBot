@@ -34,7 +34,9 @@ public sealed class SubAgentRunner(
 
         var messages = new List<ChatMessage> { new(ChatRole.User, task) };
 
-        var chatOptions = new ChatOptions { Reasoning = null };
+        var contextWindow = await agentBuilder.GetContextWindowTokensAsync(cancellationToken);
+        var maxOutput = Math.Min(65536, Math.Max(8192, contextWindow / 4));
+        var chatOptions = new ChatOptions { Reasoning = null, MaxOutputTokens = maxOutput };
         var runOptions = new ChatClientAgentRunOptions(chatOptions);
 
         var agentUpdates = agent.RunStreamingAsync(messages, session, runOptions, cancellationToken);

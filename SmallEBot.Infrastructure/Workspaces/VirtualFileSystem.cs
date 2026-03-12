@@ -45,12 +45,16 @@ public sealed class VirtualFileSystem : IVirtualFileSystem
         if (!File.Exists(physicalPath))
             return null;
 
-        // Check file size (max 512KB for UI display)
+        const int maxBytes = 512 * 1024; // 512KB for UI preview
         var fileInfo = new FileInfo(physicalPath);
-        if (fileInfo.Length > 512 * 1024)
+        if (fileInfo.Length > maxBytes)
         {
-            _logger.LogWarning("File too large to read: {Path}", relativePath);
-            return null;
+            _logger.LogWarning("File too large for full read, returning truncated preview: {Path} ({Size} bytes)", relativePath, fileInfo.Length);
+            await using var fs = File.OpenRead(physicalPath);
+            var buffer = new byte[maxBytes];
+            var read = await fs.ReadAsync(buffer.AsMemory(0, maxBytes), ct);
+            var content = System.Text.Encoding.UTF8.GetString(buffer.AsSpan(0, read));
+            return content + "\n\n---\n\n*[Preview truncated — file exceeds 512KB. Use the agent's ReadFile tool for full content.]*";
         }
 
         return await File.ReadAllTextAsync(physicalPath, ct);

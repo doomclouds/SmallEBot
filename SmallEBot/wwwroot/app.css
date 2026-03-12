@@ -459,6 +459,16 @@ h1:focus {
 .view-skill-content-scroll::-webkit-scrollbar-track { background: transparent; }
 .view-skill-content-scroll::-webkit-scrollbar-thumb { background: var(--seb-border); border-radius: 4px; }
 
+/* Workspace markdown preview dialog – scrollable body */
+.view-workspace-markdown-scroll {
+    max-height: 70vh;
+    overflow-y: auto;
+    padding-inline-end: 4px;
+}
+.view-workspace-markdown-scroll::-webkit-scrollbar { width: 8px; }
+.view-workspace-markdown-scroll::-webkit-scrollbar-track { background: transparent; }
+.view-workspace-markdown-scroll::-webkit-scrollbar-thumb { background: var(--seb-border); border-radius: 4px; }
+
 /* Workspace drawer */
 .workspace-drawer {
     display: flex;

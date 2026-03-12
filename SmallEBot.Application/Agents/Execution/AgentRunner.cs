@@ -36,7 +36,13 @@ public sealed class AgentRunner(
             reasoningOpt.Effort = ReasoningEffort.ExtraHigh;
             reasoningOpt.Output = ReasoningOutput.Full;
         }
-        var chatOptions = new ChatOptions { Reasoning = useThinking ? reasoningOpt : null };
+        var contextWindow = await agentBuilder.GetContextWindowTokensAsync(cancellationToken);
+        var maxOutput = Math.Min(65536, Math.Max(8192, contextWindow / 4));
+        var chatOptions = new ChatOptions
+        {
+            Reasoning = useThinking ? reasoningOpt : null,
+            MaxOutputTokens = maxOutput
+        };
         var runOptions = new ChatClientAgentRunOptions(chatOptions);
 
         var agentUpdates = agent.RunStreamingAsync(messages, session, runOptions, cancellationToken);
@@ -84,7 +90,9 @@ public sealed class AgentRunner(
 #pragma warning restore MEAI001
         messages.Add(new ChatMessage(ChatRole.User, [approvalContent]));
 
-        var chatOptions = new ChatOptions { Reasoning = null };
+        var contextWindow = await agentBuilder.GetContextWindowTokensAsync(cancellationToken);
+        var maxOutput = Math.Min(65536, Math.Max(8192, contextWindow / 4));
+        var chatOptions = new ChatOptions { Reasoning = null, MaxOutputTokens = maxOutput };
         var runOptions = new ChatClientAgentRunOptions(chatOptions);
 
         var agentUpdates = agent.RunStreamingAsync(messages, session, runOptions, cancellationToken);
@@ -180,7 +188,9 @@ public sealed class AgentRunner(
     {
         var agent = await agentBuilder.GetOrCreateAgentAsync(useThinking: false, cancellationToken);
         var prompt = $"Generate a very short title (under 20 chars, no quotes) for a conversation that starts with: {firstMessage}";
-        var titleOptions = new ChatClientAgentRunOptions(new ChatOptions { Reasoning = null });
+        var contextWindow = await agentBuilder.GetContextWindowTokensAsync(cancellationToken);
+        var maxOutput = Math.Min(65536, Math.Max(8192, contextWindow / 4));
+        var titleOptions = new ChatClientAgentRunOptions(new ChatOptions { Reasoning = null, MaxOutputTokens = maxOutput });
         try
         {
             var result = await agent.RunAsync(prompt, null, titleOptions, cancellationToken);

@@ -63,6 +63,7 @@ else
             [nameof(ViewWorkspaceMarkdownDialog.RelativePath)] = Node.RelativePath,
             [nameof(ViewWorkspaceMarkdownDialog.Name)] = Node.Name
         };
-        await DialogService.ShowAsync<ViewWorkspaceMarkdownDialog>("Preview", parameters);
+        var options = new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true };
+        await DialogService.ShowAsync<ViewWorkspaceMarkdownDialog>("Preview", parameters, options);
     }
 }
